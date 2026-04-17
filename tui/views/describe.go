@@ -4,7 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mirageglobe/ai-haniwa/internal/session"
+	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
 // Describe shows full metadata for the selected session.

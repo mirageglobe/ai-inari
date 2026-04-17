@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
 
 BIN_DIR    := bin
-DAEMON_BIN := 20 20 12 61 79 80 81 98 701 33 100 204 250 395 398 399 400 702BIN_DIR)/haniwad
-CLIENT_BIN := $(BIN_DIR)/s9s
+DAEMON_BIN := $(BIN_DIR)/inarid
+CLIENT_BIN := $(BIN_DIR)/fox
 
 # ============================================================
 # Help
@@ -20,26 +20,26 @@ help:                        ## Show this help
 build: build-daemon build-client  ## Build both binaries
 
 .PHONY: build-daemon
-build-daemon:                ## Build haniwad (daemon)
+build-daemon:                ## Build inarid (daemon)
 	@mkdir -p $(BIN_DIR)
-	go build -o $(DAEMON_BIN) ./cmd/haniwad
+	go build -o $(DAEMON_BIN) ./cmd/inarid
 
 .PHONY: build-client
-build-client:                ## Build s9s (TUI client)
+build-client:                ## Build fox (TUI client)
 	@mkdir -p $(BIN_DIR)
-	go build -o $(CLIENT_BIN) ./cmd/s9s
+	go build -o $(CLIENT_BIN) ./cmd/fox
 
 # ============================================================
 # Run (development)
 # ============================================================
 
 .PHONY: run-daemon
-run-daemon:                  ## Run haniwad directly (no build)
-	go run ./cmd/haniwad
+run-daemon:                  ## Run inarid directly (no build)
+	go run ./cmd/inarid
 
 .PHONY: run-client
-run-client:                  ## Run s9s directly (no build)
-	go run ./cmd/s9s
+run-client:                  ## Run fox directly (no build)
+	go run ./cmd/fox
 
 # ============================================================
 # Code quality
@@ -80,5 +80,5 @@ test-v:                      ## Run all tests (verbose)
 .PHONY: clean
 clean:                       ## Remove build artefacts and socket
 	rm -rf $(BIN_DIR)
-	rm -f /tmp/haniwa.sock
-	rm -f haniwa-audit.log
+	rm -f /tmp/inari.sock
+	rm -f inari-audit.log
