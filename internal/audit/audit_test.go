@@ -8,7 +8,7 @@ import (
 )
 
 func TestLog(t *testing.T) {
-	f, err := os.CreateTemp("", "haniwa-audit-*.log")
+	f, err := os.CreateTemp("", "inari-audit-*.log")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,3 +1,5 @@
+// Package mcp manages Model Context Protocol connector child processes.
+// Each connector (filesystem, search, SQL) is spawned via stdio and routed tool-calls through the audit log.
 package mcp
 
 import (
@@ -5,8 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/mirageglobe/ai-haniwa/internal/audit"
-	"github.com/mirageglobe/ai-haniwa/internal/config"
+	"github.com/mirageglobe/ai-inari/internal/audit"
+	"github.com/mirageglobe/ai-inari/internal/config"
 )
 
 // Connector wraps a running MCP child process.

@@ -1,3 +1,5 @@
+// Package scheduler enforces the memory budget across concurrent Ollama sessions.
+// It uses a semaphore to gate how many sessions run in parallel based on configured MB limits.
 package scheduler
 
 import "fmt"

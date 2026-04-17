@@ -1,3 +1,5 @@
+// Package audit writes an append-only JSONL log of every tool-call the daemon handles.
+// Each entry records the RPC method, params, and a timestamp for operator inspection.
 package audit
 
 import (

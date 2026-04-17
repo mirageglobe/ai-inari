@@ -1,4 +1,4 @@
-# Haniwa (h9s) — Project Spec
+# Inari (fox) — Project Spec
 
 Security-first, minimalist local AI orchestrator.
 
@@ -24,13 +24,13 @@ Security-first, minimalist local AI orchestrator.
 
 ```
 ┌─────────────────────────────┐
-│         h9s (TUI)           │  ← user-facing client
+│         fox (TUI)           │  ← user-facing client
 │   Bubble Tea / LipGloss     │
 └────────────┬────────────────┘
              │ JSON-RPC over UDS
-             │ /tmp/haniwa.sock (chmod 0600)
+             │ /tmp/inari.sock (chmod 0600)
 ┌────────────▼────────────────┐
-│       haniwad (daemon)      │  ← long-running engine
+│       inarid (daemon)       │  ← long-running engine
 │                             │
 │  ┌──────────┐ ┌──────────┐  │
 │  │ MCP Host │ │ Ollama   │  │
@@ -44,7 +44,7 @@ Security-first, minimalist local AI orchestrator.
 
 ### 3.1 IPC
 
-- Transport: Unix Domain Socket at `/tmp/haniwa.sock`.
+- Transport: Unix Domain Socket at `/tmp/inari.sock`.
 - Permissions: `chmod 0600` — owner-only access.
 - Protocol: JSON-RPC 2.0.
 - Daemon persists sessions on client detach; client reconnects by session ID.
@@ -59,7 +59,7 @@ Security-first, minimalist local AI orchestrator.
 
 ## 4. Components
 
-### 4.1 `haniwad` — Daemon
+### 4.1 `inarid` — Daemon
 
 | Subsystem     | Responsibility                                              |
 |---------------|-------------------------------------------------------------|
@@ -70,14 +70,14 @@ Security-first, minimalist local AI orchestrator.
 | Scheduler     | Semaphore-based concurrency throttle per resource tier      |
 | Audit Logger  | Append-only log of all JSON-RPC tool-calls with timestamps  |
 
-### 4.2 `h9s` — TUI Client
+### 4.2 `fox` — TUI Client
 
 | View    | Key | Description                              |
 |---------|-----|------------------------------------------|
 | Herd    | —   | Default view; table of all workers/pods  |
 | Logs    | `l` | Tail output of selected session          |
 | Describe| `d` | Full session metadata and config         |
-| Chat    | `i` | Interactive chat with Head Haniwa (1GB)  |
+| Chat    | `i` | Interactive chat with Head Inari (1GB)   |
 
 Navigation is keyboard-driven, k9s-inspired.
 
@@ -125,7 +125,7 @@ Connector definitions loaded from `config.json` at daemon start.
 
 ```json
 {
-  "socket": "/tmp/haniwa.sock",
+  "socket": "/tmp/inari.sock",
   "memory_budget_mb": 8192,
   "ollama_base_url": "http://localhost:11434",
   "mcp_connectors": [
@@ -145,8 +145,8 @@ Connector definitions loaded from `config.json` at daemon start.
 ## 9. Build Milestones
 
 ### M1 — UDS Bridge
-- [ ] `haniwad` starts and binds UDS socket.
-- [ ] `h9s` connects and performs handshake.
+- [ ] `inarid` starts and binds UDS socket.
+- [ ] `fox` connects and performs handshake.
 - [ ] Basic ping/pong JSON-RPC round-trip.
 
 ### M2 — Herd UI
@@ -156,7 +156,7 @@ Connector definitions loaded from `config.json` at daemon start.
 
 ### M3 — Ollama Integration
 - [ ] Daemon POSTs to Ollama `/api/chat` and streams tokens.
-- [ ] Token stream forwarded to `h9s` Logs view.
+- [ ] Token stream forwarded to `fox` Logs view.
 - [ ] Semaphore throttle enforces memory budget.
 
 ### M4 — MCP Loader
@@ -165,7 +165,7 @@ Connector definitions loaded from `config.json` at daemon start.
 - [ ] Tool-calls routed and audit-logged.
 
 ### M5 — Chat View
-- [ ] Interactive `i` view wires to Head Haniwa (Thinker tier).
+- [ ] Interactive `i` view wires to Head Inari (Thinker tier).
 - [ ] Message history scoped to session.
 - [ ] Detach/reattach preserves session state.
 

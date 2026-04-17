@@ -4,17 +4,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mirageglobe/ai-haniwa/internal/audit"
-	"github.com/mirageglobe/ai-haniwa/internal/mcp"
-	"github.com/mirageglobe/ai-haniwa/internal/scheduler"
-	"github.com/mirageglobe/ai-haniwa/internal/session"
+	"github.com/mirageglobe/ai-inari/internal/audit"
+	"github.com/mirageglobe/ai-inari/internal/mcp"
+	"github.com/mirageglobe/ai-inari/internal/scheduler"
+	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
 func TestPingPong(t *testing.T) {
-	sock := "/tmp/haniwa-test.sock"
+	sock := "/tmp/inari-test.sock"
 	defer os.Remove(sock)
 
-	auditFile, err := os.CreateTemp("", "haniwa-audit-*.log")
+	auditFile, err := os.CreateTemp("", "inari-audit-*.log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestPingPong(t *testing.T) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor)
+	srv, err := NewServer(sock, store, sched, host, auditor, nil)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -46,10 +46,10 @@ func TestPingPong(t *testing.T) {
 }
 
 func TestSessionList(t *testing.T) {
-	sock := "/tmp/haniwa-test-list.sock"
+	sock := "/tmp/inari-test-list.sock"
 	defer os.Remove(sock)
 
-	auditFile, err := os.CreateTemp("", "haniwa-audit-*.log")
+	auditFile, err := os.CreateTemp("", "inari-audit-*.log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestSessionList(t *testing.T) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor)
+	srv, err := NewServer(sock, store, sched, host, auditor, nil)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

@@ -1,3 +1,5 @@
+// Package config loads and holds the daemon configuration from config.json.
+// It defines the socket path, memory budget, Ollama URL, MCP connectors, and model assignments.
 package config
 
 import (
