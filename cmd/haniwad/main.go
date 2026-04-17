@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/mirageglobe/ai-sudama/internal/audit"
-	"github.com/mirageglobe/ai-sudama/internal/config"
-	"github.com/mirageglobe/ai-sudama/internal/ipc"
-	"github.com/mirageglobe/ai-sudama/internal/mcp"
-	"github.com/mirageglobe/ai-sudama/internal/scheduler"
-	"github.com/mirageglobe/ai-sudama/internal/session"
+	"github.com/mirageglobe/ai-haniwa/internal/audit"
+	"github.com/mirageglobe/ai-haniwa/internal/config"
+	"github.com/mirageglobe/ai-haniwa/internal/ipc"
+	"github.com/mirageglobe/ai-haniwa/internal/mcp"
+	"github.com/mirageglobe/ai-haniwa/internal/scheduler"
+	"github.com/mirageglobe/ai-haniwa/internal/session"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	auditor := audit.New("sudama-audit.log")
+	auditor := audit.New("haniwa-audit.log")
 	defer auditor.Close()
 
 	sched := scheduler.New(cfg.MemoryBudgetMB)
@@ -38,11 +38,11 @@ func main() {
 	}
 	defer srv.Close()
 
-	log.Printf("sudamad listening on %s", cfg.Socket)
+	log.Printf("haniwad listening on %s", cfg.Socket)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("sudamad shutting down")
+	log.Println("haniwad shutting down")
 }

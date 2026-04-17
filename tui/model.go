@@ -3,8 +3,8 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-sudama/internal/ipc"
-	"github.com/mirageglobe/ai-sudama/tui/views"
+	"github.com/mirageglobe/ai-haniwa/internal/ipc"
+	"github.com/mirageglobe/ai-haniwa/tui/views"
 )
 
 type view int

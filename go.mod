@@ -1,4 +1,4 @@
-module github.com/mirageglobe/ai-sudama
+module github.com/mirageglobe/ai-haniwa
 
 go 1.22
 

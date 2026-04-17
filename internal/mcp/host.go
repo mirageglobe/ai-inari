@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/mirageglobe/ai-sudama/internal/audit"
-	"github.com/mirageglobe/ai-sudama/internal/config"
+	"github.com/mirageglobe/ai-haniwa/internal/audit"
+	"github.com/mirageglobe/ai-haniwa/internal/config"
 )
 
 // Connector wraps a running MCP child process.

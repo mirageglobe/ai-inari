@@ -5,7 +5,7 @@ import (
 	"net"
 )
 
-// Client connects to sudamad over a Unix Domain Socket.
+// Client connects to haniwad over a Unix Domain Socket.
 type Client struct {
 	conn net.Conn
 	enc  *json.Encoder

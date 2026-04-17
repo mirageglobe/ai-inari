@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mirageglobe/ai-sudama/internal/ipc"
-	"github.com/mirageglobe/ai-sudama/internal/session"
+	"github.com/mirageglobe/ai-haniwa/internal/ipc"
+	"github.com/mirageglobe/ai-haniwa/internal/session"
 )
 
 var herdStyle = lipgloss.NewStyle().

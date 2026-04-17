@@ -4,17 +4,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mirageglobe/ai-sudama/internal/audit"
-	"github.com/mirageglobe/ai-sudama/internal/mcp"
-	"github.com/mirageglobe/ai-sudama/internal/scheduler"
-	"github.com/mirageglobe/ai-sudama/internal/session"
+	"github.com/mirageglobe/ai-haniwa/internal/audit"
+	"github.com/mirageglobe/ai-haniwa/internal/mcp"
+	"github.com/mirageglobe/ai-haniwa/internal/scheduler"
+	"github.com/mirageglobe/ai-haniwa/internal/session"
 )
 
 func TestPingPong(t *testing.T) {
-	sock := "/tmp/sudama-test.sock"
+	sock := "/tmp/haniwa-test.sock"
 	defer os.Remove(sock)
 
-	auditFile, err := os.CreateTemp("", "sudama-audit-*.log")
+	auditFile, err := os.CreateTemp("", "haniwa-audit-*.log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,10 +46,10 @@ func TestPingPong(t *testing.T) {
 }
 
 func TestSessionList(t *testing.T) {
-	sock := "/tmp/sudama-test-list.sock"
+	sock := "/tmp/haniwa-test-list.sock"
 	defer os.Remove(sock)
 
-	auditFile, err := os.CreateTemp("", "sudama-audit-*.log")
+	auditFile, err := os.CreateTemp("", "haniwa-audit-*.log")
 	if err != nil {
 		t.Fatal(err)
 	}

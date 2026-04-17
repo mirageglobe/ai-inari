@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 BIN_DIR    := bin
-DAEMON_BIN := $(BIN_DIR)/sudamad
+DAEMON_BIN := 20 20 12 61 79 80 81 98 701 33 100 204 250 395 398 399 400 702BIN_DIR)/haniwad
 CLIENT_BIN := $(BIN_DIR)/s9s
 
 # ============================================================
@@ -20,9 +20,9 @@ help:                        ## Show this help
 build: build-daemon build-client  ## Build both binaries
 
 .PHONY: build-daemon
-build-daemon:                ## Build sudamad (daemon)
+build-daemon:                ## Build haniwad (daemon)
 	@mkdir -p $(BIN_DIR)
-	go build -o $(DAEMON_BIN) ./cmd/sudamad
+	go build -o $(DAEMON_BIN) ./cmd/haniwad
 
 .PHONY: build-client
 build-client:                ## Build s9s (TUI client)
@@ -34,8 +34,8 @@ build-client:                ## Build s9s (TUI client)
 # ============================================================
 
 .PHONY: run-daemon
-run-daemon:                  ## Run sudamad directly (no build)
-	go run ./cmd/sudamad
+run-daemon:                  ## Run haniwad directly (no build)
+	go run ./cmd/haniwad
 
 .PHONY: run-client
 run-client:                  ## Run s9s directly (no build)
@@ -80,5 +80,5 @@ test-v:                      ## Run all tests (verbose)
 .PHONY: clean
 clean:                       ## Remove build artefacts and socket
 	rm -rf $(BIN_DIR)
-	rm -f /tmp/sudama.sock
-	rm -f sudama-audit.log
+	rm -f /tmp/haniwa.sock
+	rm -f haniwa-audit.log

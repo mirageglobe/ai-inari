@@ -5,11 +5,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-sudama/internal/ipc"
-	"github.com/mirageglobe/ai-sudama/tui"
+	"github.com/mirageglobe/ai-haniwa/internal/ipc"
+	"github.com/mirageglobe/ai-haniwa/tui"
 )
 
-const defaultSocket = "/tmp/sudama.sock"
+const defaultSocket = "/tmp/haniwa.sock"
 
 func main() {
 	client, err := ipc.NewClient(defaultSocket)

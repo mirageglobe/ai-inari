@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mirageglobe/ai-sudama/internal/ipc"
+	"github.com/mirageglobe/ai-haniwa/internal/ipc"
 )
 
 var (
@@ -16,7 +16,7 @@ var (
 	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("99"))
 )
 
-// Chat is the interactive head-sudama conversation view.
+// Chat is the interactive head-haniwa conversation view.
 type Chat struct {
 	client   *ipc.Client
 	viewport viewport.Model
@@ -28,7 +28,7 @@ func (c Chat) Init() tea.Cmd { return nil }
 
 func NewChat(client *ipc.Client) Chat {
 	ta := textarea.New()
-	ta.Placeholder = "Message Head Sudama..."
+	ta.Placeholder = "Message Head Haniwa..."
 	ta.Focus()
 	ta.SetHeight(3)
 	ta.CharLimit = 2048
@@ -70,7 +70,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c Chat) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("CHAT — Head Sudama")
+	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("CHAT — Head Haniwa")
 	hint := lipgloss.NewStyle().Faint(true).Render("ctrl+d send  esc back")
 	return header + "\n" + c.viewport.View() + "\n" + c.input.View() + "\n" + hint
 }

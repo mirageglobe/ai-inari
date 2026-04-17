@@ -6,7 +6,7 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	f, err := os.CreateTemp("", "sudama-config-*.json")
+	f, err := os.CreateTemp("", "haniwa-config-*.json")
 	if err != nil {
 		t.Fatal(err)
 	}

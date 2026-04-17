@@ -5,10 +5,10 @@ import (
 	"net"
 	"os"
 
-	"github.com/mirageglobe/ai-sudama/internal/audit"
-	"github.com/mirageglobe/ai-sudama/internal/mcp"
-	"github.com/mirageglobe/ai-sudama/internal/scheduler"
-	"github.com/mirageglobe/ai-sudama/internal/session"
+	"github.com/mirageglobe/ai-haniwa/internal/audit"
+	"github.com/mirageglobe/ai-haniwa/internal/mcp"
+	"github.com/mirageglobe/ai-haniwa/internal/scheduler"
+	"github.com/mirageglobe/ai-haniwa/internal/session"
 )
 
 // Request is a JSON-RPC 2.0 request.
