@@ -1,8 +1,9 @@
 .DEFAULT_GOAL := help
 
-BIN_DIR    := bin
-DAEMON_BIN := $(BIN_DIR)/inarid
-CLIENT_BIN := $(BIN_DIR)/fox
+BIN_DIR     := bin
+DAEMON_BIN  := $(BIN_DIR)/inarid
+TUI_BIN     := $(BIN_DIR)/kitsune
+CLI_BIN     := $(BIN_DIR)/fox
 
 # ============================================================
 # Help
@@ -17,29 +18,34 @@ help:                        ## Show this help
 # ============================================================
 
 .PHONY: build
-build: build-daemon build-client  ## Build both binaries
+build: build-daemon build-tui build-cli  ## Build all binaries
 
 .PHONY: build-daemon
 build-daemon:                ## Build inarid (daemon)
 	@mkdir -p $(BIN_DIR)
 	go build -o $(DAEMON_BIN) ./cmd/inarid
 
-.PHONY: build-client
-build-client:                ## Build fox (TUI client)
+.PHONY: build-tui
+build-tui:                   ## Build kitsune (TUI)
 	@mkdir -p $(BIN_DIR)
-	go build -o $(CLIENT_BIN) ./cmd/fox
+	go build -o $(TUI_BIN) ./cmd/kitsune
+
+.PHONY: build-cli
+build-cli:                   ## Build fox (CLI)
+	@mkdir -p $(BIN_DIR)
+	go build -o $(CLI_BIN) ./cmd/fox
 
 # ============================================================
 # Run
 # ============================================================
 
 .PHONY: start
-start: build                 ## Build, start ollama + inarid in background, then launch fox
+start: build                 ## Build, start ollama + inarid in background, then launch kitsune TUI
 	@pgrep ollama > /dev/null || (echo "starting ollama..." && ollama serve > /dev/null 2>&1 &)
 	@sleep 1
 	@pgrep inarid > /dev/null && echo "inarid already running" || (./$(DAEMON_BIN) & echo $$! > /tmp/inarid.pid)
 	@sleep 0.5
-	@./$(CLIENT_BIN)
+	@./$(TUI_BIN)
 	@$(MAKE) --no-print-directory stop
 
 .PHONY: stop
@@ -50,8 +56,12 @@ stop:                        ## Stop inarid background process
 run-daemon:                  ## Run inarid directly (no build)
 	go run ./cmd/inarid
 
-.PHONY: run-client
-run-client:                  ## Run fox directly (no build)
+.PHONY: run-tui
+run-tui:                     ## Run kitsune TUI directly (no build)
+	go run ./cmd/kitsune
+
+.PHONY: run-cli
+run-cli:                     ## Run fox CLI directly (no build)
 	go run ./cmd/fox
 
 # ============================================================
@@ -85,6 +95,17 @@ test:                        ## Run all tests
 .PHONY: test-v
 test-v:                      ## Run all tests (verbose)
 	go test -v ./...
+
+# ============================================================
+# Demo
+# ============================================================
+
+.PHONY: demo
+demo: build-daemon build-tui      ## Generate VHS demo GIF
+	@pgrep inarid > /dev/null && echo "inarid already running" || (./$(DAEMON_BIN) & echo $$! > /tmp/inarid.pid)
+	@sleep 1
+	/opt/homebrew/bin/vhs demo.tape
+	@$(MAKE) --no-print-directory stop
 
 # ============================================================
 # Clean

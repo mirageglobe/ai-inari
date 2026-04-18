@@ -234,3 +234,4 @@ func (s *Store) List() []*Session {
 	}
 	return out
 }
+
