@@ -33,18 +33,22 @@ doing useful work in the background, waiting for your next word.
 
 ---
 
-## What it does
+## what it does
 
-- **Sessions first.** Create a named session, assign a model, start chatting.
-  Your conversation history lives in `inarid` — close `fox` and reconnect
-  without losing a word.
-- **No cloud.** Every model runs locally through Ollama.
-- **No noise.** One keyboard-driven screen, nothing you didn't ask for.
-- **No secrets leaked.** Every tool-call is audit-logged locally.
+- **sessions first.** Create a named session, assign a model, start chatting.
+  Conversation history lives in `inarid` — close `fox` and reconnect without
+  losing a word.
+- **behavior context.** Each session has an editable system prompt (behavior) shown
+  in the describe view. New sessions default to "keep all responses concise and short."
+- **context tracking.** The chat header shows an estimated token count for the
+  session so you can see how much context the model is carrying.
+- **no cloud.** Every model runs locally through Ollama.
+- **no noise.** One keyboard-driven screen, nothing you didn't ask for.
+- **no secrets leaked.** Every tool-call is audit-logged locally.
 
 ---
 
-## Architecture
+## architecture
 
 ```
   you (fox TUI)
@@ -53,58 +57,151 @@ doing useful work in the background, waiting for your next word.
       |
   inarid (daemon)
     ├── session store   — persists sessions + history to ~/.local/share/inari/sessions/
-    ├── ollama client   — streams tokens from local models
+    ├── ollama client   — sends full message history to local models
     ├── scheduler       — semaphore-based memory budget
     └── audit logger    — append-only record of all tool calls
 ```
 
-**Stack:** Go · Bubble Tea / LipGloss · Ollama
+**stack:** Go · Bubble Tea / LipGloss · Ollama
 
 ---
 
-## The herd
+## the herd
 
-| Size   | Tier     | Role                     | Example model | Required |
+| size   | tier     | role                     | example model | required |
 |--------|----------|--------------------------|---------------|----------|
-| 100 MB | Sensors  | Routing / classification | Qwen3-Nano    | No       |
-| 500 MB | Workers  | Parallel execution       | Bonsai 4B     | Yes      |
-| 1 GB   | Thinkers | Architect / chat         | Bonsai 8B     | Yes      |
+| 100 MB | sensors  | routing / classification | Qwen3-Nano    | no       |
+| 500 MB | workers  | parallel execution       | Bonsai 4B     | yes      |
+| 1 GB   | thinkers | architect / chat         | Bonsai 8B     | yes      |
 
-Sensors are optional scouts. Workers do the heavy lifting in parallel.
-The Thinker is Head Inari — the one you talk to directly.
+sensors are optional scouts. workers do the heavy lifting in parallel.
+the thinker is head inari — the one you talk to directly.
+
+---
+
+## quick start
+
+**together (recommended)**
+
+```sh
+make start    # builds, starts ollama + inarid in background, launches fox
+make stop     # stop inarid (also runs automatically when fox exits)
+```
+
+**independently (for debugging)**
+
+terminal 1 — ollama:
+```sh
+ollama serve
+```
+
+terminal 2 — inarid (foreground, so you can see all daemon logs):
+```sh
+make build
+./bin/inarid
+```
+
+terminal 3 — fox:
+```sh
+./bin/fox
+```
+
+to stop inarid when running in the foreground: `ctrl+c`. it handles SIGINT
+cleanly and shuts down the socket and session store.
+
+to stop inarid when running in the background:
+```sh
+pkill inarid        # by name
+# or
+make stop           # uses saved pid at /tmp/inarid.pid
+```
+
+**logs**
+
+fox writes its own log to `fox.log` in the working directory, viewable
+inside the TUI with `[l]`. inarid logs go to stdout (or wherever you redirect
+them). the audit log of all tool calls is written to `inari-audit.log`.
+
+configuration lives in `config.json`. see [SPEC.md](SPEC.md) for the full
+architecture, security model, and build milestones.
 
 ---
 
 ## TUI keys
 
-| Key     | Action                        |
+### herd (main screen)
+
+| key     | action                              |
+|---------|-------------------------------------|
+| `s`     | new kitsune session                 |
+| `m`     | assign model to selected session    |
+| `u`     | unload model from selected session  |
+| `c` / `enter` | open chat for selected session |
+| `x`     | delete selected session             |
+| `d`     | describe — session metadata + behavior|
+| `l`     | logs — view fox.log                 |
+| `r`     | refresh session and model list      |
+| `q`     | quit fox                            |
+
+### chat
+
+| key       | action                        |
+|-----------|-------------------------------|
+| `enter`   | send message                  |
+| `ctrl+o`  | change model for this session |
+| `↑` / `↓` | scroll chat history          |
+| `esc`     | back to herd                  |
+
+### describe
+
+| key      | action                        |
+|----------|-------------------------------|
+| `e`      | edit session behavior (context) |
+| `ctrl+s` | save behavior                   |
+| `esc`    | cancel edit / back to herd    |
+
+### logs
+
+| key   | action        |
+|-------|---------------|
+| `r`   | refresh log   |
+| `esc` | back to herd  |
+
+### model selector
+
+| key     | action                        |
 |---------|-------------------------------|
-| `l`     | Logs — tail selected session  |
-| `d`     | Describe — session metadata   |
-| `i`     | Chat — talk to Head Inari     |
-| `esc`   | Back to herd view             |
-| `q`     | Quit                          |
+| `enter` | assign model to session       |
+| `esc`   | back                          |
 
 ---
 
-## Quick start
+## session lifecycle
 
-```sh
-# build
-make build
+sessions are owned by `inarid`, not `fox`. closing fox does not delete sessions.
+when fox reconnects, the herd view shows all live sessions with their current
+model assignment and status:
 
-# start the daemon (keep it running)
-./bin/inarid
-
-# open the TUI in another terminal
-./bin/fox
-```
-
-Configuration lives in `config.json`. See [SPEC.md](SPEC.md) for the full
-architecture, security model, and build milestones.
+| status    | meaning                                      |
+|-----------|----------------------------------------------|
+| `in Xs`   | model loaded, keep-alive expires in X seconds|
+| `sleeping`| model assigned but not currently in memory   |
+| `waking`  | keep-alive expired, model will reload on chat|
+| `—`       | no model assigned                            |
 
 ---
 
-## TODO
+## roadmap
 
-- [ ] MCP integration (deferred)
+### in progress / near-term
+- [ ] session search and filter in herd view
+- [ ] export chat history to file
+
+### ideas / deferred
+- [ ] **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
+      to summarise the conversation history via the session's own model, replacing old turns
+      with a compact summary. keeps the system behavior prompt intact. auto-compression
+      variant triggers automatically when context exceeds a configurable threshold.
+- [ ] MCP integration — filesystem, search, SQL connectors via child processes
+- [ ] multi-model routing — sensor tier classifies intent, dispatches to worker or thinker
+- [ ] session tagging and search

@@ -21,6 +21,7 @@ type Logs struct {
 	viewport viewport.Model
 	content  string
 	ready    bool
+	width    int // terminal width, used for hint rendering
 }
 
 func NewLogs() Logs {
@@ -40,17 +41,25 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, nil
 
 	case tea.WindowSizeMsg:
-		headerHeight := 2 // header + newline
-		footerHeight := 2 // hint + newline
-		height := msg.Height - headerHeight - footerHeight
+		l.width = msg.Width
+		if l.width > UIWidth {
+			l.width = UIWidth
+		}
+		// topbar(1) + logs header(1) + border-top(1) + border-bottom(1) + hint(1) = 5 reserved
+		height := msg.Height - 5
 		if height < 1 {
 			height = 1
 		}
+		// subtract 2 for herdStyle NormalBorder so total width = UIWidth.
+		vpWidth := l.width - 2
+		if vpWidth < 1 {
+			vpWidth = 1
+		}
 		if !l.ready {
-			l.viewport = viewport.New(msg.Width, height)
+			l.viewport = viewport.New(vpWidth, height)
 			l.ready = true
 		} else {
-			l.viewport.Width = msg.Width
+			l.viewport.Width = vpWidth
 			l.viewport.Height = height
 		}
 		l.viewport.SetContent(l.content)
@@ -72,17 +81,17 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (l Logs) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("LOGS") +
+	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("logs") +
 		"  " + lipgloss.NewStyle().Faint(true).Render(logFile)
-	hint := RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back")}, l.viewport.Width)
+	hint := RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back")}, l.width)
 
 	var body string
 	if !l.ready {
-		body = lipgloss.NewStyle().Faint(true).Render("loading…")
+		body = herdStyle.Render(lipgloss.NewStyle().Faint(true).Render("loading…"))
 	} else if strings.TrimSpace(l.content) == "" {
-		body = lipgloss.NewStyle().Faint(true).Render("(no log entries yet)")
+		body = herdStyle.Render(lipgloss.NewStyle().Faint(true).Render("(no log entries yet)"))
 	} else {
-		body = l.viewport.View()
+		body = herdStyle.Render(l.viewport.View())
 	}
 
 	return header + "\n" + body + "\n" + hint

@@ -23,7 +23,7 @@ When reviewing the scaffold or making recommendations:
 
 ## TUI Layout
 
-- Target a maximum UI width of **120 characters**. Hardcoded widths for table columns, viewports, and hint strings should sum to 120 or fewer.
+- Target a maximum UI width of **100 characters**. Hardcoded widths for table columns, viewports, and hint strings should sum to 100 or fewer.
 - Prefer `tea.WindowSizeMsg` for dynamic sizing rather than hardcoded dimensions where possible.
 
 ## Code Comments
@@ -33,7 +33,21 @@ When reviewing the scaffold or making recommendations:
 - Package-level doc comments (`// Package ...`) are encouraged — they give models and humans a fast orientation to each component's role.
 - When a TODO or FIXME comment describes a known gap, reference it explicitly rather than silently working around it.
 
+## Style: lowercase-first
+
+- All comments and UI text strings start with a **lowercase** letter, even at the start of a sentence.
+- Exception: when a Go doc comment starts with the exported identifier itself (e.g. `// RenderTopBar renders…`), the identifier stays capitalised — everything else follows lowercase.
+- Exception: proper nouns that are always capitalised (Ollama, Bubble Tea, etc.) stay as-is.
+- Apply this rule to new code and when editing existing files.
+
+## Code Quality
+
+- Always run `go vet ./...` after making code changes and before committing. It catches real bugs (wrong argument counts, misused format strings, unreachable code) — not just style issues.
+- Run `go build ./...` to confirm the project compiles cleanly after every change.
+- If `go vet` or `go build` fail, fix the errors before proceeding.
+
 ## Commits
 
 - Do NOT add co-author lines (e.g. `Co-Authored-By: ...`) to commit messages.
 - Keep commit messages concise and focused on the "why" of the change.
+- Before creating a commit, verify the current branch is **not** `main`. If it is, prompt the user to create or switch to a feature branch first.

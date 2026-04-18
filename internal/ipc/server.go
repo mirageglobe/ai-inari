@@ -118,8 +118,21 @@ func (s *Server) handle(conn net.Conn) {
 }
 
 // toInfo converts a session to the wire summary sent to fox.
+// ContextChars sums all message content (including system prompt) so fox can
+// display an estimated token count without fetching the full history.
 func toInfo(sess *session.Session) SessionInfo {
-	return SessionInfo{ID: sess.ID, Name: sess.Name, Model: sess.Model}
+	history := sess.ChatHistory()
+	var ctxChars int
+	for _, m := range history {
+		ctxChars += len(m.Content)
+	}
+	return SessionInfo{
+		ID:           sess.ID,
+		Name:         sess.Name,
+		Model:        sess.Model,
+		SystemPrompt: sess.SystemPrompt,
+		ContextChars: ctxChars,
+	}
 }
 
 func (s *Server) dispatch(req Request) Response {
@@ -197,6 +210,25 @@ func (s *Server) dispatch(req Request) Response {
 		s.store.Persist(sess.ID)
 		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
 
+	// session.setcontext sets the system prompt for a session.
+	// the prompt is stored as Messages[0] (role:"system") so it is sent to Ollama
+	// exactly once per conversation. send an empty string to clear it.
+	case "session.setcontext":
+		var params struct {
+			ID     string `json:"id"`
+			Prompt string `json:"prompt"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		sess, ok := s.store.Get(params.ID)
+		if !ok {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+		}
+		sess.SetSystemPrompt(params.Prompt)
+		s.store.Persist(sess.ID)
+		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
+
 	// session.history returns the full message history for a session.
 	// fox calls this when opening a session to restore the display from inarid's store.
 	case "session.history":
@@ -210,7 +242,15 @@ func (s *Server) dispatch(req Request) Response {
 		if !ok {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
 		}
-		return Response{JSONRPC: "2.0", Result: sess.ChatHistory(), ID: req.ID}
+		// filter system messages — fox display shows only user/assistant turns.
+		all := sess.ChatHistory()
+		visible := all[:0:len(all)]
+		for _, m := range all {
+			if m.Role != "system" {
+				visible = append(visible, m)
+			}
+		}
+		return Response{JSONRPC: "2.0", Result: visible, ID: req.ID}
 
 	// session.chat appends a user message, sends the full history to Ollama,
 	// stores the reply, and returns the assistant's text. History is never sent
@@ -234,8 +274,7 @@ func (s *Server) dispatch(req Request) Response {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no model assigned to session"}, ID: req.ID}
 		}
 		sess.AppendMessage(ollama.Message{Role: "user", Content: params.Text})
-		history := sess.ChatHistory()
-		reply, err := s.ollama.Chat(sess.Model, history)
+		reply, err := s.ollama.Chat(sess.Model, sess.ChatHistory())
 		if err != nil {
 			// Roll back the user message so the history stays consistent on retry.
 			sess.Messages = sess.Messages[:len(sess.Messages)-1]

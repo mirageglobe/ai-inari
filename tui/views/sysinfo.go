@@ -1,7 +1,6 @@
 package views
 
 import (
-	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,9 +47,3 @@ func fetchSysStats() SysStatsMsg {
 	return SysStatsMsg{CPUPercent: cpu, MemUsed: used, MemTotal: total}
 }
 
-// RenderSysBar renders the one-line CPU/memory status bar.
-func RenderSysBar(s SysStatsMsg) string {
-	mem := fmt.Sprintf("mem %s / %s", formatBytes(int64(s.MemUsed)), formatBytes(int64(s.MemTotal)))
-	cpu := fmt.Sprintf("cpu %.0f%%", s.CPUPercent)
-	return sysBarStyle.Render(cpu + "  " + mem)
-}

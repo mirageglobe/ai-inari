@@ -25,7 +25,6 @@ var herdStyle = lipgloss.NewStyle().
 
 var (
 	connErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
-	expiredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 	modelsStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 )
@@ -80,7 +79,7 @@ type unassignModelResultMsg struct {
 }
 
 // Herd is the default session-list view.
-// Sessions are owned by inarid; fox fetches them on init and after mutations.
+// sessions are owned by inarid; fox fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
 type Herd struct {
 	client      *ipc.Client
@@ -96,17 +95,18 @@ type Herd struct {
 }
 
 func NewHerd(client *ipc.Client) Herd {
-	// Column widths sum to 98; with NormalBorder separators and outer border ≈ 104 chars total.
+	// column widths sum to 88; with 5 cols × 2 padding = 10, plus herdStyle border 2 = 100 total.
 	cols := []table.Column{
-		{Title: "Kitsune", Width: 20},
-		{Title: "Model", Width: 48},
-		{Title: "VRAM", Width: 12},
-		{Title: "Status", Width: 16},
+		{Title: "kitsune", Width: 20},
+		{Title: "model", Width: 28},
+		{Title: "vram", Width: 12},
+		{Title: "status", Width: 16},
+		{Title: "context", Width: 12},
 	}
 	t := table.New(
 		table.WithColumns(cols),
 		table.WithFocused(true),
-		// Height is overridden on first WindowSizeMsg; 12 is a safe default before that arrives.
+		// height is overridden on first WindowSizeMsg; 12 is a safe default before that arrives.
 		table.WithHeight(12),
 	)
 	s := spinner.New()
@@ -129,15 +129,18 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
+		if h.width > UIWidth {
+			h.width = UIWidth
+		}
 		h.height = msg.Height
-		// Pre-render the hint at the current width to count its actual line height.
-		// On narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
+		// pre-render the hint at the capped width to count its actual line height.
+		// on narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
 		// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
 		// and pushes the root header off the top of the display.
-		hintStr := RenderHint(herdHints(false, false), msg.Width)
+		hintStr := RenderHint(herdHints(false, false), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
-		// model header(1) + sysbar(1) + border-top(1) + col-header(1) + border-bottom(1) + hint(hintHeight)
-		tableHeight := msg.Height - 5 - h.hintHeight
+		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + hint(hintHeight)
+		tableHeight := msg.Height - 4 - h.hintHeight
 		if tableHeight < 1 {
 			tableHeight = 1
 		}
@@ -167,7 +170,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			log.Printf("running fetch error: %v", msg.err)
 		}
-		// Refresh live stats for display only — sessions are user-created, not derived from running models.
+		// refresh live stats for display only — sessions are user-created, not derived from running models.
 		h.runningInfo = make(map[string]runningMeta, len(msg.models))
 		for _, m := range msg.models {
 			h.runningInfo[m.Name] = runningMeta{vram: m.SizeVRAM, expiry: m.ExpiresAt}
@@ -209,7 +212,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case assignModelResultMsg:
 		if msg.err != nil {
-			// Revert optimistic local update on failure.
+			// revert optimistic local update on failure.
 			h.status = connErrStyle.Render("assign failed: " + msg.err.Error())
 			for i, s := range h.sessions {
 				if s.ID == msg.id {
@@ -220,19 +223,19 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h.rebuildTable()
 			return h, nil
 		}
-		// Refresh running info so VRAM/status columns reflect the newly loaded model.
+		// refresh running info so VRAM/status columns reflect the newly loaded model.
 		return h, fetchRunning(h.client)
 
 	case unassignModelResultMsg:
 		if msg.err != nil {
-			// Revert optimistic local update on failure.
+			// revert optimistic local update on failure.
 			h.status = connErrStyle.Render("unassign failed: " + msg.err.Error())
 			return h, tea.Batch(fetchSessions(h.client))
 		}
 		return h, nil
 
 	case AssignModelMsg:
-		// Optimistically update the local session so the table reflects the change immediately.
+		// optimistically update the local session so the table reflects the change immediately.
 		// assignModelCmd fires concurrently to persist the assignment in inarid.
 		sessionName := msg.SessionID
 		for i, s := range h.sessions {
@@ -268,7 +271,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sess := h.sessions[idx]
 				if sess.Model != "" {
 					return h, func() tea.Msg {
-						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model}
+						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, ContextChars: sess.ContextChars}
 					}
 				}
 			}
@@ -277,7 +280,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if idx >= 0 && idx < len(h.sessions) {
 				sess := h.sessions[idx]
 				if sess.Model != "" {
-					// Optimistically clear the model locally; cmd persists it in inarid.
+					// optimistically clear the model locally; cmd persists it in inarid.
 					h.sessions[idx].Model = ""
 					h.rebuildTable()
 					return h, unassignModelCmd(h.client, sess.ID, sess.Name, sess.Model)
@@ -344,17 +347,32 @@ func (h *Herd) rebuildTable() {
 		if info, ok := h.runningInfo[s.Model]; ok {
 			vram = formatBytes(info.vram)
 			status = formatExpiry(info.expiry)
-			if status == "expired" {
-				status = expiredStyle.Render(status)
-			}
+		} else if s.Model != "" {
+			// model assigned but not currently loaded in ollama memory
+			status = "sleeping"
 		}
 		model := s.Model
 		if model == "" {
 			model = "—"
 		}
-		rows[i] = table.Row{s.Name, model, vram, status}
+		ctx := "—"
+		if s.ContextChars > 0 {
+			ctx = fmtTokens(s.ContextChars)
+		}
+		rows[i] = table.Row{s.Name, model, vram, status, ctx}
 	}
 	h.table.SetRows(rows)
+}
+
+// SelectedSession returns the session at the current cursor plus its vram.
+// returns false if no session is under the cursor.
+func (h Herd) SelectedSession() (ipc.SessionInfo, int64, bool) {
+	idx := h.table.Cursor()
+	if idx < 0 || idx >= len(h.sessions) {
+		return ipc.SessionInfo{}, 0, false
+	}
+	sess := h.sessions[idx]
+	return sess, h.runningInfo[sess.Model].vram, true
 }
 
 func (h Herd) usedNames() []string {
@@ -411,7 +429,7 @@ func unassignModelCmd(client *ipc.Client, sessionID, sessionName, model string) 
 	return func() tea.Msg {
 		err := client.UnassignModel(sessionID)
 		if err == nil {
-			log.Printf("kitsune %q: model unloaded ← %s", sessionName, model)
+			log.Printf("kitsune %q (%s): model unloaded ← %s", sessionName, sessionID, model)
 		}
 		return unassignModelResultMsg{id: sessionID, err: err}
 	}
@@ -421,7 +439,7 @@ func assignModelCmd(client *ipc.Client, sessionID, sessionName, model string) te
 	return func() tea.Msg {
 		err := client.AssignModel(sessionID, model)
 		if err == nil {
-			log.Printf("kitsune %q: model assigned → %s", sessionName, model)
+			log.Printf("kitsune %q (%s): model assigned → %s", sessionName, sessionID, model)
 		}
 		return assignModelResultMsg{id: sessionID, err: err}
 	}
@@ -465,7 +483,7 @@ func formatExpiry(expiresAt string) string {
 	}
 	d := time.Until(t).Round(time.Second)
 	if d <= 0 {
-		return "expired"
+		return "waking"
 	}
 	return fmt.Sprintf("in %s", d)
 }

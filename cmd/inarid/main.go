@@ -31,6 +31,8 @@ import (
 )
 
 func main() {
+	log.Println("awakening inari daemon 🦊")
+
 	cfg, err := config.Load("config.json")
 	if err != nil {
 		log.Fatalf("config: %v", err)
@@ -41,11 +43,11 @@ func main() {
 
 	ollamaClient := ollama.NewClient(cfg.OllamaBaseURL)
 	if err := ollamaClient.Ping(); err != nil {
-		log.Printf("ERROR: ollama endpoint not reachable: %v", err)
-		log.Printf("ERROR: expected ollama at %s — is it running? (e.g. `ollama serve`)", cfg.OllamaBaseURL)
-		log.Fatal("ERROR: inarid cannot start without ollama")
+		log.Printf("ollama not reachable: %v", err)
+		log.Printf("expected at: %s", cfg.OllamaBaseURL)
+		log.Fatal("hint: run `ollama serve` then retry")
 	}
-	log.Printf("ollama ready at %s", cfg.OllamaBaseURL)
+	log.Printf("ollama ready: %s", cfg.OllamaBaseURL)
 
 	sched := scheduler.New(cfg.MemoryBudgetMB)
 
@@ -61,7 +63,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("session store: %v", err)
 	}
-	log.Printf("session store at %s", dataDir)
+	log.Printf("sessions: %s", dataDir)
 	mcpHost := mcp.NewHost(cfg.MCPConnectors, auditor)
 
 	if err := mcpHost.Start(); err != nil {
@@ -75,7 +77,8 @@ func main() {
 	}
 	defer srv.Close()
 
-	log.Printf("inarid listening on %s (ctrl+c to quit)", cfg.Socket)
+	log.Printf("listening: %s", cfg.Socket)
+	log.Println("ctrl+c to quit")
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)

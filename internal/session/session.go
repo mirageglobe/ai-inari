@@ -38,26 +38,35 @@ const (
 // Chat history accumulates regardless of which model is currently assigned —
 // models can be loaded and unloaded freely while the conversation persists.
 // Model is empty when no model is attached; chat is blocked until one is assigned.
+// SystemPrompt is mirrored as Messages[0] (role:"system") so it is sent to Ollama
+// exactly once per conversation rather than re-prepended on every request.
 type Session struct {
-	mu        sync.Mutex       // protects Messages
-	ID        string           `json:"id"`
-	Name      string           `json:"name"`
-	Model     string           `json:"model"`
-	Tier      Tier             `json:"tier"`
-	Status    Status           `json:"status"`
-	Messages  []ollama.Message `json:"messages"`
-	CreatedAt time.Time        `json:"created_at"`
-	UpdatedAt time.Time        `json:"updated_at"`
+	mu           sync.Mutex       // protects Messages
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	Model        string           `json:"model"`
+	Tier         Tier             `json:"tier"`
+	Status       Status           `json:"status"`
+	Messages     []ollama.Message `json:"messages"`
+	SystemPrompt string           `json:"system_prompt,omitempty"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
 }
 
-// New returns a new session with a random ID and the given display name.
+// defaultSystemPrompt is injected into every new session so responses stay concise out of the box.
+// users can override it per-session from the describe view.
+const defaultSystemPrompt = "keep all responses concise and short."
+
+// New returns a new session with a random ID, the given display name, and the default system prompt.
 func New(name string) *Session {
 	return &Session{
-		ID:        newID(),
-		Name:      name,
-		Status:    StatusPending,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:           newID(),
+		Name:         name,
+		Status:       StatusPending,
+		SystemPrompt: defaultSystemPrompt,
+		Messages:     []ollama.Message{{Role: "system", Content: defaultSystemPrompt}},
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 }
 
@@ -67,6 +76,29 @@ func newID() string {
 	b := make([]byte, 4)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// SetSystemPrompt updates the stored SystemPrompt field and keeps Messages[0]
+// (role:"system") in sync so Ollama receives the prompt as part of the natural
+// history rather than having it re-injected on every request.
+// Passing an empty string removes the system message entirely.
+func (s *Session) SetSystemPrompt(prompt string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.SystemPrompt = prompt
+	hasSystem := len(s.Messages) > 0 && s.Messages[0].Role == "system"
+	if prompt == "" {
+		if hasSystem {
+			s.Messages = s.Messages[1:]
+		}
+		return
+	}
+	if hasSystem {
+		s.Messages[0].Content = prompt
+	} else {
+		s.Messages = append([]ollama.Message{{Role: "system", Content: prompt}}, s.Messages...)
+	}
+	s.UpdatedAt = time.Now()
 }
 
 // AppendMessage appends msg to the session history under the session lock.
@@ -126,6 +158,10 @@ func (s *Store) loadAll() error {
 		var sess Session
 		if err := json.Unmarshal(data, &sess); err != nil {
 			return fmt.Errorf("session store: parse %s: %w", e.Name(), err)
+		}
+		// migrate sessions persisted before system prompt was stored in Messages.
+		if sess.SystemPrompt != "" && (len(sess.Messages) == 0 || sess.Messages[0].Role != "system") {
+			sess.Messages = append([]ollama.Message{{Role: "system", Content: sess.SystemPrompt}}, sess.Messages...)
 		}
 		s.sessions[sess.ID] = &sess
 	}
