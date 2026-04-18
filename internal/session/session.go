@@ -3,8 +3,12 @@
 package session
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"sync"
 	"time"
+
+	"github.com/mirageglobe/ai-inari/internal/ollama"
 )
 
 type Status string
@@ -24,14 +28,52 @@ const (
 	TierThinker Tier = "thinker"
 )
 
-// Session represents a single Ollama model session.
+// Session is a named chat context. Name and chat history live here so they
+// survive fox detach/reattach cycles. Model is empty until the user assigns one.
 type Session struct {
-	ID        string    `json:"id"`
-	Model     string    `json:"model"`
-	Tier      Tier      `json:"tier"`
-	Status    Status    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	mu        sync.Mutex       // protects Messages
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	Model     string           `json:"model"`
+	Tier      Tier             `json:"tier"`
+	Status    Status           `json:"status"`
+	Messages  []ollama.Message `json:"messages"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
+}
+
+// New returns a new session with a random ID and the given display name.
+func New(name string) *Session {
+	return &Session{
+		ID:        newID(),
+		Name:      name,
+		Status:    StatusPending,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+}
+
+func newID() string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// AppendMessage appends msg to the session history under the session lock.
+func (s *Session) AppendMessage(msg ollama.Message) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Messages = append(s.Messages, msg)
+	s.UpdatedAt = time.Now()
+}
+
+// ChatHistory returns a snapshot of the message history for sending to Ollama.
+func (s *Session) ChatHistory() []ollama.Message {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]ollama.Message, len(s.Messages))
+	copy(out, s.Messages)
+	return out
 }
 
 // Store holds all active and background sessions.

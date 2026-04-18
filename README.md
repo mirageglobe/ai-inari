@@ -1,28 +1,45 @@
-# ai-inari (fox)
+# ai-inari
 
 ```
-  ∧ ∧
- (･ω･)  "leave it to us!"
-  |つ⊂|
+    🦊         🦊
+   🦊🦊🦊     🦊🦊🦊
+  🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊
+  🦊🦊  🦊🦊🦊🦊  🦊🦊
+   🦊🦊🦊🦊🦊🦊🦊🦊🦊
+
+  "a herd behind every idea."
 ```
 
-Inari are small forest spirits — curious, tireless, and happy to help.
-In Japanese folklore they drift through mountain paths doing quiet, useful work.
-Here they live inside your machine: a herd of tiny local AI minions that run
-models, crunch tasks, and report back — all without phoning home.
+In Japanese mythology, Inari is the fox god — the kami of luck, prosperity, and
+industry. Thousands of shrines across Japan are dedicated to Inari, each guarded
+by kitsune, the foxes who serve as messengers between the spirit world and ours.
+Inari doesn't shout. It works quietly, and good things follow.
 
-You are the Head Inari. You give the word; the herd does the work.
+That felt right.
+
+Most AI tools pull your work into the cloud, scatter it across APIs you don't
+control, and ask you to trust a dozen third parties with your data. We wanted
+the opposite: intelligence that lives on your machine, answers to you alone, and
+disappears when you close the lid.
+
+**ai-inari** is a herd of local AI minions. You run them on your own hardware
+via Ollama. You talk to them through `fox`, a keyboard-driven terminal UI
+inspired by k9s. A persistent background daemon (`inarid`) keeps the herd
+alive even when the UI is closed — reopen it and your sessions are right where
+you left them, history intact.
+
+No cloud. No telemetry. No secrets leaving the machine. Just a quiet herd
+doing useful work in the background, waiting for your next word.
 
 ---
 
 ## What it does
 
-`fox` is a terminal UI for orchestrating local LLMs via Ollama. A persistent
-daemon (`inarid`) keeps your inari herd running in the background even when
-you close the TUI. Reconnect and they are still there, mid-task.
-
-- **No cloud.** Everything runs on your machine.
-- **No noise.** One keyboard-driven screen, k9s-style.
+- **Sessions first.** Create a named session, assign a model, start chatting.
+  Your conversation history lives in `inarid` — close `fox` and reconnect
+  without losing a word.
+- **No cloud.** Every model runs locally through Ollama.
+- **No noise.** One keyboard-driven screen, nothing you didn't ask for.
 - **No secrets leaked.** Every tool-call is audit-logged locally.
 
 ---

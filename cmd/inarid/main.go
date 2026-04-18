@@ -3,7 +3,9 @@
 // Responsibilities:
 //   - Verify Ollama is reachable before accepting any connections.
 //   - Bind a Unix Domain Socket (chmod 0600) and serve JSON-RPC 2.0 requests.
-//   - Own the session store: track every model session across fox attach/detach cycles.
+//   - Own the session store: sessions are the primary entity. Each session has a
+//     name (e.g. "Arctic Fox"), an optional model, and its full chat history.
+//     Sessions survive fox detach/reattach; fox is stateless.
 //   - Enforce the memory/concurrency budget via the scheduler semaphore.
 //   - Spawn and manage MCP connector child processes (filesystem, search, SQL).
 //   - Append-only audit log every tool-call with a timestamp.

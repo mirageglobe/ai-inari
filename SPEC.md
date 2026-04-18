@@ -42,14 +42,37 @@ Security-first, minimalist local AI orchestrator.
 └─────────────────────────────┘
 ```
 
-### 3.1 IPC
+### 3.1 Session model
+
+Sessions are the primary entity in ai-inari. A session is a named chat context
+(e.g. "Arctic Fox") that exists independently of any model. The user creates a
+session first, then optionally assigns a model to it. Chat history is stored
+inside the session in inarid — fox is stateless and holds no history locally.
+
+This means:
+- Restarting fox reconnects to the existing herd without losing any conversation.
+- A session with no model assigned is valid; the model can be swapped at any time.
+- `session.chat` takes a session ID and a single new message; inarid appends it,
+  sends the full history to Ollama, stores the reply, and returns only the text.
+
+### 3.2 IPC
 
 - Transport: Unix Domain Socket at `/tmp/inari.sock`.
 - Permissions: `chmod 0600` — owner-only access.
 - Protocol: JSON-RPC 2.0.
 - Daemon persists sessions on client detach; client reconnects by session ID.
 
-### 3.2 Concurrency
+**Session RPCs:**
+
+| Method           | Params               | Returns       | Description                        |
+|------------------|----------------------|---------------|------------------------------------|
+| `session.list`   | —                    | `SessionInfo[]` | Summary of all sessions (no history on wire) |
+| `session.create` | `{name}`             | `SessionInfo` | Create a named session             |
+| `session.delete` | `{id}`               | `"ok"`        | Remove session and its history     |
+| `session.assign` | `{id, model}`        | `"ok"`        | Attach a model to a session        |
+| `session.chat`   | `{id, text}`         | `string`      | Append message, get reply          |
+
+### 3.3 Concurrency
 
 - Each Ollama session runs in its own goroutine.
 - A semaphore gates concurrent sessions based on configured memory budget.
@@ -64,7 +87,7 @@ Security-first, minimalist local AI orchestrator.
 | Subsystem     | Responsibility                                              |
 |---------------|-------------------------------------------------------------|
 | UDS Server    | Accept and authenticate client connections                  |
-| Session Store | Track active and background Ollama sessions                 |
+| Session Store | Own named sessions with chat history; model is optional and assignable post-creation |
 | MCP Host      | Spawn and manage MCP connectors (Filesystem, Search, SQL)   |
 | Ollama Client | POST to `/api/chat`; stream tokens back to session          |
 | Scheduler     | Semaphore-based concurrency throttle per resource tier      |

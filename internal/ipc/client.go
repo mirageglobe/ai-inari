@@ -11,32 +11,51 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ollama"
 )
 
+// SessionInfo is the wire representation of a session returned by session.list and session.create.
+// It carries only the summary fields fox needs for display — full message history stays in inarid.
+type SessionInfo struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Model string `json:"model"`
+}
+
 // Client connects to inarid over a Unix Domain Socket.
 // mu serialises calls — JSON-RPC over a single socket is inherently request/response,
 // so concurrent callers must queue rather than interleave writes and reads.
 type Client struct {
-	mu   sync.Mutex
-	conn net.Conn
-	enc  *json.Encoder
-	dec  *json.Decoder
-	seq  int
+	socket string
+	mu     sync.Mutex
+	conn   net.Conn
+	enc    *json.Encoder
+	dec    *json.Decoder
+	seq    int
 }
 
-func NewClient(socket string) (*Client, error) {
-	conn, err := net.Dial("unix", socket)
+func NewClient(socket string) *Client {
+	return &Client{socket: socket}
+}
+
+func (c *Client) reconnect() error {
+	conn, err := net.Dial("unix", c.socket)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &Client{
-		conn: conn,
-		enc:  json.NewEncoder(conn),
-		dec:  json.NewDecoder(conn),
-	}, nil
+	c.conn = conn
+	c.enc = json.NewEncoder(conn)
+	c.dec = json.NewDecoder(conn)
+	return nil
 }
 
 func (c *Client) Call(method string, params any) (*Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if c.conn == nil {
+		if err := c.reconnect(); err != nil {
+			return nil, fmt.Errorf("reconnect failed: %w", err)
+		}
+	}
+
 	c.seq++
 	req := Request{
 		JSONRPC: "2.0",
@@ -52,11 +71,13 @@ func (c *Client) Call(method string, params any) (*Response, error) {
 	}
 
 	if err := c.enc.Encode(req); err != nil {
+		c.conn = nil
 		return nil, err
 	}
 
 	var resp Response
 	if err := c.dec.Decode(&resp); err != nil {
+		c.conn = nil
 		return nil, err
 	}
 	return &resp, nil
@@ -65,6 +86,74 @@ func (c *Client) Call(method string, params any) (*Response, error) {
 func (c *Client) Ping() error {
 	_, err := c.Call("ping", nil)
 	return err
+}
+
+func (c *Client) TryReconnect() error {
+	return c.reconnect()
+}
+
+// ListSessions returns all sessions from inarid.
+func (c *Client) ListSessions() ([]SessionInfo, error) {
+	resp, err := c.Call("session.list", nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("%s", resp.Error.Message)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return nil, err
+	}
+	var sessions []SessionInfo
+	if err := json.Unmarshal(b, &sessions); err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+// CreateSession creates a new named session in inarid and returns its summary.
+func (c *Client) CreateSession(name string) (SessionInfo, error) {
+	resp, err := c.Call("session.create", map[string]string{"name": name})
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	if resp.Error != nil {
+		return SessionInfo{}, fmt.Errorf("%s", resp.Error.Message)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	var sess SessionInfo
+	if err := json.Unmarshal(b, &sess); err != nil {
+		return SessionInfo{}, err
+	}
+	return sess, nil
+}
+
+// DeleteSession removes a session from inarid by ID.
+func (c *Client) DeleteSession(id string) error {
+	resp, err := c.Call("session.delete", map[string]string{"id": id})
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Message)
+	}
+	return nil
+}
+
+// AssignModel assigns a model to a session in inarid.
+func (c *Client) AssignModel(sessionID, model string) error {
+	resp, err := c.Call("session.assign", map[string]string{"id": sessionID, "model": model})
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Message)
+	}
+	return nil
 }
 
 // ListModels returns models available in Ollama via inarid.
@@ -131,9 +220,11 @@ func (c *Client) UnloadModel(model string) error {
 	return nil
 }
 
-// Chat sends the full message history to inarid and returns the model's reply.
-func (c *Client) Chat(model string, messages []ollama.Message) (string, error) {
-	resp, err := c.Call("session.chat", map[string]any{"model": model, "messages": messages})
+// Chat sends a single user message to the session identified by sessionID.
+// inarid owns the message history — it appends the message, sends the full
+// history to Ollama, stores the reply, and returns the assistant's text.
+func (c *Client) Chat(sessionID, text string) (string, error) {
+	resp, err := c.Call("session.chat", map[string]string{"id": sessionID, "text": text})
 	if err != nil {
 		return "", err
 	}
@@ -153,5 +244,7 @@ func (c *Client) Quit() error {
 }
 
 func (c *Client) Close() {
-	c.conn.Close()
+	if c.conn != nil {
+		c.conn.Close()
+	}
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
 )
 
 var (
@@ -19,26 +18,30 @@ var (
 )
 
 type chatReplyMsg struct {
-	reply ollama.Message
-	err   error
+	text string
+	err  error
 }
 
-// Chat is the interactive conversation view for a selected model.
-// messages is the canonical history sent to Ollama on every turn for context.
-// display is the rendered version of that history shown in the viewport.
+// Chat is the interactive conversation view for a session.
+// display holds the rendered lines shown in the viewport — local to this fox instance.
+// All message history lives in inarid; fox sends only the new user text each turn.
 type Chat struct {
-	client   *ipc.Client
-	model    string
-	messages []ollama.Message
-	display  []string
-	viewport viewport.Model
-	input    textarea.Model
-	waiting  bool
+	client      *ipc.Client
+	sessionID   string
+	sessionName string
+	model       string // display only
+	display     []string
+	viewport    viewport.Model
+	input       textarea.Model
+	waiting     bool
 }
 
-func (c Chat) Init() tea.Cmd { return nil }
+// Init re-focuses the textarea so typing works when resuming a session.
+func (c Chat) Init() tea.Cmd { return c.input.Focus() }
 
-func NewChat(client *ipc.Client, model string) Chat {
+func (c Chat) SessionID() string { return c.sessionID }
+
+func NewChat(client *ipc.Client, sessionID, sessionName, model string) Chat {
 	ta := textarea.New()
 	ta.Placeholder = "Message " + model + "..."
 	ta.Focus()
@@ -48,10 +51,12 @@ func NewChat(client *ipc.Client, model string) Chat {
 	vp := viewport.New(80, 16)
 
 	return Chat{
-		client:   client,
-		model:    model,
-		viewport: vp,
-		input:    ta,
+		client:      client,
+		sessionID:   sessionID,
+		sessionName: sessionName,
+		model:       model,
+		viewport:    vp,
+		input:       ta,
 	}
 }
 
@@ -66,8 +71,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			c.display = append(c.display, errorStyle.Render("error: "+msg.err.Error()))
 		} else {
-			c.messages = append(c.messages, msg.reply)
-			c.display = append(c.display, assistantStyle.Render(c.model+": ")+msg.reply.Content)
+			c.display = append(c.display, assistantStyle.Render(c.model+": ")+msg.text)
 		}
 		c.viewport.SetContent(strings.Join(c.display, "\n"))
 		c.viewport.GotoBottom()
@@ -79,15 +83,13 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if text == "" {
 				return c, nil
 			}
-			userMsg := ollama.Message{Role: "user", Content: text}
-			c.messages = append(c.messages, userMsg)
 			c.display = append(c.display, userStyle.Render("you: ")+text)
 			c.display = append(c.display, lipgloss.NewStyle().Faint(true).Render("thinking..."))
 			c.viewport.SetContent(strings.Join(c.display, "\n"))
 			c.viewport.GotoBottom()
 			c.input.Reset()
 			c.waiting = true
-			return c, sendMessage(c.client, c.model, c.messages)
+			return c, sendMessage(c.client, c.sessionID, text)
 		}
 	}
 
@@ -101,17 +103,22 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c Chat) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("CHAT — " + c.model)
-	hint := lipgloss.NewStyle().Faint(true).Render("enter send  esc exit chat  ctrl+c quit")
+	title := c.model
+	if c.sessionName != "" {
+		title = c.sessionName + "  " + lipgloss.NewStyle().Faint(true).Render("("+c.model+")")
+	}
+	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("CHAT") +
+		"  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render(title)
+	hint := lipgloss.NewStyle().Faint(true).Render("[enter] send  [ctrl+o] change model  [esc] back")
 	return header + "\n" + c.viewport.View() + "\n" + c.input.View() + "\n" + hint
 }
 
-func sendMessage(client *ipc.Client, model string, messages []ollama.Message) tea.Cmd {
+func sendMessage(client *ipc.Client, sessionID, text string) tea.Cmd {
 	return func() tea.Msg {
-		reply, err := client.Chat(model, messages)
+		reply, err := client.Chat(sessionID, text)
 		if err != nil {
 			return chatReplyMsg{err: err}
 		}
-		return chatReplyMsg{reply: ollama.Message{Role: "assistant", Content: reply}}
+		return chatReplyMsg{text: reply}
 	}
 }

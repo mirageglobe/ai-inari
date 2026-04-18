@@ -20,16 +20,20 @@ const (
 )
 
 // Model is the root Bubble Tea model.
+// activeSession holds the session ID (not name) of the currently open chat.
+// chats is keyed by session ID so each session retains its display history across view switches.
 type Model struct {
-	client      *ipc.Client
-	current     view
-	activeModel string
-	herd        views.Herd
-	models      views.ModelSelector
-	logs        views.Logs
-	describe    views.Describe
-	chats    map[string]views.Chat
-	sysStats views.SysStatsMsg
+	client        *ipc.Client
+	current       view
+	returnView    view   // view to restore after model selector closes
+	activeSession string // session ID of the currently open chat
+	herd          views.Herd
+	models        views.ModelSelector
+	logs          views.Logs
+	describe      views.Describe
+	chats         map[string]views.Chat // keyed by session ID
+	sysStats      views.SysStatsMsg
+	connErr       string
 }
 
 func New(client *ipc.Client) Model {
@@ -45,14 +49,22 @@ func New(client *ipc.Client) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow())
+	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client))
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Refresh sys stats and reschedule the next tick.
 	if stats, ok := msg.(views.SysStatsMsg); ok {
 		m.sysStats = stats
 		return m, views.SysStatsTick()
+	}
+
+	if conn, ok := msg.(views.ConnStatusMsg); ok {
+		if conn.OK {
+			m.connErr = ""
+		} else {
+			m.connErr = "connection failed"
+		}
+		return m, views.ConnTick(m.client)
 	}
 
 	if _, ok := msg.(views.BackToHerdMsg); ok {
@@ -60,35 +72,54 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.herd.Init()
 	}
 
-	// Handle model selection before key routing.
+	// Open model selector targeting a specific session.
+	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
+		m.returnView = m.current
+		m.models = m.models.ForSession(openMs.SessionID)
+		m.current = viewModels
+		return m, m.models.Init()
+	}
+
+	// A model was assigned to a session — herd handles the optimistic update and the assign RPC.
+	if assign, ok := msg.(views.AssignModelMsg); ok {
+		updated, cmd := m.herd.Update(assign)
+		m.herd = updated.(views.Herd)
+		if m.returnView == viewChat {
+			m.current = viewChat
+			return m, tea.Batch(cmd, m.chats[m.activeSession].Init())
+		}
+		m.current = viewHerd
+		return m, cmd
+	}
+
+	// Open a session's chat.
 	if sel, ok := msg.(views.SelectModelMsg); ok {
-		m.activeModel = sel.Name
-		if _, exists := m.chats[sel.Name]; !exists {
-			m.chats[sel.Name] = views.NewChat(m.client, sel.Name)
+		m.activeSession = sel.SessionID
+		if _, exists := m.chats[sel.SessionID]; !exists {
+			m.chats[sel.SessionID] = views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName)
 		}
 		m.current = viewChat
-		return m, m.chats[sel.Name].Init()
+		return m, m.chats[sel.SessionID].Init()
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
-		// Chat is insert mode (vim convention): only esc and ctrl+c are captured
-		// globally so that typed words never trigger navigation shortcuts.
 		if m.current == viewChat {
 			switch key.String() {
-			case "ctrl+c":
-				return m, tea.Quit
 			case "esc":
 				m.current = viewHerd
 				return m, m.herd.Init()
-			}
-		} else {
-			// Navigation mode: letter shortcuts active.
-			switch key.String() {
-			case "q", "ctrl+c":
-				return m, tea.Quit
-			case "m":
+			case "ctrl+o":
+				m.returnView = viewChat
+				if chat, ok := m.chats[m.activeSession]; ok {
+					m.models = m.models.ForSession(chat.SessionID())
+				}
 				m.current = viewModels
 				return m, m.models.Init()
+			}
+		} else {
+			switch key.String() {
+			case "q":
+				return m, tea.Quit
 			case "l":
 				if m.current != viewModels {
 					m.current = viewLogs
@@ -122,8 +153,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.describe = updated.(views.Describe)
 		return m, cmd
 	case viewChat:
-		updated, cmd := m.chats[m.activeModel].Update(msg)
-		m.chats[m.activeModel] = updated.(views.Chat)
+		updated, cmd := m.chats[m.activeSession].Update(msg)
+		m.chats[m.activeSession] = updated.(views.Chat)
 		return m, cmd
 	}
 
@@ -131,18 +162,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	header := views.RenderHeader(m.connErr) + "\n"
 	bar := views.RenderSysBar(m.sysStats) + "\n"
 
 	switch m.current {
 	case viewModels:
-		return bar + m.models.View()
+		return header + bar + m.models.View()
 	case viewLogs:
-		return bar + m.logs.View()
+		return header + bar + m.logs.View()
 	case viewDescribe:
-		return bar + m.describe.View()
+		return header + bar + m.describe.View()
 	case viewChat:
-		return bar + m.chats[m.activeModel].View()
+		return header + bar + m.chats[m.activeSession].View()
 	default:
-		return bar + m.herd.View()
+		return header + bar + m.herd.View()
 	}
 }

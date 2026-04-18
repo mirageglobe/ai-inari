@@ -23,11 +23,7 @@ import (
 const defaultSocket = "/tmp/inari.sock"
 
 func main() {
-	client, err := ipc.NewClient(defaultSocket)
-	if err != nil {
-		log.Fatalf("connect %s: %v\n\nIs inarid running? Start it with: ./bin/inarid", defaultSocket, err)
-	}
-	defer client.Close()
+	client := ipc.NewClient(defaultSocket)
 
 	// Prevent lipgloss from querying the terminal background colour via OSC 11;
 	// without this, the terminal's response leaks into the textarea as raw text.
@@ -37,4 +33,6 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("tui: %v", err)
 	}
+
+	client.Close()
 }

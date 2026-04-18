@@ -4,8 +4,10 @@ package views
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -14,21 +16,29 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ollama"
 )
 
-
-
 var herdStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
 var (
-	connOKStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
 	connErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+	expiredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 	modelsStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 )
 
-type connStatusMsg struct {
-	ok  bool
-	err error
+// foxAdjectives are paired with "Fox" to form session names like "Arctic Fox".
+var foxAdjectives = []string{
+	"Arctic", "Amber", "Ash", "Blaze", "Copper", "Crimson", "Dusk",
+	"Ember", "Fire", "Frost", "Ghost", "Golden", "Jade", "Midnight",
+	"Rusty", "Scarlet", "Shadow", "Silver", "Storm", "Swift", "Thunder",
+	"Tundra", "Violet", "Wild",
+}
+
+// runningMeta holds live stats for a running model, used to populate VRAM/Status columns.
+type runningMeta struct {
+	vram   int64
+	expiry string
 }
 
 type modelsMsg struct {
@@ -41,83 +51,181 @@ type runningMsg struct {
 	err    error
 }
 
-type unloadMsg struct {
+type sessionsMsg struct {
+	sessions []ipc.SessionInfo
+	err      error
+}
+
+type createSessionResultMsg struct {
+	session ipc.SessionInfo
+	err     error
+}
+
+type deleteSessionResultMsg struct {
+	id  string
 	err error
 }
 
-// Herd is the default pod-list view showing models currently loaded in Ollama.
+type assignModelResultMsg struct {
+	id  string
+	err error
+}
+
+// Herd is the default session-list view.
+// Sessions are owned by inarid; fox fetches them on init and after mutations.
+// runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
 type Herd struct {
-	client  *ipc.Client
-	table   table.Model
-	connErr string
-	status  string
+	client      *ipc.Client
+	table       table.Model
+	spinner     spinner.Model
+	loading     bool
+	status      string
+	sessions    []ipc.SessionInfo
+	runningInfo map[string]runningMeta
 }
 
 func NewHerd(client *ipc.Client) Herd {
 	cols := []table.Column{
-		{Title: "Model",   Width: 30},
-		{Title: "VRAM",    Width: 10},
-		{Title: "Sleeps",  Width: 12},
+		{Title: "Session", Width: 14},
+		{Title: "Model", Width: 24},
+		{Title: "VRAM", Width: 10},
+		{Title: "Status", Width: 12},
 	}
 	t := table.New(
 		table.WithColumns(cols),
 		table.WithFocused(true),
 		table.WithHeight(12),
 	)
-	return Herd{client: client, table: t}
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = spinnerStyle
+	return Herd{
+		client:      client,
+		table:       t,
+		spinner:     s,
+		loading:     true,
+		runningInfo: make(map[string]runningMeta),
+	}
 }
 
-const runningRefreshInterval = 5 * time.Second
-
 func (h Herd) Init() tea.Cmd {
-	return tea.Batch(checkConn(h.client), fetchRunning(h.client))
+	return tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
 }
 
 func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case connStatusMsg:
-		if msg.ok {
-			h.connErr = ""
-		} else {
-			h.connErr = msg.err.Error()
+	case spinner.TickMsg:
+		if h.loading {
+			var cmd tea.Cmd
+			h.spinner, cmd = h.spinner.Update(msg)
+			return h, cmd
 		}
 		return h, nil
-	case runningMsg:
-		rows := make([]table.Row, len(msg.models))
-		for i, m := range msg.models {
-			rows[i] = table.Row{
-				m.Name,
-				formatBytes(m.SizeVRAM),
-				formatExpiry(m.ExpiresAt),
-			}
-		}
-		h.table.SetRows(rows)
-		return h, tea.Tick(runningRefreshInterval, func(_ time.Time) tea.Msg {
-			return fetchRunning(h.client)()
-		})
-	case unloadMsg:
+
+	case sessionsMsg:
+		h.loading = false
 		if msg.err != nil {
-			h.status = connErrStyle.Render("unload failed: " + msg.err.Error())
+			h.status = connErrStyle.Render(msg.err.Error())
 		} else {
 			h.status = ""
+			h.sessions = msg.sessions
 		}
-		return h, fetchRunning(h.client)
+		h.rebuildTable()
+		return h, nil
+
+	case runningMsg:
+		if msg.err != nil {
+			h.status = connErrStyle.Render(msg.err.Error())
+		}
+		// Refresh live stats for display only — sessions are user-created, not derived from running models.
+		h.runningInfo = make(map[string]runningMeta, len(msg.models))
+		for _, m := range msg.models {
+			h.runningInfo[m.Name] = runningMeta{vram: m.SizeVRAM, expiry: m.ExpiresAt}
+		}
+		h.rebuildTable()
+		return h, nil
+
+	case createSessionResultMsg:
+		if msg.err != nil {
+			h.status = connErrStyle.Render("create failed: " + msg.err.Error())
+		} else {
+			h.sessions = append(h.sessions, msg.session)
+			h.rebuildTable()
+		}
+		return h, nil
+
+	case deleteSessionResultMsg:
+		if msg.err != nil {
+			h.status = connErrStyle.Render("delete failed: " + msg.err.Error())
+		} else {
+			for i, s := range h.sessions {
+				if s.ID == msg.id {
+					h.sessions = append(h.sessions[:i], h.sessions[i+1:]...)
+					break
+				}
+			}
+			h.rebuildTable()
+		}
+		return h, nil
+
+	case assignModelResultMsg:
+		if msg.err != nil {
+			// Revert optimistic local update on failure.
+			h.status = connErrStyle.Render("assign failed: " + msg.err.Error())
+			for i, s := range h.sessions {
+				if s.ID == msg.id {
+					h.sessions[i].Model = ""
+					break
+				}
+			}
+			h.rebuildTable()
+		}
+		return h, nil
+
+	case AssignModelMsg:
+		// Optimistically update the local session so the table reflects the change immediately.
+		// assignModelCmd fires concurrently to persist the assignment in inarid.
+		for i, s := range h.sessions {
+			if s.ID == msg.SessionID {
+				h.sessions[i].Model = msg.ModelName
+				break
+			}
+		}
+		h.rebuildTable()
+		return h, assignModelCmd(h.client, msg.SessionID, msg.ModelName)
+
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "s":
+			name := pickFoxName(h.usedNames())
+			return h, createSessionCmd(h.client, name)
+		case "m":
+			idx := h.table.Cursor()
+			if idx < len(h.sessions) {
+				sess := h.sessions[idx]
+				return h, func() tea.Msg {
+					return OpenModelSelectorMsg{SessionID: sess.ID, SessionName: sess.Name}
+				}
+			}
 		case "r":
 			h.status = ""
-			return h, tea.Batch(checkConn(h.client), fetchRunning(h.client))
+			h.loading = true
+			return h, tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
 		case "c", "enter":
-			if row := h.table.SelectedRow(); len(row) > 0 {
-				return h, func() tea.Msg { return SelectModelMsg{Name: row[0]} }
+			idx := h.table.Cursor()
+			if idx < len(h.sessions) {
+				sess := h.sessions[idx]
+				if sess.Model != "" {
+					return h, func() tea.Msg {
+						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model}
+					}
+				}
 			}
 		case "x":
-			if row := h.table.SelectedRow(); len(row) > 0 {
-				model := row[0]
-				h.status = modelsStyle.Render("unloading " + model + "...")
-				return h, func() tea.Msg {
-					return unloadMsg{err: h.client.UnloadModel(model)}
-				}
+			idx := h.table.Cursor()
+			if idx < len(h.sessions) {
+				id := h.sessions[idx].ID
+				return h, deleteSessionCmd(h.client, id)
 			}
 		}
 	}
@@ -127,29 +235,95 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (h Herd) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("HERD")
+	hint := lipgloss.NewStyle().Faint(true).Render("[s] new session  [m] model  [c] chat  [x] delete session  [r] refresh  [l] logs  [d] describe  [q] quit")
 
-	var connLine string
-	if h.connErr != "" {
-		connLine = connErrStyle.Render("✗ inarid: " + h.connErr)
-	} else {
-		connLine = connOKStyle.Render("✓ inarid connected")
+	if h.loading {
+		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
+		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching sessions…"))
+		return body + "\n" + hint
 	}
 
-	hint := lipgloss.NewStyle().Faint(true).Render("c/enter chat  x unload  r refresh  m models  l logs  d describe  q quit")
 	body := herdStyle.Render(h.table.View())
 	if h.status != "" {
 		body += "\n" + h.status
 	}
-	return fmt.Sprintf("%s\n%s\n%s\n%s", header, connLine, body, hint)
+	return body + "\n" + hint
 }
 
-func checkConn(client *ipc.Client) tea.Cmd {
-	return func() tea.Msg {
-		if err := client.Ping(); err != nil {
-			return connStatusMsg{ok: false, err: err}
+func (h *Herd) rebuildTable() {
+	rows := make([]table.Row, len(h.sessions))
+	for i, s := range h.sessions {
+		vram, status := "—", "—"
+		if info, ok := h.runningInfo[s.Model]; ok {
+			vram = formatBytes(info.vram)
+			status = formatExpiry(info.expiry)
+			if status == "expired" {
+				status = expiredStyle.Render(status)
+			}
 		}
-		return connStatusMsg{ok: true}
+		model := s.Model
+		if model == "" {
+			model = "—"
+		}
+		rows[i] = table.Row{s.Name, model, vram, status}
+	}
+	h.table.SetRows(rows)
+}
+
+func (h Herd) usedNames() []string {
+	names := make([]string, len(h.sessions))
+	for i, s := range h.sessions {
+		names[i] = s.Name
+	}
+	return names
+}
+
+// pickFoxName returns a fox-themed name not already in use.
+func pickFoxName(used []string) string {
+	inUse := make(map[string]bool, len(used))
+	for _, v := range used {
+		inUse[v] = true
+	}
+	pool := make([]string, len(foxAdjectives))
+	copy(pool, foxAdjectives)
+	rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
+	for _, adj := range pool {
+		name := adj + " Fox"
+		if !inUse[name] {
+			return name
+		}
+	}
+	return fmt.Sprintf("Fox #%d", len(used)+1)
+}
+
+func fetchSessions(client *ipc.Client) tea.Cmd {
+	return func() tea.Msg {
+		sessions, err := client.ListSessions()
+		if err != nil {
+			return sessionsMsg{err: err}
+		}
+		return sessionsMsg{sessions: sessions}
+	}
+}
+
+func createSessionCmd(client *ipc.Client, name string) tea.Cmd {
+	return func() tea.Msg {
+		sess, err := client.CreateSession(name)
+		return createSessionResultMsg{session: sess, err: err}
+	}
+}
+
+func deleteSessionCmd(client *ipc.Client, id string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.DeleteSession(id)
+		return deleteSessionResultMsg{id: id, err: err}
+	}
+}
+
+func assignModelCmd(client *ipc.Client, sessionID, model string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.AssignModel(sessionID, model)
+		return assignModelResultMsg{id: sessionID, err: err}
 	}
 }
 

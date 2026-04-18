@@ -8,19 +8,39 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-// SelectModelMsg is emitted when the user picks a model to chat with.
-type SelectModelMsg struct{ Name string }
+// SelectModelMsg is emitted when the user opens a session for chat.
+type SelectModelMsg struct {
+	SessionID   string
+	SessionName string // display name shown in the chat header
+	ModelName   string
+}
 
-// BackToHerdMsg is emitted after a model loads successfully to return to the herd view.
+// BackToHerdMsg is emitted to return to the herd view.
 type BackToHerdMsg struct{}
 
-type loadModelMsg struct{ err error }
+// AssignModelMsg is emitted when a loaded model is assigned to a session.
+type AssignModelMsg struct {
+	SessionID string
+	ModelName string
+}
 
-// ModelSelector lists available Ollama models and lets the user load one.
+// OpenModelSelectorMsg is emitted by herd to open the model selector for a session.
+type OpenModelSelectorMsg struct {
+	SessionID   string
+	SessionName string
+}
+
+type loadModelMsg struct {
+	name string
+	err  error
+}
+
+// ModelSelector lists available Ollama models and lets the user load one into a session.
 type ModelSelector struct {
-	client *ipc.Client
-	table  table.Model
-	status string
+	client          *ipc.Client
+	table           table.Model
+	status          string
+	targetSessionID string
 }
 
 func NewModelSelector(client *ipc.Client) ModelSelector {
@@ -34,6 +54,13 @@ func NewModelSelector(client *ipc.Client) ModelSelector {
 		table.WithHeight(12),
 	)
 	return ModelSelector{client: client, table: t}
+}
+
+// ForSession returns a copy of the selector targeting the given session.
+func (m ModelSelector) ForSession(sessionID string) ModelSelector {
+	m.targetSessionID = sessionID
+	m.status = ""
+	return m
 }
 
 func (m ModelSelector) Init() tea.Cmd {
@@ -56,14 +83,18 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = connErrStyle.Render("load failed: " + msg.err.Error())
 			return m, nil
 		}
-		return m, func() tea.Msg { return BackToHerdMsg{} }
+		if m.targetSessionID == "" {
+			return m, func() tea.Msg { return BackToHerdMsg{} }
+		}
+		id, name := m.targetSessionID, msg.name
+		return m, func() tea.Msg { return AssignModelMsg{SessionID: id, ModelName: name} }
 	case tea.KeyMsg:
 		if msg.String() == "l" {
 			if row := m.table.SelectedRow(); len(row) > 0 {
 				name, size := row[0], row[1]
 				m.status = modelsStyle.Render("loading " + name + " (" + size + ")...")
 				return m, func() tea.Msg {
-					return loadModelMsg{err: m.client.LoadModel(name)}
+					return loadModelMsg{name: name, err: m.client.LoadModel(name)}
 				}
 			}
 		}
@@ -75,7 +106,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m ModelSelector) View() string {
 	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("MODELS")
-	hint := lipgloss.NewStyle().Faint(true).Render("l/enter load  esc back")
+	hint := lipgloss.NewStyle().Faint(true).Render("[l] load  [esc] back")
 	body := herdStyle.Render(m.table.View())
 	if m.status != "" {
 		body += "\n" + m.status

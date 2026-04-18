@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
 	"github.com/mirageglobe/ai-inari/internal/mcp"
@@ -110,28 +111,97 @@ func (s *Server) handle(conn net.Conn) {
 	}
 }
 
+// toInfo converts a session to the wire summary sent to fox.
+func toInfo(sess *session.Session) SessionInfo {
+	return SessionInfo{ID: sess.ID, Name: sess.Name, Model: sess.Model}
+}
+
 func (s *Server) dispatch(req Request) Response {
 	switch req.Method {
 	case "ping":
 		return Response{JSONRPC: "2.0", Result: "pong", ID: req.ID}
+
+	// session.list returns a summary of every session — no message history on the wire.
 	case "session.list":
-		return Response{JSONRPC: "2.0", Result: s.store.List(), ID: req.ID}
+		list := s.store.List()
+		infos := make([]SessionInfo, len(list))
+		for i, sess := range list {
+			infos[i] = toInfo(sess)
+		}
+		return Response{JSONRPC: "2.0", Result: infos, ID: req.ID}
+
+	// session.create initialises a new named session with no model assigned yet.
+	case "session.create":
+		var params struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil || params.Name == "" {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		sess := session.New(params.Name)
+		s.store.Add(sess)
+		return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
+
+	// session.delete removes a session and its full chat history.
+	case "session.delete":
+		var params struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		s.store.Remove(params.ID)
+		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
+
+	// session.assign attaches a model to an existing session.
+	case "session.assign":
+		var params struct {
+			ID    string `json:"id"`
+			Model string `json:"model"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		sess, ok := s.store.Get(params.ID)
+		if !ok {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+		}
+		sess.Model = params.Model
+		sess.UpdatedAt = time.Now()
+		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
+
+	// session.chat appends a user message, sends the full history to Ollama,
+	// stores the reply, and returns the assistant's text. History is never sent
+	// over the wire — fox sends only the new user text each turn.
 	case "session.chat":
 		if r, ok := s.ollamaErr(req); !ok {
 			return r
 		}
 		var params struct {
-			Model    string           `json:"model"`
-			Messages []ollama.Message `json:"messages"`
+			ID   string `json:"id"`
+			Text string `json:"text"`
 		}
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
 		}
-		reply, err := s.ollama.Chat(params.Model, params.Messages)
+		sess, ok := s.store.Get(params.ID)
+		if !ok {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+		}
+		if sess.Model == "" {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no model assigned to session"}, ID: req.ID}
+		}
+		sess.AppendMessage(ollama.Message{Role: "user", Content: params.Text})
+		history := sess.ChatHistory()
+		reply, err := s.ollama.Chat(sess.Model, history)
 		if err != nil {
+			// Roll back the user message so the history stays consistent on retry.
+			sess.Messages = sess.Messages[:len(sess.Messages)-1]
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
+		sess.AppendMessage(ollama.Message{Role: "assistant", Content: reply})
 		return Response{JSONRPC: "2.0", Result: reply, ID: req.ID}
+
 	case "ollama.load":
 		if r, ok := s.ollamaErr(req); !ok {
 			return r
