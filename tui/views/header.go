@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 )
 
 // UIWidth is the target maximum width for all fox UI elements.
-const UIWidth = 120
+const UIWidth = 100
 
 var HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).MaxWidth(UIWidth)
 var ConnOKStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
@@ -43,7 +44,7 @@ var hintSepStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 // RenderHint renders a list of commands, dimming unavailable ones and wrapping
 // lines that would exceed width. HS() separators are rendered mid-line as "│"
 // and skipped when they would fall at the start of a new line.
-// Pass 0 to fall back to UIWidth.
+// pass 0 to fall back to UIWidth.
 func RenderHint(cmds []HintCmd, width int) string {
 	if width <= 0 {
 		width = UIWidth
@@ -66,7 +67,7 @@ func RenderHint(cmds []HintCmd, width int) string {
 
 	for _, c := range cmds {
 		if c.isSep {
-			// Only render a separator mid-line; skip it at the start to avoid orphaned dividers.
+			// only render a separator mid-line; skip it at the start to avoid orphaned dividers.
 			if lineRaw != "" && len(lineRaw+sepRaw) <= width {
 				lineRaw += sepRaw
 				lineParts = append(lineParts, hintSepStyle.Render(" │ "))
@@ -112,10 +113,11 @@ func CheckConnNow(client *ipc.Client) tea.Cmd {
 	return func() tea.Msg { return pingMsg(client) }
 }
 
-// ConnTick returns a command that fires a ConnStatusMsg after 3 seconds,
+// ConnTick returns a command that fires a ConnStatusMsg after 1 second,
 // allowing the caller to reschedule it on receipt to keep the header live.
+// 1 second gives a fast offline→online detection without hammering the socket.
 func ConnTick(client *ipc.Client) tea.Cmd {
-	return tea.Tick(3*time.Second, func(_ time.Time) tea.Msg {
+	return tea.Tick(1*time.Second, func(_ time.Time) tea.Msg {
 		return pingMsg(client)
 	})
 }
@@ -127,12 +129,29 @@ func pingMsg(client *ipc.Client) ConnStatusMsg {
 	return ConnStatusMsg{OK: true}
 }
 
-func RenderHeader(connErr string) string {
-	var connLine string
-	if connErr != "" {
-		connLine = ConnErrStyle.Render("○ offline")
-	} else {
-		connLine = ConnOKStyle.Render("● connected to inari ai daemon")
+// RenderTopBar renders the single top bar: app title left, cpu/mem/connection right-aligned.
+// width is capped at UIWidth so the bar never extends beyond 100 chars on wide terminals.
+func RenderTopBar(connErr string, stats SysStatsMsg, width int) string {
+	if width <= 0 || width > UIWidth {
+		width = UIWidth
 	}
-	return HeaderStyle.Render("🦊 inari fox") + "  " + connLine
+	left := HeaderStyle.Render("🦊 inari fox")
+
+	cpu := fmt.Sprintf("cpu %.0f%%", stats.CPUPercent)
+	mem := fmt.Sprintf("mem %s / %s", formatBytes(int64(stats.MemUsed)), formatBytes(int64(stats.MemTotal)))
+	sysText := sysBarStyle.Render(cpu + "  " + mem)
+
+	var connText string
+	if connErr != "" {
+		connText = ConnErrStyle.Render("  ○ offline")
+	} else {
+		connText = ConnOKStyle.Render("  ● inari daemon")
+	}
+
+	right := sysText + connText
+	pad := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if pad < 1 {
+		pad = 1
+	}
+	return left + strings.Repeat(" ", pad) + right
 }

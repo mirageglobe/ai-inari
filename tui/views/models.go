@@ -1,6 +1,8 @@
 package views
 
 import (
+	"sort"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,9 +13,10 @@ import (
 
 // SelectModelMsg is emitted when the user opens a session for chat.
 type SelectModelMsg struct {
-	SessionID   string
-	SessionName string // display name shown in the chat header
-	ModelName   string
+	SessionID    string
+	SessionName  string // display name shown in the chat header
+	ModelName    string
+	ContextChars int // total message chars at open time, for token estimation
 }
 
 // BackToHerdMsg is emitted to return to the herd view.
@@ -49,10 +52,11 @@ type ModelSelector struct {
 }
 
 func NewModelSelector(client *ipc.Client) ModelSelector {
-	// Column widths sum to 88; with borders ≈ 92 chars total.
+	// model column is resized dynamically in WindowSizeMsg; this default targets UIWidth.
+	// overhead = 2 (herdStyle border) + 2×2 (cell padding) + 12 (VRAM) = 18; model = UIWidth-18.
 	cols := []table.Column{
-		{Title: "Model", Width: 74},
-		{Title: "Est. VRAM", Width: 12},
+		{Title: "model", Width: UIWidth - 18},
+		{Title: "est. vram", Width: 12},
 	}
 	t := table.New(
 		table.WithColumns(cols),
@@ -81,6 +85,24 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		if m.width > UIWidth {
+			m.width = UIWidth
+		}
+		// topbar(1) + models header(1) + border-top(1) + col-header(1) + border-bottom(1) + status(1) + hint(1) = 7 reserved
+		tableHeight := msg.Height - 7
+		if tableHeight < 1 {
+			tableHeight = 1
+		}
+		m.table.SetHeight(tableHeight)
+		// resize model column so total width = m.width (see NewModelSelector for overhead breakdown).
+		modelColW := m.width - 18
+		if modelColW < 10 {
+			modelColW = 10
+		}
+		m.table.SetColumns([]table.Column{
+			{Title: "model", Width: modelColW},
+			{Title: "est. vram", Width: 12},
+		})
 		return m, nil
 
 	case spinner.TickMsg:
@@ -93,6 +115,9 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case modelsMsg:
 		if msg.err == nil {
+			sort.Slice(msg.models, func(i, j int) bool {
+				return msg.models[i].Name < msg.models[j].Name
+			})
 			rows := make([]table.Row, len(msg.models))
 			for i, model := range msg.models {
 				rows[i] = table.Row{model.Name, formatBytes(model.Size)}
@@ -137,7 +162,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ModelSelector) View() string {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("MODELS")
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("models")
 	if m.targetSessionName != "" {
 		title += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render("→ "+m.targetSessionName)
 	}

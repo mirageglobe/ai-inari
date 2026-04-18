@@ -1,5 +1,5 @@
 // Package tui is the root Bubble Tea model for fox (Terminal User Interface).
-// It owns view routing — herd, models, logs, describe, and chat — and delegates input and rendering to each.
+// it owns view routing — herd, models, logs, describe, and chat — and delegates input and rendering to each.
 package tui
 
 import (
@@ -36,6 +36,7 @@ type Model struct {
 	chats         map[string]views.Chat // keyed by session ID
 	sysStats      views.SysStatsMsg
 	connErr       string
+	connOnline    bool // tracks last known connection state to detect offline→online transitions
 	termWidth     int
 	termHeight    int
 }
@@ -57,7 +58,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Broadcast window size to all views that own a viewport so they size correctly
+	// broadcast window size to all views that own a viewport so they size correctly
 	// on startup and on terminal resize, regardless of which view is currently active.
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
 		m.termWidth = ws.Width
@@ -89,8 +90,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if conn, ok := msg.(views.ConnStatusMsg); ok {
+		wasOffline := !m.connOnline
+		m.connOnline = conn.OK
 		if conn.OK {
 			m.connErr = ""
+			if wasOffline {
+				// daemon just came back online — refresh sessions and running models immediately.
+				return m, tea.Batch(views.ConnTick(m.client), m.herd.Init())
+			}
 		} else {
 			m.connErr = "connection failed"
 		}
@@ -102,7 +109,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.herd.Init()
 	}
 
-	// Open model selector targeting a specific session.
+	// open model selector targeting a specific session.
 	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
 		m.returnView = m.current
 		m.models = m.models.ForSession(openMs.SessionID, openMs.SessionName)
@@ -110,7 +117,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.models.Init()
 	}
 
-	// A model was assigned to a session — herd handles the optimistic update and the assign RPC.
+	// a model was assigned to a session — herd handles the optimistic update and the assign RPC.
 	if assign, ok := msg.(views.AssignModelMsg); ok {
 		updated, cmd := m.herd.Update(assign)
 		m.herd = updated.(views.Herd)
@@ -122,12 +129,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Open a session's chat.
+	// open a session's chat.
 	if sel, ok := msg.(views.SelectModelMsg); ok {
 		m.activeSession = sel.SessionID
 		if _, exists := m.chats[sel.SessionID]; !exists {
-			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName)
-			// Size the viewport immediately with the known terminal dimensions so the
+			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.ContextChars)
+			// size the viewport immediately with the known terminal dimensions so the
 			// chat is ready before it ever receives a WindowSizeMsg.
 			if m.termWidth > 0 && m.termHeight > 0 {
 				sized, _ := chat.Update(tea.WindowSizeMsg{Width: m.termWidth, Height: m.termHeight})
@@ -140,7 +147,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
-		if m.current == viewChat {
+		switch m.current {
+		case viewChat:
 			switch key.String() {
 			case "esc":
 				m.current = viewHerd
@@ -153,19 +161,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.current = viewModels
 				return m, m.models.Init()
 			}
-		} else {
+		case viewHerd:
 			switch key.String() {
 			case "q":
 				return m, tea.Quit
 			case "l":
-				if m.current != viewModels {
-					m.current = viewLogs
-					return m, m.logs.Init()
-				}
+				m.current = viewLogs
+				return m, m.logs.Init()
 			case "d":
+				if sess, vram, ok := m.herd.SelectedSession(); ok {
+					m.describe = m.describe.ForSession(sess, vram, m.client)
+				}
 				m.current = viewDescribe
-				return m, nil
-			case "esc":
+				return m, m.describe.Init()
+			}
+		default:
+			// esc from secondary views returns to herd, except when describe is in edit mode
+			if key.String() == "esc" && !(m.current == viewDescribe && m.describe.IsEditing()) {
 				m.current = viewHerd
 				return m, m.herd.Init()
 			}
@@ -199,8 +211,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	header := views.RenderHeader(m.connErr) + "\n"
-	bar := views.RenderSysBar(m.sysStats) + "\n"
+	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth) + "\n"
 
 	var body string
 	switch m.current {
@@ -216,8 +227,8 @@ func (m Model) View() string {
 		body = m.herd.View()
 	}
 
-	full := header + bar + body
-	// Pad every render to termHeight lines so Bubble Tea's cursor tracking stays
+	full := topBar + body
+	// pad every render to termHeight lines so Bubble Tea's cursor tracking stays
 	// consistent when switching between views of different heights. Without this,
 	// switching from a short view (models, describe) back to a tall one (herd)
 	// positions the cursor mid-screen, causing the top lines including the header

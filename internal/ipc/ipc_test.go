@@ -34,10 +34,7 @@ func TestPingPong(t *testing.T) {
 	}
 	defer srv.Close()
 
-	client, err := NewClient(sock)
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	client := NewClient(sock)
 	defer client.Close()
 
 	if err := client.Ping(); err != nil {
@@ -69,10 +66,7 @@ func TestSessionList(t *testing.T) {
 	}
 	defer srv.Close()
 
-	client, err := NewClient(sock)
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	client := NewClient(sock)
 	defer client.Close()
 
 	resp, err := client.Call("session.list", nil)

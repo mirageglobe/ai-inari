@@ -12,11 +12,15 @@ import (
 )
 
 // SessionInfo is the wire representation of a session returned by session.list and session.create.
-// It carries only the summary fields fox needs for display — full message history stays in inarid.
+// it carries only the summary fields fox needs for display — full message history stays in inarid.
+// ContextChars is the total character count of all messages (including system prompt),
+// used by fox to estimate token usage without re-fetching history.
 type SessionInfo struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Model string `json:"model"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Model        string `json:"model"`
+	SystemPrompt string `json:"system_prompt,omitempty"`
+	ContextChars int    `json:"context_chars,omitempty"`
 }
 
 // Client connects to inarid over a Unix Domain Socket.
@@ -276,6 +280,20 @@ func (c *Client) Chat(sessionID, text string) (string, error) {
 		return "", fmt.Errorf("unexpected response type")
 	}
 	return reply, nil
+}
+
+// SetContext sets the system prompt for a session.
+// the prompt is prepended as a system message on every subsequent chat request.
+// pass an empty string to clear the context.
+func (c *Client) SetContext(sessionID, prompt string) error {
+	resp, err := c.Call("session.setcontext", map[string]string{"id": sessionID, "prompt": prompt})
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Message)
+	}
+	return nil
 }
 
 func (c *Client) Quit() error {

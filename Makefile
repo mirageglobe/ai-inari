@@ -30,8 +30,21 @@ build-client:                ## Build fox (TUI client)
 	go build -o $(CLIENT_BIN) ./cmd/fox
 
 # ============================================================
-# Run (development)
+# Run
 # ============================================================
+
+.PHONY: start
+start: build                 ## Build, start ollama + inarid in background, then launch fox
+	@pgrep ollama > /dev/null || (echo "starting ollama..." && ollama serve > /dev/null 2>&1 &)
+	@sleep 1
+	@pgrep inarid > /dev/null && echo "inarid already running" || (./$(DAEMON_BIN) & echo $$! > /tmp/inarid.pid)
+	@sleep 0.5
+	@./$(CLIENT_BIN)
+	@$(MAKE) --no-print-directory stop
+
+.PHONY: stop
+stop:                        ## Stop inarid background process
+	@-kill $$(cat /tmp/inarid.pid 2>/dev/null) 2>/dev/null && rm -f /tmp/inarid.pid && echo "inarid stopped" || true
 
 .PHONY: run-daemon
 run-daemon:                  ## Run inarid directly (no build)
