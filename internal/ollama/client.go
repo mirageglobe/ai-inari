@@ -66,6 +66,7 @@ func (c *Client) Ping() error {
 }
 
 // getModels fetches endpoint and decodes the top-level "models" array into out.
+// Both /api/tags and /api/ps wrap their lists in {"models": [...]}, so one helper serves both.
 func (c *Client) getModels(endpoint string, out any) error {
 	resp, err := c.http.Get(c.baseURL + endpoint)
 	if err != nil {
@@ -108,7 +109,8 @@ func (c *Client) LoadModel(model string) error {
 	return nil
 }
 
-// UnloadModel evicts the model from Ollama memory by sending keep_alive=0.
+// UnloadModel evicts the model from Ollama memory. keep_alive=0 is Ollama's documented
+// mechanism for immediate eviction; there is no dedicated unload endpoint.
 func (c *Client) UnloadModel(model string) error {
 	body, _ := json.Marshal(map[string]any{"model": model, "keep_alive": 0})
 	resp, err := c.http.Post(c.baseURL+"/api/generate", "application/json", bytes.NewReader(body))

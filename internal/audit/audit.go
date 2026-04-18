@@ -23,6 +23,9 @@ type Auditor struct {
 	enc *json.Encoder
 }
 
+// New opens (or creates) the audit log at path. Panics on failure — a daemon that cannot
+// write its audit log should not start silently, as tool calls would go unrecorded.
+// 0600: the log may contain sensitive prompt content; restrict to the daemon owner.
 func New(path string) *Auditor {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {

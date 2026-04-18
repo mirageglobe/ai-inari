@@ -34,6 +34,7 @@ type Chat struct {
 	viewport    viewport.Model
 	input       textarea.Model
 	waiting     bool
+	ready       bool
 }
 
 // Init re-focuses the textarea so typing works when resuming a session.
@@ -46,17 +47,14 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model string) Chat {
 	ta := textarea.New()
 	ta.Placeholder = "Message " + sessionName + " (" + model + ")..."
 	ta.Focus()
-	ta.SetHeight(3)
+	ta.SetHeight(2)
 	ta.CharLimit = 2048
-
-	vp := viewport.New(80, 16)
 
 	return Chat{
 		client:      client,
 		sessionID:   sessionID,
 		sessionName: sessionName,
 		model:       model,
-		viewport:    vp,
 		input:       ta,
 	}
 }
@@ -73,6 +71,24 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.display = append(c.display, errorStyle.Render("error: "+msg.err.Error()))
 		} else {
 			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+msg.text)
+		}
+		c.viewport.SetContent(strings.Join(c.display, "\n"))
+		c.viewport.GotoBottom()
+		return c, nil
+
+	case tea.WindowSizeMsg:
+		// model header(1) + sysbar(1) + chat header(1) + border-top(1) + border-bottom(1) + input(2) + hint(1) = 8 reserved
+		// Viewport width shrinks by 2 for the border's left and right columns.
+		height := msg.Height - 8
+		if height < 1 {
+			height = 1
+		}
+		if !c.ready {
+			c.viewport = viewport.New(msg.Width-2, height)
+			c.ready = true
+		} else {
+			c.viewport.Width = msg.Width - 2
+			c.viewport.Height = height
 		}
 		c.viewport.SetContent(strings.Join(c.display, "\n"))
 		c.viewport.GotoBottom()
@@ -110,8 +126,14 @@ func (c Chat) View() string {
 	}
 	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("CHAT") +
 		"  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render(title)
-	hint := lipgloss.NewStyle().Faint(true).Render("[enter] send  [ctrl+o] change model  [esc] back")
-	return header + "\n" + c.viewport.View() + "\n" + c.input.View() + "\n" + hint
+	hint := RenderHint([]HintCmd{
+		H("[enter] send"),
+		H("[ctrl+o] change model"),
+		HS(),
+		H("[esc] back"),
+	}, c.viewport.Width)
+	body := herdStyle.Render(c.viewport.View())
+	return header + "\n" + body + "\n" + c.input.View() + "\n" + hint
 }
 
 func sendMessage(client *ipc.Client, sessionID, text string) tea.Cmd {

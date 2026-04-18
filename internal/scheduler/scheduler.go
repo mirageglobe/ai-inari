@@ -11,7 +11,9 @@ var tierCost = map[string]int{
 	"thinker": 1024,
 }
 
-// Scheduler is a semaphore-based concurrency throttle budgeted by memory (MB).
+// Scheduler is a memory-budget throttle for concurrent Ollama sessions.
+// sem is a capacity-1 channel used as a mutex over `used`; it serialises Acquire/Release
+// without importing sync, keeping the critical section visually explicit.
 type Scheduler struct {
 	budget int
 	used   int
@@ -25,7 +27,8 @@ func New(budgetMB int) *Scheduler {
 	}
 }
 
-// Acquire reserves memory for a tier. Blocks until budget is available.
+// Acquire reserves memory for a tier. Returns an error immediately if the budget is exceeded —
+// it does not block waiting for other sessions to release; the caller decides whether to retry.
 func (s *Scheduler) Acquire(tier string) error {
 	cost, ok := tierCost[tier]
 	if !ok {
@@ -42,7 +45,8 @@ func (s *Scheduler) Acquire(tier string) error {
 	return nil
 }
 
-// Release frees memory reserved for a tier.
+// Release frees memory reserved for a tier. The floor guard prevents `used` going negative
+// if Release is called without a matching Acquire (e.g. during error recovery).
 func (s *Scheduler) Release(tier string) {
 	cost := tierCost[tier]
 
@@ -55,5 +59,5 @@ func (s *Scheduler) Release(tier string) {
 	}
 }
 
-func (s *Scheduler) Used() int  { return s.used }
-func (s *Scheduler) Free() int  { return s.budget - s.used }
+func (s *Scheduler) Used() int { return s.used }
+func (s *Scheduler) Free() int { return s.budget - s.used }

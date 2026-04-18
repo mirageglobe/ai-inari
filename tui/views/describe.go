@@ -9,7 +9,8 @@ import (
 
 // Describe shows full metadata for the selected session.
 type Describe struct {
-	sess *session.Session
+	sess  *session.Session
+	width int
 }
 
 func (d Describe) Init() tea.Cmd { return nil }
@@ -24,12 +25,15 @@ func (d Describe) SetSession(s *session.Session) Describe {
 }
 
 func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		d.width = ws.Width
+	}
 	return d, nil
 }
 
 func (d Describe) View() string {
 	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("DESCRIBE")
-	hint := lipgloss.NewStyle().Faint(true).Render("esc back")
+	hint := RenderHint([]HintCmd{H("[esc] back")}, d.width)
 
 	if d.sess == nil {
 		return header + "\n\nNo session selected.\n\n" + hint

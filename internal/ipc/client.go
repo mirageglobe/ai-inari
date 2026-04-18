@@ -35,6 +35,8 @@ func NewClient(socket string) *Client {
 	return &Client{socket: socket}
 }
 
+// reconnect dials the socket and wires up a fresh encoder/decoder pair.
+// Called lazily on first use and after any broken-pipe error.
 func (c *Client) reconnect() error {
 	conn, err := net.Dial("unix", c.socket)
 	if err != nil {
@@ -46,6 +48,9 @@ func (c *Client) reconnect() error {
 	return nil
 }
 
+// Call serialises a JSON-RPC request, writes it, and reads the response.
+// Lazy dial: we don't connect at construction time because inarid may not be running yet.
+// On any I/O error we nil the connection so the next call triggers a fresh dial.
 func (c *Client) Call(method string, params any) (*Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -71,13 +76,13 @@ func (c *Client) Call(method string, params any) (*Response, error) {
 	}
 
 	if err := c.enc.Encode(req); err != nil {
-		c.conn = nil
+		c.conn = nil // force reconnect on next call
 		return nil, err
 	}
 
 	var resp Response
 	if err := c.dec.Decode(&resp); err != nil {
-		c.conn = nil
+		c.conn = nil // force reconnect on next call
 		return nil, err
 	}
 	return &resp, nil

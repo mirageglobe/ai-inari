@@ -47,12 +47,14 @@ type Server struct {
 }
 
 func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, ollamaClient *ollama.Client) (*Server, error) {
+	// Remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
 	os.Remove(socket)
 
 	l, err := net.Listen("unix", socket)
 	if err != nil {
 		return nil, err
 	}
+	// Restrict to the owning user — the socket carries unencrypted prompts and session data.
 	if err := os.Chmod(socket, 0600); err != nil {
 		l.Close()
 		return nil, err
@@ -67,7 +69,7 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		ollama:   ollamaClient,
 		quit:     make(chan struct{}),
 	}
-	go s.accept()
+	go s.accept() // accept loop runs in background; NewServer returns immediately
 	return s, nil
 }
 
@@ -85,6 +87,8 @@ func (s *Server) ollamaErr(req Request) (Response, bool) {
 	return Response{}, true
 }
 
+// accept runs until the listener is closed (on shutdown). Each connection gets its own goroutine
+// so a slow fox call (e.g. a long Ollama reply) doesn't block other clients.
 func (s *Server) accept() {
 	for {
 		conn, err := s.listener.Accept()
@@ -95,6 +99,8 @@ func (s *Server) accept() {
 	}
 }
 
+// handle reads JSON-RPC requests from conn in a loop. The connection stays open across multiple
+// calls so fox can reuse it without re-dialing for every operation.
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	dec := json.NewDecoder(conn)

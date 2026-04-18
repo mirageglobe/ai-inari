@@ -1,6 +1,7 @@
 package views
 
 import (
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -39,22 +40,29 @@ type loadModelMsg struct {
 type ModelSelector struct {
 	client            *ipc.Client
 	table             table.Model
+	spinner           spinner.Model
+	loading           bool
 	status            string
 	targetSessionID   string
 	targetSessionName string
+	width             int
 }
 
 func NewModelSelector(client *ipc.Client) ModelSelector {
+	// Column widths sum to 88; with borders ≈ 92 chars total.
 	cols := []table.Column{
-		{Title: "Model", Width: 34},
-		{Title: "Est. VRAM", Width: 10},
+		{Title: "Model", Width: 74},
+		{Title: "Est. VRAM", Width: 12},
 	}
 	t := table.New(
 		table.WithColumns(cols),
 		table.WithFocused(true),
 		table.WithHeight(12),
 	)
-	return ModelSelector{client: client, table: t}
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = spinnerStyle
+	return ModelSelector{client: client, table: t, spinner: s}
 }
 
 // ForSession returns a copy of the selector targeting the given kitsune session.
@@ -71,6 +79,18 @@ func (m ModelSelector) Init() tea.Cmd {
 
 func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
+
+	case spinner.TickMsg:
+		if m.loading {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+
 	case modelsMsg:
 		if msg.err == nil {
 			rows := make([]table.Row, len(msg.models))
@@ -82,6 +102,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case loadModelMsg:
+		m.loading = false
 		if msg.err != nil {
 			m.status = connErrStyle.Render("load failed: " + msg.err.Error())
 			return m, nil
@@ -95,11 +116,17 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter", "l":
-			if row := m.table.SelectedRow(); len(row) > 0 {
-				name, size := row[0], row[1]
-				m.status = modelsStyle.Render("loading " + name + " (" + size + ") → " + m.targetSessionName + "...")
-				return m, func() tea.Msg {
-					return loadModelMsg{name: name, err: m.client.LoadModel(name)}
+			if !m.loading {
+				if row := m.table.SelectedRow(); len(row) > 0 {
+					name, size := row[0], row[1]
+					m.loading = true
+					m.status = modelsStyle.Render("loading " + name + " (" + size + ") → " + m.targetSessionName + "...")
+					return m, tea.Batch(
+						m.spinner.Tick,
+						func() tea.Msg {
+							return loadModelMsg{name: name, err: m.client.LoadModel(name)}
+						},
+					)
 				}
 			}
 		}
@@ -114,10 +141,14 @@ func (m ModelSelector) View() string {
 	if m.targetSessionName != "" {
 		title += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render("→ "+m.targetSessionName)
 	}
-	hint := lipgloss.NewStyle().Faint(true).Render("[enter] assign to kitsune  [esc] back")
+	hint := RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back")}, m.width)
 	body := herdStyle.Render(m.table.View())
 	if m.status != "" {
-		body += "\n" + m.status
+		line := m.status
+		if m.loading {
+			line = m.spinner.View() + " " + line
+		}
+		body += "\n" + line
 	}
 	return title + "\n" + body + "\n" + hint
 }

@@ -89,18 +89,22 @@ type Herd struct {
 	status      string
 	sessions    []ipc.SessionInfo
 	runningInfo map[string]runningMeta
+	width       int
+	height      int
 }
 
 func NewHerd(client *ipc.Client) Herd {
+	// Column widths sum to 98; with NormalBorder separators and outer border ≈ 104 chars total.
 	cols := []table.Column{
-		{Title: "Kitsune", Width: 14},
-		{Title: "Model", Width: 24},
-		{Title: "VRAM", Width: 10},
-		{Title: "Status", Width: 12},
+		{Title: "Kitsune", Width: 20},
+		{Title: "Model", Width: 48},
+		{Title: "VRAM", Width: 12},
+		{Title: "Status", Width: 16},
 	}
 	t := table.New(
 		table.WithColumns(cols),
 		table.WithFocused(true),
+		// Height is overridden on first WindowSizeMsg; 12 is a safe default before that arrives.
 		table.WithHeight(12),
 	)
 	s := spinner.New()
@@ -121,6 +125,17 @@ func (h Herd) Init() tea.Cmd {
 
 func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		h.width = msg.Width
+		h.height = msg.Height
+		// model header(1) + sysbar(1) + border-top(1) + col-header(1) + border-bottom(1) + hint(1) = 6 reserved
+		tableHeight := msg.Height - 6
+		if tableHeight < 1 {
+			tableHeight = 1
+		}
+		h.table.SetHeight(tableHeight)
+		return h, nil
+
 	case spinner.TickMsg:
 		if h.loading {
 			var cmd tea.Cmd
@@ -165,13 +180,22 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			h.status = connErrStyle.Render("delete failed: " + msg.err.Error())
 		} else {
+			deletedIdx := -1
 			for i, s := range h.sessions {
 				if s.ID == msg.id {
+					deletedIdx = i
 					h.sessions = append(h.sessions[:i], h.sessions[i+1:]...)
 					break
 				}
 			}
 			h.rebuildTable()
+			if deletedIdx >= 0 && len(h.sessions) > 0 {
+				cur := deletedIdx
+				if cur >= len(h.sessions) {
+					cur = len(h.sessions) - 1
+				}
+				h.table.SetCursor(cur)
+			}
 		}
 		return h, nil
 
@@ -186,8 +210,10 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			h.rebuildTable()
+			return h, nil
 		}
-		return h, nil
+		// Refresh running info so VRAM/status columns reflect the newly loaded model.
+		return h, fetchRunning(h.client)
 
 	case unassignModelResultMsg:
 		if msg.err != nil {
@@ -218,7 +244,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return h, createSessionCmd(h.client, name)
 		case "m":
 			idx := h.table.Cursor()
-			if idx < len(h.sessions) {
+			if idx >= 0 && idx < len(h.sessions) {
 				sess := h.sessions[idx]
 				return h, func() tea.Msg {
 					return OpenModelSelectorMsg{SessionID: sess.ID, SessionName: sess.Name}
@@ -230,7 +256,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return h, tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
 		case "c", "enter":
 			idx := h.table.Cursor()
-			if idx < len(h.sessions) {
+			if idx >= 0 && idx < len(h.sessions) {
 				sess := h.sessions[idx]
 				if sess.Model != "" {
 					return h, func() tea.Msg {
@@ -240,7 +266,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "u":
 			idx := h.table.Cursor()
-			if idx < len(h.sessions) {
+			if idx >= 0 && idx < len(h.sessions) {
 				sess := h.sessions[idx]
 				if sess.Model != "" {
 					// Optimistically clear the model locally; cmd persists it in inarid.
@@ -251,7 +277,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "x":
 			idx := h.table.Cursor()
-			if idx < len(h.sessions) {
+			if idx >= 0 && idx < len(h.sessions) {
 				id := h.sessions[idx].ID
 				return h, deleteSessionCmd(h.client, id)
 			}
@@ -263,7 +289,23 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (h Herd) View() string {
-	hint := lipgloss.NewStyle().Faint(true).Render("[s] new kitsune  [m] load model  [u] unload model  [c] chat  [x] delete kitsune  [r] refresh  [l] logs  [d] describe  [q] quit")
+	idx := h.table.Cursor()
+	hasSession := idx >= 0 && idx < len(h.sessions)
+	hasModel := hasSession && h.sessions[idx].Model != ""
+
+	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
+	hint := RenderHint([]HintCmd{
+		H("[s] new kitsune"),
+		hc("[m] model", hasSession),
+		hc("[u] unload", hasModel),
+		hc("[c] chat", hasModel),
+		hc("[x] delete", hasSession),
+		HS(),
+		H("[r] refresh"),
+		H("[l] logs"),
+		H("[d] describe"),
+		H("[q] quit"),
+	}, h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)

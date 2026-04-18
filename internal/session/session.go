@@ -55,6 +55,8 @@ func New(name string) *Session {
 	}
 }
 
+// newID generates an 8-hex-char session ID. 4 bytes gives 4 billion possible values —
+// more than sufficient for a local daemon managing O(10) sessions.
 func newID() string {
 	b := make([]byte, 4)
 	rand.Read(b)
@@ -70,6 +72,7 @@ func (s *Session) AppendMessage(msg ollama.Message) {
 }
 
 // ChatHistory returns a snapshot of the message history for sending to Ollama.
+// A copy is returned so the caller can hold the slice safely while new messages are appended.
 func (s *Session) ChatHistory() []ollama.Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -79,6 +82,7 @@ func (s *Session) ChatHistory() []ollama.Message {
 }
 
 // Store holds all active and background sessions.
+// RWMutex allows concurrent reads (Get, List) while serialising writes (Add, Remove).
 type Store struct {
 	mu       sync.RWMutex
 	sessions map[string]*Session

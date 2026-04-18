@@ -34,6 +34,8 @@ type Model struct {
 	chats         map[string]views.Chat // keyed by session ID
 	sysStats      views.SysStatsMsg
 	connErr       string
+	termWidth     int
+	termHeight    int
 }
 
 func New(client *ipc.Client) Model {
@@ -53,11 +55,30 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Forward window size to logs so its viewport can properly initialise.
+	// Broadcast window size to all views that own a viewport so they size correctly
+	// on startup and on terminal resize, regardless of which view is currently active.
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
-		updated, cmd := m.logs.Update(ws)
-		m.logs = updated.(views.Logs)
-		return m, cmd
+		m.termWidth = ws.Width
+		m.termHeight = ws.Height
+		var cmds []tea.Cmd
+		updated, cmd := m.herd.Update(ws)
+		m.herd = updated.(views.Herd)
+		cmds = append(cmds, cmd)
+		updated2, cmd2 := m.models.Update(ws)
+		m.models = updated2.(views.ModelSelector)
+		cmds = append(cmds, cmd2)
+		updated3, cmd3 := m.describe.Update(ws)
+		m.describe = updated3.(views.Describe)
+		cmds = append(cmds, cmd3)
+		updated4, cmd4 := m.logs.Update(ws)
+		m.logs = updated4.(views.Logs)
+		cmds = append(cmds, cmd4)
+		for id, chat := range m.chats {
+			updated, cmd := chat.Update(ws)
+			m.chats[id] = updated.(views.Chat)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 	}
 
 	if stats, ok := msg.(views.SysStatsMsg); ok {
@@ -103,7 +124,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sel, ok := msg.(views.SelectModelMsg); ok {
 		m.activeSession = sel.SessionID
 		if _, exists := m.chats[sel.SessionID]; !exists {
-			m.chats[sel.SessionID] = views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName)
+			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName)
+			// Size the viewport immediately with the known terminal dimensions so the
+			// chat is ready before it ever receives a WindowSizeMsg.
+			if m.termWidth > 0 && m.termHeight > 0 {
+				sized, _ := chat.Update(tea.WindowSizeMsg{Width: m.termWidth, Height: m.termHeight})
+				chat = sized.(views.Chat)
+			}
+			m.chats[sel.SessionID] = chat
 		}
 		m.current = viewChat
 		return m, m.chats[sel.SessionID].Init()
