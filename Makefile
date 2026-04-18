@@ -97,6 +97,17 @@ test-v:                      ## Run all tests (verbose)
 	go test -v ./...
 
 # ============================================================
+# Demo
+# ============================================================
+
+.PHONY: demo
+demo: build-daemon build-tui      ## Generate VHS demo GIF
+	@pgrep inarid > /dev/null && echo "inarid already running" || (./$(DAEMON_BIN) & echo $$! > /tmp/inarid.pid)
+	@sleep 1
+	/opt/homebrew/bin/vhs demo.tape
+	@$(MAKE) --no-print-directory stop
+
+# ============================================================
 # Clean
 # ============================================================
 

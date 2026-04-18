@@ -10,6 +10,8 @@
   "a herd behind every idea."
 ```
 
+![demo](demo.gif)
+
 In Japanese mythology, Inari is the fox god — the kami of luck, prosperity, and
 industry. Thousands of shrines across Japan are dedicated to Inari, each guarded
 by kitsune, the foxes who serve as messengers between the spirit world and ours.
