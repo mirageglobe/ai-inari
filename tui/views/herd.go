@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -91,6 +92,7 @@ type Herd struct {
 	runningInfo map[string]runningMeta
 	width       int
 	height      int
+	hintHeight  int // actual rendered hint line count; varies with terminal width
 }
 
 func NewHerd(client *ipc.Client) Herd {
@@ -128,8 +130,14 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
 		h.height = msg.Height
-		// model header(1) + sysbar(1) + border-top(1) + col-header(1) + border-bottom(1) + hint(1) = 6 reserved
-		tableHeight := msg.Height - 6
+		// Pre-render the hint at the current width to count its actual line height.
+		// On narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
+		// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
+		// and pushes the root header off the top of the display.
+		hintStr := RenderHint(herdHints(false, false), msg.Width)
+		h.hintHeight = strings.Count(hintStr, "\n") + 1
+		// model header(1) + sysbar(1) + border-top(1) + col-header(1) + border-bottom(1) + hint(hintHeight)
+		tableHeight := msg.Height - 5 - h.hintHeight
 		if tableHeight < 1 {
 			tableHeight = 1
 		}
@@ -288,13 +296,11 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
-func (h Herd) View() string {
-	idx := h.table.Cursor()
-	hasSession := idx >= 0 && idx < len(h.sessions)
-	hasModel := hasSession && h.sessions[idx].Model != ""
-
+// herdHints returns the command hint list for the herd view.
+// hasSession and hasModel control which items are enabled.
+func herdHints(hasSession, hasModel bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
-	hint := RenderHint([]HintCmd{
+	return []HintCmd{
 		H("[s] new kitsune"),
 		hc("[m] model", hasSession),
 		hc("[u] unload", hasModel),
@@ -305,7 +311,15 @@ func (h Herd) View() string {
 		H("[l] logs"),
 		H("[d] describe"),
 		H("[q] quit"),
-	}, h.width)
+	}
+}
+
+func (h Herd) View() string {
+	idx := h.table.Cursor()
+	hasSession := idx >= 0 && idx < len(h.sessions)
+	hasModel := hasSession && h.sessions[idx].Model != ""
+
+	hint := RenderHint(herdHints(hasSession, hasModel), h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)

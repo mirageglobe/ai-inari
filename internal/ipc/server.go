@@ -175,6 +175,7 @@ func (s *Server) dispatch(req Request) Response {
 		}
 		sess.Model = ""
 		sess.UpdatedAt = time.Now()
+		s.store.Persist(sess.ID)
 		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
 
 	// session.assign attaches a model to an existing session.
@@ -193,7 +194,23 @@ func (s *Server) dispatch(req Request) Response {
 		}
 		sess.Model = params.Model
 		sess.UpdatedAt = time.Now()
+		s.store.Persist(sess.ID)
 		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
+
+	// session.history returns the full message history for a session.
+	// fox calls this when opening a session to restore the display from inarid's store.
+	case "session.history":
+		var params struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		sess, ok := s.store.Get(params.ID)
+		if !ok {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+		}
+		return Response{JSONRPC: "2.0", Result: sess.ChatHistory(), ID: req.ID}
 
 	// session.chat appends a user message, sends the full history to Ollama,
 	// stores the reply, and returns the assistant's text. History is never sent
@@ -225,6 +242,7 @@ func (s *Server) dispatch(req Request) Response {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
 		sess.AppendMessage(ollama.Message{Role: "assistant", Content: reply})
+		s.store.Persist(sess.ID)
 		return Response{JSONRPC: "2.0", Result: reply, ID: req.ID}
 
 	case "ollama.load":

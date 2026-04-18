@@ -18,6 +18,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
@@ -47,7 +48,20 @@ func main() {
 	log.Printf("ollama ready at %s", cfg.OllamaBaseURL)
 
 	sched := scheduler.New(cfg.MemoryBudgetMB)
-	store := session.NewStore()
+
+	dataDir := cfg.DataDir
+	if dataDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatalf("data dir: %v", err)
+		}
+		dataDir = filepath.Join(home, ".local", "share", "inari", "sessions")
+	}
+	store, err := session.NewPersistentStore(dataDir)
+	if err != nil {
+		log.Fatalf("session store: %v", err)
+	}
+	log.Printf("session store at %s", dataDir)
 	mcpHost := mcp.NewHost(cfg.MCPConnectors, auditor)
 
 	if err := mcpHost.Start(); err != nil {

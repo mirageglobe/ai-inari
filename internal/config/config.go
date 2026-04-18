@@ -23,6 +23,7 @@ type Config struct {
 	Socket         string         `json:"socket"`
 	MemoryBudgetMB int            `json:"memory_budget_mb"`
 	OllamaBaseURL  string         `json:"ollama_base_url"`
+	DataDir        string         `json:"data_dir"`
 	MCPConnectors  []MCPConnector `json:"mcp_connectors"`
 	Models         Models         `json:"models"`
 }
