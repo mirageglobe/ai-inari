@@ -39,11 +39,12 @@ type Chat struct {
 // Init re-focuses the textarea so typing works when resuming a session.
 func (c Chat) Init() tea.Cmd { return c.input.Focus() }
 
-func (c Chat) SessionID() string { return c.sessionID }
+func (c Chat) SessionID() string   { return c.sessionID }
+func (c Chat) SessionName() string { return c.sessionName }
 
 func NewChat(client *ipc.Client, sessionID, sessionName, model string) Chat {
 	ta := textarea.New()
-	ta.Placeholder = "Message " + model + "..."
+	ta.Placeholder = "Message " + sessionName + " (" + model + ")..."
 	ta.Focus()
 	ta.SetHeight(3)
 	ta.CharLimit = 2048
@@ -71,7 +72,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			c.display = append(c.display, errorStyle.Render("error: "+msg.err.Error()))
 		} else {
-			c.display = append(c.display, assistantStyle.Render(c.model+": ")+msg.text)
+			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+msg.text)
 		}
 		c.viewport.SetContent(strings.Join(c.display, "\n"))
 		c.viewport.GotoBottom()

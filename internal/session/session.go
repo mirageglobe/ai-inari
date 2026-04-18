@@ -28,8 +28,10 @@ const (
 	TierThinker Tier = "thinker"
 )
 
-// Session is a named chat context. Name and chat history live here so they
-// survive fox detach/reattach cycles. Model is empty until the user assigns one.
+// Session is a named chat context. It is the primary entity in ai-inari.
+// Chat history accumulates regardless of which model is currently assigned —
+// models can be loaded and unloaded freely while the conversation persists.
+// Model is empty when no model is attached; chat is blocked until one is assigned.
 type Session struct {
 	mu        sync.Mutex       // protects Messages
 	ID        string           `json:"id"`

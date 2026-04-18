@@ -153,7 +153,26 @@ func (s *Server) dispatch(req Request) Response {
 		s.store.Remove(params.ID)
 		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
 
+	// session.unassign detaches the current model from a session.
+	// The session and its full chat history are preserved — a new model can be
+	// assigned at any time and will continue the same conversation.
+	case "session.unassign":
+		var params struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		sess, ok := s.store.Get(params.ID)
+		if !ok {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+		}
+		sess.Model = ""
+		sess.UpdatedAt = time.Now()
+		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
+
 	// session.assign attaches a model to an existing session.
+	// Chat history from any prior model is preserved and will be sent as context.
 	case "session.assign":
 		var params struct {
 			ID    string `json:"id"`

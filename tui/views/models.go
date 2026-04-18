@@ -35,12 +35,13 @@ type loadModelMsg struct {
 	err  error
 }
 
-// ModelSelector lists available Ollama models and lets the user load one into a session.
+// ModelSelector lists available Ollama models and lets the user assign one to a kitsune session.
 type ModelSelector struct {
-	client          *ipc.Client
-	table           table.Model
-	status          string
-	targetSessionID string
+	client            *ipc.Client
+	table             table.Model
+	status            string
+	targetSessionID   string
+	targetSessionName string
 }
 
 func NewModelSelector(client *ipc.Client) ModelSelector {
@@ -56,9 +57,10 @@ func NewModelSelector(client *ipc.Client) ModelSelector {
 	return ModelSelector{client: client, table: t}
 }
 
-// ForSession returns a copy of the selector targeting the given session.
-func (m ModelSelector) ForSession(sessionID string) ModelSelector {
+// ForSession returns a copy of the selector targeting the given kitsune session.
+func (m ModelSelector) ForSession(sessionID, sessionName string) ModelSelector {
 	m.targetSessionID = sessionID
+	m.targetSessionName = sessionName
 	m.status = ""
 	return m
 }
@@ -78,6 +80,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.table.SetRows(rows)
 		}
 		return m, nil
+
 	case loadModelMsg:
 		if msg.err != nil {
 			m.status = connErrStyle.Render("load failed: " + msg.err.Error())
@@ -88,11 +91,13 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		id, name := m.targetSessionID, msg.name
 		return m, func() tea.Msg { return AssignModelMsg{SessionID: id, ModelName: name} }
+
 	case tea.KeyMsg:
-		if msg.String() == "l" {
+		switch msg.String() {
+		case "enter", "l":
 			if row := m.table.SelectedRow(); len(row) > 0 {
 				name, size := row[0], row[1]
-				m.status = modelsStyle.Render("loading " + name + " (" + size + ")...")
+				m.status = modelsStyle.Render("loading " + name + " (" + size + ") → " + m.targetSessionName + "...")
 				return m, func() tea.Msg {
 					return loadModelMsg{name: name, err: m.client.LoadModel(name)}
 				}
@@ -105,11 +110,14 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ModelSelector) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("MODELS")
-	hint := lipgloss.NewStyle().Faint(true).Render("[l] load  [esc] back")
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("MODELS")
+	if m.targetSessionName != "" {
+		title += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render("→ "+m.targetSessionName)
+	}
+	hint := lipgloss.NewStyle().Faint(true).Render("[enter] assign to kitsune  [esc] back")
 	body := herdStyle.Render(m.table.View())
 	if m.status != "" {
 		body += "\n" + m.status
 	}
-	return header + "\n" + body + "\n" + hint
+	return title + "\n" + body + "\n" + hint
 }

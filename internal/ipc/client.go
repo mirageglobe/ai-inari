@@ -144,7 +144,21 @@ func (c *Client) DeleteSession(id string) error {
 	return nil
 }
 
+// UnassignModel detaches the model from a session in inarid.
+// The session and its chat history are preserved; a new model can be assigned later.
+func (c *Client) UnassignModel(sessionID string) error {
+	resp, err := c.Call("session.unassign", map[string]string{"id": sessionID})
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Message)
+	}
+	return nil
+}
+
 // AssignModel assigns a model to a session in inarid.
+// Any existing chat history is retained and sent as context to the new model.
 func (c *Client) AssignModel(sessionID, model string) error {
 	resp, err := c.Call("session.assign", map[string]string{"id": sessionID, "model": model})
 	if err != nil {

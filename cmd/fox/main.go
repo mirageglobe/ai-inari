@@ -12,6 +12,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,6 +24,12 @@ import (
 const defaultSocket = "/tmp/inari.sock"
 
 func main() {
+	// Redirect log output to fox.log so IPC errors don't bleed into the TUI.
+	if f, err := os.OpenFile("fox.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		log.SetOutput(f)
+		defer f.Close()
+	}
+
 	client := ipc.NewClient(defaultSocket)
 
 	// Prevent lipgloss from querying the terminal background colour via OSC 11;

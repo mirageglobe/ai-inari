@@ -53,6 +53,13 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Forward window size to logs so its viewport can properly initialise.
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		updated, cmd := m.logs.Update(ws)
+		m.logs = updated.(views.Logs)
+		return m, cmd
+	}
+
 	if stats, ok := msg.(views.SysStatsMsg); ok {
 		m.sysStats = stats
 		return m, views.SysStatsTick()
@@ -75,7 +82,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Open model selector targeting a specific session.
 	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
 		m.returnView = m.current
-		m.models = m.models.ForSession(openMs.SessionID)
+		m.models = m.models.ForSession(openMs.SessionID, openMs.SessionName)
 		m.current = viewModels
 		return m, m.models.Init()
 	}
@@ -111,7 +118,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+o":
 				m.returnView = viewChat
 				if chat, ok := m.chats[m.activeSession]; ok {
-					m.models = m.models.ForSession(chat.SessionID())
+					m.models = m.models.ForSession(chat.SessionID(), chat.SessionName())
 				}
 				m.current = viewModels
 				return m, m.models.Init()
@@ -123,7 +130,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "l":
 				if m.current != viewModels {
 					m.current = viewLogs
-					return m, nil
+					return m, m.logs.Init()
 				}
 			case "d":
 				m.current = viewDescribe

@@ -4,7 +4,9 @@ package views
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -71,6 +73,11 @@ type assignModelResultMsg struct {
 	err error
 }
 
+type unassignModelResultMsg struct {
+	id  string
+	err error
+}
+
 // Herd is the default session-list view.
 // Sessions are owned by inarid; fox fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
@@ -86,7 +93,7 @@ type Herd struct {
 
 func NewHerd(client *ipc.Client) Herd {
 	cols := []table.Column{
-		{Title: "Session", Width: 14},
+		{Title: "Kitsune", Width: 14},
 		{Title: "Model", Width: 24},
 		{Title: "VRAM", Width: 10},
 		{Title: "Status", Width: 12},
@@ -125,7 +132,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sessionsMsg:
 		h.loading = false
 		if msg.err != nil {
-			h.status = connErrStyle.Render(msg.err.Error())
+			log.Printf("session fetch error: %v", msg.err)
 		} else {
 			h.status = ""
 			h.sessions = msg.sessions
@@ -135,7 +142,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case runningMsg:
 		if msg.err != nil {
-			h.status = connErrStyle.Render(msg.err.Error())
+			log.Printf("running fetch error: %v", msg.err)
 		}
 		// Refresh live stats for display only — sessions are user-created, not derived from running models.
 		h.runningInfo = make(map[string]runningMeta, len(msg.models))
@@ -182,17 +189,27 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return h, nil
 
+	case unassignModelResultMsg:
+		if msg.err != nil {
+			// Revert optimistic local update on failure.
+			h.status = connErrStyle.Render("unassign failed: " + msg.err.Error())
+			return h, tea.Batch(fetchSessions(h.client))
+		}
+		return h, nil
+
 	case AssignModelMsg:
 		// Optimistically update the local session so the table reflects the change immediately.
 		// assignModelCmd fires concurrently to persist the assignment in inarid.
+		sessionName := msg.SessionID
 		for i, s := range h.sessions {
 			if s.ID == msg.SessionID {
 				h.sessions[i].Model = msg.ModelName
+				sessionName = s.Name
 				break
 			}
 		}
 		h.rebuildTable()
-		return h, assignModelCmd(h.client, msg.SessionID, msg.ModelName)
+		return h, assignModelCmd(h.client, msg.SessionID, sessionName, msg.ModelName)
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -221,6 +238,17 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "u":
+			idx := h.table.Cursor()
+			if idx < len(h.sessions) {
+				sess := h.sessions[idx]
+				if sess.Model != "" {
+					// Optimistically clear the model locally; cmd persists it in inarid.
+					h.sessions[idx].Model = ""
+					h.rebuildTable()
+					return h, unassignModelCmd(h.client, sess.ID, sess.Name, sess.Model)
+				}
+			}
 		case "x":
 			idx := h.table.Cursor()
 			if idx < len(h.sessions) {
@@ -235,11 +263,11 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (h Herd) View() string {
-	hint := lipgloss.NewStyle().Faint(true).Render("[s] new session  [m] model  [c] chat  [x] delete session  [r] refresh  [l] logs  [d] describe  [q] quit")
+	hint := lipgloss.NewStyle().Faint(true).Render("[s] new kitsune  [m] load model  [u] unload model  [c] chat  [x] delete kitsune  [r] refresh  [l] logs  [d] describe  [q] quit")
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
-		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching sessions…"))
+		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune…"))
 		return body + "\n" + hint
 	}
 
@@ -251,6 +279,9 @@ func (h Herd) View() string {
 }
 
 func (h *Herd) rebuildTable() {
+	sort.Slice(h.sessions, func(i, j int) bool {
+		return h.sessions[i].Name < h.sessions[j].Name
+	})
 	rows := make([]table.Row, len(h.sessions))
 	for i, s := range h.sessions {
 		vram, status := "—", "—"
@@ -320,9 +351,22 @@ func deleteSessionCmd(client *ipc.Client, id string) tea.Cmd {
 	}
 }
 
-func assignModelCmd(client *ipc.Client, sessionID, model string) tea.Cmd {
+func unassignModelCmd(client *ipc.Client, sessionID, sessionName, model string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UnassignModel(sessionID)
+		if err == nil {
+			log.Printf("kitsune %q: model unloaded ← %s", sessionName, model)
+		}
+		return unassignModelResultMsg{id: sessionID, err: err}
+	}
+}
+
+func assignModelCmd(client *ipc.Client, sessionID, sessionName, model string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.AssignModel(sessionID, model)
+		if err == nil {
+			log.Printf("kitsune %q: model assigned → %s", sessionName, model)
+		}
 		return assignModelResultMsg{id: sessionID, err: err}
 	}
 }
