@@ -1,45 +1,116 @@
-// Package main is fox — the terminal UI client for ai-inari.
+// fox is a CLI companion to kitsune (TUI) and inarid (daemon).
+// it provides scriptable access to inari sessions over the Unix socket,
+// letting you send prompts, inspect sessions, and check daemon health
+// without opening the full terminal UI.
 //
-// Responsibilities:
-//   - Connect to a running inarid over its Unix Domain Socket.
-//   - Render the keyboard-driven TUI (herd view, logs, describe, chat).
-//   - Forward user input to inarid as JSON-RPC calls and display responses.
-//   - Detach cleanly on quit; inarid and all sessions keep running.
+// usage:
 //
-// fox is stateless: all session state lives in inarid. Restarting fox
-// reconnects to the existing herd without interrupting any running models.
+//	fox ping                       check if inarid is running
+//	fox sessions                   list all sessions
+//	fox chat <session-id> <message> send a message to a session
+//	fox help                       show usage
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
-
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"strings"
+	"text/tabwriter"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/tui"
 )
 
-const defaultSocket = "/tmp/inari.sock"
+const socketPath = "/tmp/inari.sock"
 
 func main() {
-	// Redirect log output to fox.log so IPC errors don't bleed into the TUI.
-	if f, err := os.OpenFile("fox.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-		log.SetOutput(f)
-		defer f.Close()
+	args := os.Args[1:]
+	if len(args) == 0 {
+		printUsage()
+		os.Exit(0)
 	}
 
-	client := ipc.NewClient(defaultSocket)
-
-	// Prevent lipgloss from querying the terminal background colour via OSC 11;
-	// without this, the terminal's response leaks into the textarea as raw text.
-	lipgloss.SetHasDarkBackground(true)
-
-	p := tea.NewProgram(tui.New(client), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		log.Fatalf("tui: %v", err)
+	switch args[0] {
+	case "ping":
+		cmdPing()
+	case "sessions":
+		cmdSessions()
+	case "chat":
+		if len(args) < 3 {
+			fatalf("usage: fox chat <session-id> <message>")
+		}
+		cmdChat(args[1], strings.Join(args[2:], " "))
+	case "help", "--help", "-h":
+		printUsage()
+	default:
+		fatalf("unknown command %q — run `fox help` for usage", args[0])
 	}
+}
 
-	client.Close()
+// dial connects to inarid and exits with a clear error if the daemon is not running.
+func dial() *ipc.Client {
+	c := ipc.NewClient(socketPath)
+	if err := c.TryReconnect(); err != nil {
+		fatalf("inarid is not running — start it with `make start`")
+	}
+	return c
+}
+
+func cmdPing() {
+	c := dial()
+	defer c.Close()
+	if err := c.Ping(); err != nil {
+		fatalf("ping failed: %v", err)
+	}
+	fmt.Println("pong")
+}
+
+func cmdSessions() {
+	c := dial()
+	defer c.Close()
+	sessions, err := c.ListSessions()
+	if err != nil {
+		fatalf("list sessions: %v", err)
+	}
+	if len(sessions) == 0 {
+		fmt.Println("no sessions")
+		return
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "name\tid\tmodel")
+	for _, s := range sessions {
+		model := s.Model
+		if model == "" {
+			model = "—"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\n", s.Name, s.ID, model)
+	}
+	w.Flush()
+}
+
+func cmdChat(sessionID, msg string) {
+	c := dial()
+	defer c.Close()
+	reply, err := c.Chat(sessionID, msg)
+	if err != nil {
+		fatalf("chat: %v", err)
+	}
+	fmt.Println(reply)
+}
+
+func printUsage() {
+	fmt.Print(`fox — CLI access to your inari sessions
+
+usage:
+  fox ping                         check if inarid is running
+  fox sessions                     list all sessions
+  fox chat <session-id> <message>  send a message to a session
+  fox help                         show this help
+
+run ` + "`fox sessions`" + ` to find a session ID.
+`)
+}
+
+func fatalf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "error: "+format+"\n", args...)
+	os.Exit(1)
 }

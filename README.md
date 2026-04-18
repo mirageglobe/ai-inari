@@ -23,7 +23,7 @@ the opposite: intelligence that lives on your machine, answers to you alone, and
 disappears when you close the lid.
 
 **ai-inari** is a herd of local AI minions. You run them on your own hardware
-via Ollama. You talk to them through `fox`, a keyboard-driven terminal UI
+via Ollama. You talk to them through `kitsune`, a keyboard-driven terminal UI
 inspired by k9s. A persistent background daemon (`inarid`) keeps the herd
 alive even when the UI is closed — reopen it and your sessions are right where
 you left them, history intact.
@@ -51,7 +51,7 @@ doing useful work in the background, waiting for your next word.
 ## architecture
 
 ```
-  you (fox TUI)
+  you (kitsune TUI / fox CLI)
       |
       |  JSON-RPC over Unix socket  (chmod 0600)
       |
@@ -84,8 +84,8 @@ the thinker is head inari — the one you talk to directly.
 **together (recommended)**
 
 ```sh
-make start    # builds, starts ollama + inarid in background, launches fox
-make stop     # stop inarid (also runs automatically when fox exits)
+make start    # builds, starts ollama + inarid in background, launches kitsune TUI
+make stop     # stop inarid (also runs automatically when kitsune exits)
 ```
 
 **independently (for debugging)**
@@ -101,9 +101,9 @@ make build
 ./bin/inarid
 ```
 
-terminal 3 — fox:
+terminal 3 — kitsune TUI:
 ```sh
-./bin/fox
+./bin/kitsune
 ```
 
 to stop inarid when running in the foreground: `ctrl+c`. it handles SIGINT
@@ -116,18 +116,26 @@ pkill inarid        # by name
 make stop           # uses saved pid at /tmp/inarid.pid
 ```
 
-**logs**
+---
 
-fox writes its own log to `fox.log` in the working directory, viewable
-inside the TUI with `[l]`. inarid logs go to stdout (or wherever you redirect
-them). the audit log of all tool calls is written to `inari-audit.log`.
+## fox CLI
 
-configuration lives in `config.json`. see [SPEC.md](SPEC.md) for the full
-architecture, security model, and build milestones.
+`fox` is a lightweight CLI companion that talks to the same `inarid` daemon as `kitsune`.
+use it for scripting, quick one-off prompts, or piping responses to other tools.
+
+```sh
+make build-cli            # build once
+
+./bin/fox ping                              # check daemon is running
+./bin/fox sessions                          # list all sessions
+./bin/fox chat <session-id> <message>       # send a message to a session
+```
+
+run `fox sessions` to find a session ID.
 
 ---
 
-## TUI keys
+## kitsune keys
 
 ### herd (main screen)
 
@@ -139,7 +147,8 @@ architecture, security model, and build milestones.
 | `c` / `enter` | open chat for selected session |
 | `x`     | delete selected session             |
 | `d`     | describe — session metadata + behavior|
-| `l`     | logs — view fox.log                 |
+| `f`     | select default session for fox CLI use |
+| `l`     | logs — view kitsune.log             |
 | `r`     | refresh session and model list      |
 | `q`     | quit fox                            |
 
@@ -196,12 +205,25 @@ model assignment and status:
 ### in progress / near-term
 - [ ] session search and filter in herd view
 - [ ] export chat history to file
+- [ ] main screen: allow token compression by summarising session content
+- [x] cli tool for local development - `kitsune` CLI for scriptable access to sessions
+- [ ] long-term task planning from high-level prompts
+- [ ] queue mode in chat for messages
+- [ ] interrupt in chat for messages
+- [ ] show current token count in chat
+- [ ] allow download of context and copy of response as text
 
 ### ideas / deferred
 - [ ] **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
-      to summarise the conversation history via the session's own model, replacing old turns
-      with a compact summary. keeps the system behavior prompt intact. auto-compression
-      variant triggers automatically when context exceeds a configurable threshold.
+        to summarise the conversation history via the session's own model, replacing old turns
+        with a compact summary. keeps the system behavior prompt intact. auto-compression
+        variant triggers automatically when context exceeds a configurable threshold.
+- [ ] multiple models per session — allow attaching different models to a single session for collaborative discussions and task execution
 - [ ] MCP integration — filesystem, search, SQL connectors via child processes
 - [ ] multi-model routing — sensor tier classifies intent, dispatches to worker or thinker
 - [ ] session tagging and search
+- [ ] show current ollama context length setting
+
+### open issues
+- [ ] track and manage known issues and bugs
+- [ ] thinking spinner to be added in chat session when waiting for long running response
