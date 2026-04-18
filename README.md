@@ -52,7 +52,7 @@ doing useful work in the background, waiting for your next word.
       |  JSON-RPC over Unix socket  (chmod 0600)
       |
   inarid (daemon)
-    ├── session store   — tracks each inari's state
+    ├── session store   — persists sessions + history to ~/.local/share/inari/sessions/
     ├── ollama client   — streams tokens from local models
     ├── scheduler       — semaphore-based memory budget
     └── audit logger    — append-only record of all tool calls

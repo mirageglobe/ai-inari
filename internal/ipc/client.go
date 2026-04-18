@@ -239,6 +239,27 @@ func (c *Client) UnloadModel(model string) error {
 	return nil
 }
 
+// History fetches the full message history for a session.
+// fox calls this on chat open to restore the conversation display.
+func (c *Client) History(sessionID string) ([]ollama.Message, error) {
+	resp, err := c.Call("session.history", map[string]string{"id": sessionID})
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("%s", resp.Error.Message)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return nil, err
+	}
+	var messages []ollama.Message
+	if err := json.Unmarshal(b, &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
 // Chat sends a single user message to the session identified by sessionID.
 // inarid owns the message history — it appends the message, sends the full
 // history to Ollama, stores the reply, and returns the assistant's text.

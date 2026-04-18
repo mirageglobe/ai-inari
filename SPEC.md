@@ -54,6 +54,24 @@ This means:
 - A session with no model assigned is valid; the model can be swapped at any time.
 - `session.chat` takes a session ID and a single new message; inarid appends it,
   sends the full history to Ollama, stores the reply, and returns only the text.
+- Restarting inarid reloads all sessions from disk — history and model assignment
+  are preserved across daemon restarts.
+
+### 3.1.1 Session persistence
+
+Sessions are persisted to disk as JSON files, one file per session (`<id>.json`),
+stored in the session data directory (default: `~/.local/share/inari/sessions`,
+overridable via `data_dir` in `config.json`).
+
+Writes are atomic: inarid writes to a `.tmp` file then renames it, so readers
+never observe a partial file. The file is written on every state change:
+`session.create`, `session.assign`, `session.unassign`, and after each
+`session.chat` turn (both the user message and the model reply are flushed).
+
+This design is intentionally simple — a single JSON file per session is easy to
+inspect, back up, and migrate. If query performance or concurrent access becomes
+a requirement, the store can be replaced with SQLite without changing the session
+model or IPC protocol.
 
 ### 3.2 IPC
 
@@ -87,7 +105,7 @@ This means:
 | Subsystem     | Responsibility                                              |
 |---------------|-------------------------------------------------------------|
 | UDS Server    | Accept and authenticate client connections                  |
-| Session Store | Own named sessions with chat history; model is optional and assignable post-creation |
+| Session Store | Own named sessions with chat history; persists to JSON files on disk; survives daemon restart |
 | MCP Host      | Spawn and manage MCP connectors (Filesystem, Search, SQL)   |
 | Ollama Client | POST to `/api/chat`; stream tokens back to session          |
 | Scheduler     | Semaphore-based concurrency throttle per resource tier      |
@@ -151,6 +169,7 @@ Connector definitions loaded from `config.json` at daemon start.
   "socket": "/tmp/inari.sock",
   "memory_budget_mb": 8192,
   "ollama_base_url": "http://localhost:11434",
+  "data_dir": "~/.local/share/inari/sessions",
   "mcp_connectors": [
     { "name": "filesystem", "command": "mcp-filesystem", "args": [] },
     { "name": "search",     "command": "mcp-search",     "args": [] }
@@ -162,6 +181,8 @@ Connector definitions loaded from `config.json` at daemon start.
   }
 }
 ```
+
+`data_dir` is optional. If omitted, inarid defaults to `~/.local/share/inari/sessions`.
 
 ---
 
@@ -197,5 +218,7 @@ Connector definitions loaded from `config.json` at daemon start.
 ## 10. Open Questions
 
 - Audit log format: structured JSON lines vs. human-readable?
-- Session persistence: in-memory only or serialised to disk?
 - Auth: is owner-only UDS sufficient, or add a local token?
+- Session persistence: resolved — one JSON file per session, atomic write+rename,
+  stored in `~/.local/share/inari/sessions`. SQLite is the natural next step if
+  querying or concurrent access become requirements.

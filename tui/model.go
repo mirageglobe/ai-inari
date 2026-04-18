@@ -3,6 +3,8 @@
 package tui
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
@@ -200,16 +202,30 @@ func (m Model) View() string {
 	header := views.RenderHeader(m.connErr) + "\n"
 	bar := views.RenderSysBar(m.sysStats) + "\n"
 
+	var body string
 	switch m.current {
 	case viewModels:
-		return header + bar + m.models.View()
+		body = m.models.View()
 	case viewLogs:
-		return header + bar + m.logs.View()
+		body = m.logs.View()
 	case viewDescribe:
-		return header + bar + m.describe.View()
+		body = m.describe.View()
 	case viewChat:
-		return header + bar + m.chats[m.activeSession].View()
+		body = m.chats[m.activeSession].View()
 	default:
-		return header + bar + m.herd.View()
+		body = m.herd.View()
 	}
+
+	full := header + bar + body
+	// Pad every render to termHeight lines so Bubble Tea's cursor tracking stays
+	// consistent when switching between views of different heights. Without this,
+	// switching from a short view (models, describe) back to a tall one (herd)
+	// positions the cursor mid-screen, causing the top lines including the header
+	// to render into stale rows and appear invisible.
+	if m.termHeight > 0 {
+		if pad := m.termHeight - 1 - strings.Count(full, "\n"); pad > 0 {
+			full += strings.Repeat("\n", pad)
+		}
+	}
+	return full
 }

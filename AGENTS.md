@@ -4,6 +4,8 @@
 
 - Always read `README.md` at the start of a session for project context.
 - Keep `README.md` and `SPEC.md` up to date as development progresses — update milestone checkboxes, architecture notes, and open questions when they are resolved.
+- When a significant design decision is made or implemented (new persistence layer, protocol change, storage format, security model change), update `SPEC.md` with the rationale and design details, and update `README.md` to reflect the current architecture. Open questions in `SPEC.md` should be resolved in-place when answered.
+- When a proposed change would violate architectural boundaries or established best practices (e.g. a client taking on process-manager responsibilities, mixing concerns across layers), flag it as an antipattern before implementing. Explain why it conflicts with the design, and offer a clean alternative that achieves the user's intent within the existing architecture.
 
 **Resource tiers (2026 1-bit models):**
 
@@ -18,6 +20,11 @@
 When reviewing the scaffold or making recommendations:
 - Check `.gitignore` is current for the project's stack and build outputs.
 - Verify it covers: OS artefacts, editor files, build directories (`bin/`), test binaries (`*.test`), coverage files, logs, and secrets — removing patterns irrelevant to the stack.
+
+## TUI Layout
+
+- Target a maximum UI width of **120 characters**. Hardcoded widths for table columns, viewports, and hint strings should sum to 120 or fewer.
+- Prefer `tea.WindowSizeMsg` for dynamic sizing rather than hardcoded dimensions where possible.
 
 ## Code Comments
 
