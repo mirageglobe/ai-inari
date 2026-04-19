@@ -122,6 +122,7 @@ make stop           # uses saved pid at /tmp/inarid.pid
 
 ## fox CLI
 
+<<<<<<< Updated upstream
 `fox` is a lightweight CLI companion that talks to the same `inarid` daemon as `kitsune`.
 use it for scripting, quick one-off prompts, or piping responses to other tools.
 
@@ -229,3 +230,7 @@ model assignment and status:
 ### open issues
 - [ ] track and manage known issues and bugs
 - [ ] thinking spinner to be added in chat session when waiting for long running response
+=======
+- [ ] MCP integration (deferred)
+- [ ] Add https://github.com/asciinema/asciinema for recording sessions
+>>>>>>> Stashed changes
