@@ -135,7 +135,7 @@ func RenderTopBar(connErr string, stats SysStatsMsg, width int) string {
 	if width <= 0 || width > UIWidth {
 		width = UIWidth
 	}
-	left := HeaderStyle.Render("🦊 inari kitsune ui")
+	left := HeaderStyle.Render("🦊 kitsune │ github.com/mirageglobe/ai-inari")
 
 	cpu := fmt.Sprintf("cpu %.0f%%", stats.CPUPercent)
 	mem := fmt.Sprintf("mem %s / %s", formatBytes(int64(stats.MemUsed)), formatBytes(int64(stats.MemTotal)))
