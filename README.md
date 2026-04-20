@@ -230,7 +230,3 @@ model assignment and status:
 ### open issues
 - [ ] track and manage known issues and bugs
 - [ ] thinking spinner to be added in chat session when waiting for long running response
-=======
-- [ ] MCP integration (deferred)
-- [ ] Add https://github.com/asciinema/asciinema for recording sessions
->>>>>>> Stashed changes
