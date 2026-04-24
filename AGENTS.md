@@ -1,10 +1,18 @@
 # Agent Guidelines
 
+## Documentation Philosophy
+
+Adhere to a strict "Manual vs. Blueprint" separation:
+
+- **README.md (The Manual):** Dedicated to **Users**. Focus on the project ethos, feature lists, high-level core concepts (e.g., The Herd), quick-start commands, and user-facing configuration (`config.json`). Keep it free of technical implementation details or manual debugging steps.
+- **SPEC.md (The Blueprint):** Dedicated to **Developers and Agents**. This is the single source of truth for architecture diagrams, IPC protocols, internal data models, security specs, and build/debugging instructions.
+- **Roadmap:** The Roadmap and Build Milestones live exclusively in `SPEC.md`. The `README.md` should only provide a link to this section.
+
 ## Context
 
-- Always read `README.md` at the start of a session for project context.
+- Always read `README.md` and `AGENTS.md` at the start of a session for project context.
 - Keep `README.md` and `SPEC.md` up to date as development progresses — update milestone checkboxes, architecture notes, and open questions when they are resolved.
-- When a significant design decision is made or implemented (new persistence layer, protocol change, storage format, security model change), update `SPEC.md` with the rationale and design details, and update `README.md` to reflect the current architecture. Open questions in `SPEC.md` should be resolved in-place when answered.
+- When a significant design decision is made or implemented, update `SPEC.md` with the rationale and design details. Update `README.md` only if the user-facing interface or high-level concept changes.
 - When a proposed change would violate architectural boundaries or established best practices (e.g. a client taking on process-manager responsibilities, mixing concerns across layers), flag it as an antipattern before implementing. Explain why it conflicts with the design, and offer a clean alternative that achieves the user's intent within the existing architecture.
 
 **Resource tiers (2026 1-bit models):**
