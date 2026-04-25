@@ -95,7 +95,7 @@ type Herd struct {
 }
 
 func NewHerd(client *ipc.Client) Herd {
-	// column widths sum to 88; with 5 cols × 2 padding = 10, plus herdStyle border 2 = 100 total.
+	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
 		{Title: "kitsune", Width: 20},
 		{Title: "model", Width: 28},
@@ -129,11 +129,8 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
-		if h.width > UIWidth {
-			h.width = UIWidth
-		}
 		h.height = msg.Height
-		// pre-render the hint at the capped width to count its actual line height.
+		// pre-render the hint at the actual width to count its line height.
 		// on narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
 		// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
 		// and pushes the root header off the top of the display.
@@ -145,6 +142,20 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			tableHeight = 1
 		}
 		h.table.SetHeight(tableHeight)
+		// resize model column to fill available width.
+		// fixed cols: kitsune(20) + vram(12) + status(16) + context(12) = 60
+		// overhead: 5 cols × 2 cell padding + 2 border = 12; total fixed overhead = 72.
+		modelColW := h.width - 72
+		if modelColW < 10 {
+			modelColW = 10
+		}
+		h.table.SetColumns([]table.Column{
+			{Title: "kitsune", Width: 20},
+			{Title: "model", Width: modelColW},
+			{Title: "vram", Width: 12},
+			{Title: "status", Width: 16},
+			{Title: "context", Width: 12},
+		})
 		return h, nil
 
 	case spinner.TickMsg:

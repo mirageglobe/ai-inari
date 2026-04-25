@@ -11,10 +11,10 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-// UIWidth is the target maximum width for all fox UI elements.
+// UIWidth is used as a fallback width for hint/header rendering before the first WindowSizeMsg arrives.
 const UIWidth = 100
 
-var HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).MaxWidth(UIWidth)
+var HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
 var ConnOKStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
 var ConnErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 
@@ -130,9 +130,8 @@ func pingMsg(client *ipc.Client) ConnStatusMsg {
 }
 
 // RenderTopBar renders the single top bar: app title left, cpu/mem/connection right-aligned.
-// width is capped at UIWidth so the bar never extends beyond 100 chars on wide terminals.
 func RenderTopBar(connErr string, stats SysStatsMsg, width int) string {
-	if width <= 0 || width > UIWidth {
+	if width <= 0 {
 		width = UIWidth
 	}
 	left := HeaderStyle.Render("🦊 kitsune │ github.com/mirageglobe/ai-inari")

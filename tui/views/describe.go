@@ -157,9 +157,6 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		d.width = msg.Width
-		if d.width > UIWidth {
-			d.width = UIWidth
-		}
 		d.height = msg.Height
 		// topbar(1) + header(1) + border-top(1) + border-bottom(1) + hint(1) = 5 reserved
 		vpHeight := msg.Height - 5

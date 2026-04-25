@@ -68,7 +68,9 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model string, ctxChars 
 	ta := textarea.New()
 	ta.Placeholder = "message " + sessionName + " (" + model + ")..."
 	ta.Focus()
-	ta.SetHeight(2)
+	ta.SetHeight(1)
+	ta.ShowLineNumbers = false
+	ta.Prompt = "❯ "
 	ta.CharLimit = 2048
 
 	sp := spinner.New()
@@ -179,20 +181,15 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, cmd
 
 	case tea.WindowSizeMsg:
-		// topbar(1) + chat header(1) + border-top(1) + border-bottom(1) +
-		// textarea-border-top(1) + textarea-content(2) + textarea-border-bottom(1) + hint(1) = 9 reserved.
-		// the bubbles textarea always renders with a border regardless of focus state.
-		// viewport width shrinks by 2 for the border's left and right columns.
-		height := msg.Height - 9
+		// topbar(1) + chat header(1) + border-top(1) + viewport(h) + border-bottom(1) +
+		// textarea(1, no border — Base style is plain lipgloss.NewStyle()) + hint(1) = h+6 total.
+		height := msg.Height - 6
 		if height < 1 {
 			height = 1
 		}
-		// textarea and viewport expand to the terminal width, capped at UIWidth.
+		// textarea and viewport expand to the full terminal width.
 		// subtract 2 for the left+right border columns that each component adds.
 		contentW := msg.Width
-		if contentW > UIWidth {
-			contentW = UIWidth
-		}
 		c.input.SetWidth(contentW - 2)
 		if !c.ready {
 			c.viewport = viewport.New(contentW-2, height)
@@ -240,13 +237,14 @@ func (c Chat) View() string {
 	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("chat") +
 		"  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render(title) +
 		"  " + ctxStat
+	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	hint := RenderHint([]HintCmd{
 		H("[enter] send"),
 		H("[ctrl+o] model"),
 		HS(),
 		H("[↑↓] scroll"),
 		H("[esc] back"),
-	}, c.viewport.Width)
+	}, c.viewport.Width+2)
 	body := herdStyle.Render(c.viewport.View())
 	return header + "\n" + body + "\n" + c.input.View() + "\n" + hint
 }

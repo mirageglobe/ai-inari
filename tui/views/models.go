@@ -85,9 +85,6 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		if m.width > UIWidth {
-			m.width = UIWidth
-		}
 		// topbar(1) + models header(1) + border-top(1) + col-header(1) + border-bottom(1) + status(1) + hint(1) = 7 reserved
 		tableHeight := msg.Height - 7
 		if tableHeight < 1 {

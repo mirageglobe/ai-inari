@@ -42,9 +42,6 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		l.width = msg.Width
-		if l.width > UIWidth {
-			l.width = UIWidth
-		}
 		// topbar(1) + logs header(1) + border-top(1) + border-bottom(1) + hint(1) = 5 reserved
 		height := msg.Height - 5
 		if height < 1 {
