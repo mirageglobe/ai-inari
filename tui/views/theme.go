@@ -37,20 +37,20 @@ type Theme struct {
 // the first entry is the default; [t] cycles forward through this slice.
 var Themes = []Theme{
 	{
-		Name: "purple", Primary: "99", Secondary: "214", User: "212",
+		Name: "purple", Primary: "99", Secondary: "141", User: "147",
 		Ray: [5]lipgloss.Color{"105", "141", "147", "141", "105"},
 	},
 	{
 		Name: "amber", Primary: "214", Secondary: "172", User: "220",
-		Ray: [5]lipgloss.Color{"136", "178", "214", "178", "136"},
+		Ray: [5]lipgloss.Color{"136", "172", "214", "172", "136"},
 	},
 	{
 		Name: "slate", Primary: "111", Secondary: "153", User: "159",
-		Ray: [5]lipgloss.Color{"67", "75", "111", "75", "67"},
+		Ray: [5]lipgloss.Color{"67", "111", "153", "111", "67"},
 	},
 	{
 		Name: "rose", Primary: "211", Secondary: "217", User: "225",
-		Ray: [5]lipgloss.Color{"168", "175", "211", "175", "168"},
+		Ray: [5]lipgloss.Color{"168", "211", "217", "211", "168"},
 	},
 }
 
@@ -75,6 +75,7 @@ func ApplyTheme(t Theme) {
 
 	// header / title animation
 	HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(t.Primary)
+	ConnOKStyle = lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
 	titleBase = t.Primary
 	rayColors = []struct {
 		delta int

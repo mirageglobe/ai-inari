@@ -87,8 +87,10 @@ type ConnStatusMsg struct {
 	Err error
 }
 
-var ConnOKStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
-var ConnErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+var (
+	ConnOKStyle  lipgloss.Style
+	ConnErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
+)
 
 // CheckConnNow issues an immediate one-shot ping and returns a ConnStatusMsg.
 func CheckConnNow(client *ipc.Client) tea.Cmd {
