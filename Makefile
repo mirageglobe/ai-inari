@@ -83,11 +83,13 @@ lint:                        ## Run staticcheck (install: go install honnef.co/g
 # ============================================================
 
 .PHONY: test
-test:                        ## Run all tests
+test:                        ## Run all tests with vet
+	go vet ./...
 	go test ./...
 
 .PHONY: test-v
-test-v:                      ## Run all tests (verbose)
+test-v:                      ## Run all tests (verbose) with vet
+	go vet ./...
 	go test -v ./...
 
 # ============================================================
@@ -109,4 +111,4 @@ demo: build-daemon build-tui      ## Generate VHS demo GIF
 clean:                       ## Remove build artefacts and socket
 	rm -rf $(BIN_DIR)
 	rm -f /tmp/inari.sock
-	rm -f inari-audit.log
+	rm -f inari-audit.log kitsune.log

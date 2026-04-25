@@ -253,7 +253,7 @@ func (d Describe) View() string {
 		return header + editLabel + "\n" + d.input.View() + "\n" + hint
 	}
 
-	hint := RenderHint([]HintCmd{H("[e] edit behavior"), H("[esc] back")}, d.width)
+	hint := RenderHint([]HintCmd{H("[e] edit behavior"), H("[esc] back"), HS(), H("[?] help")}, d.width)
 
 	var body string
 	if !d.ready {

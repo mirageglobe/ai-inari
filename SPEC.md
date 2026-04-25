@@ -77,7 +77,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 #### Near-term
 - [ ] add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
 - [ ] `[kitsune]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
-- [ ] `[kitsune]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
+- [x] `[kitsune]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
 - [ ] `[kitsune]` session search and filter in herd view
 - [ ] `[kitsune]` export chat history to file
 - [ ] `[kitsune/inarid]` main screen: allow token compression by summarising session content

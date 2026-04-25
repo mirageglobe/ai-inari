@@ -40,8 +40,25 @@ type Model struct {
 	connOnline    bool // tracks last known connection state to detect offline→online transitions
 	termWidth     int
 	termHeight    int
-	titleColorIdx int // current ray position; -10 = off-screen (resting between sweeps)
-	titleDir      int // +1 = left-to-right, -1 = right-to-left
+	titleColorIdx int  // current ray position; -10 = off-screen (resting between sweeps)
+	titleDir      int  // +1 = left-to-right, -1 = right-to-left
+	showHelp      bool // true while the [?] help overlay is visible
+}
+
+// currentViewName maps the active view enum to the string key used by RenderHelpOverlay.
+func (m Model) currentViewName() string {
+	switch m.current {
+	case viewChat:
+		return "chat"
+	case viewModels:
+		return "models"
+	case viewLogs:
+		return "logs"
+	case viewDescribe:
+		return "describe"
+	default:
+		return "herd"
+	}
 }
 
 func New(client *ipc.Client) Model {
@@ -198,6 +215,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
+		// [?] toggles the help overlay from any view.
+		if key.String() == "?" {
+			m.showHelp = !m.showHelp
+			return m, nil
+		}
+		// while help is open, only [esc] (or a second [?]) closes it; all other keys are consumed.
+		if m.showHelp {
+			if key.String() == "esc" {
+				m.showHelp = false
+			}
+			return m, nil
+		}
+
 		switch m.current {
 		case viewChat:
 			switch key.String() {
@@ -265,17 +295,22 @@ func (m Model) View() string {
 	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth, m.titleColorIdx) + "\n"
 
 	var body string
-	switch m.current {
-	case viewModels:
-		body = m.models.View()
-	case viewLogs:
-		body = m.logs.View()
-	case viewDescribe:
-		body = m.describe.View()
-	case viewChat:
-		body = m.chats[m.activeSession].View()
-	default:
-		body = m.herd.View()
+	if m.showHelp {
+		// -1 to leave the top bar row; Place fills the remaining rows.
+		body = views.RenderHelpOverlay(m.currentViewName(), m.termWidth, m.termHeight-1)
+	} else {
+		switch m.current {
+		case viewModels:
+			body = m.models.View()
+		case viewLogs:
+			body = m.logs.View()
+		case viewDescribe:
+			body = m.describe.View()
+		case viewChat:
+			body = m.chats[m.activeSession].View()
+		default:
+			body = m.herd.View()
+		}
 	}
 
 	full := topBar + body

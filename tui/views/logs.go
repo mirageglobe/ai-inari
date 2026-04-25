@@ -80,7 +80,7 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (l Logs) View() string {
 	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("logs") +
 		"  " + lipgloss.NewStyle().Faint(true).Render(logFile)
-	hint := RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back")}, l.width)
+	hint := RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back"), HS(), H("[?] help")}, l.width)
 
 	var body string
 	if !l.ready {

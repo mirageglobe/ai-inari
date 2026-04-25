@@ -1,3 +1,5 @@
+// Package views — model selector view: lists available Ollama models and assigns one to a session.
+// this file also owns modelsMsg and fetchModels since the selector is their sole consumer.
 package views
 
 import (
@@ -9,7 +11,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/ai-inari/internal/ollama"
 )
+
+type modelsMsg struct {
+	models []ollama.Model
+	err    error
+}
+
+func fetchModels(client *ipc.Client) tea.Cmd {
+	return func() tea.Msg {
+		names, err := client.ListModels()
+		if err != nil {
+			return modelsMsg{err: err}
+		}
+		return modelsMsg{models: names}
+	}
+}
 
 // SelectModelMsg is emitted when the user opens a session for chat.
 type SelectModelMsg struct {
@@ -164,7 +182,7 @@ func (m ModelSelector) View() string {
 	if m.targetSessionName != "" {
 		title += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render("→ "+m.targetSessionName)
 	}
-	hint := RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back")}, m.width)
+	hint := RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back"), HS(), H("[?] help")}, m.width)
 	body := herdStyle.Render(m.table.View())
 	if m.status != "" {
 		line := m.status
