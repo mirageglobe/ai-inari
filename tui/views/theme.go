@@ -4,7 +4,21 @@
 // it does NOT own config persistence — the root model calls Save after cycling.
 package views
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// ThemeChangedMsg is emitted when the active theme is updated.
+type ThemeChangedMsg struct{}
+
+// ApplyTableStyles applies the current theme's selection style to the given table.
+// call this when initialising a table and when the theme changes.
+func ApplyTableStyles(t *table.Model) {
+	s := table.DefaultStyles()
+	s.Selected = s.Selected.Foreground(ActiveTheme.Secondary).Bold(true)
+	t.SetStyles(s)
+}
 
 // Theme holds the colour palette for a named scheme.
 // Primary is used for headers, borders, and accent text.

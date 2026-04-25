@@ -113,6 +113,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 
+	if themeMsg, ok := msg.(views.ThemeChangedMsg); ok {
+		var cmds []tea.Cmd
+		updated, cmd := m.herd.Update(themeMsg)
+		m.herd = updated.(views.Herd)
+		cmds = append(cmds, cmd)
+		updated2, cmd2 := m.models.Update(themeMsg)
+		m.models = updated2.(views.ModelSelector)
+		cmds = append(cmds, cmd2)
+		updated3, cmd3 := m.describe.Update(themeMsg)
+		m.describe = updated3.(views.Describe)
+		cmds = append(cmds, cmd3)
+		updated4, cmd4 := m.logs.Update(themeMsg)
+		m.logs = updated4.(views.Logs)
+		cmds = append(cmds, cmd4)
+		for id, chat := range m.chats {
+			updated, cmd := chat.Update(themeMsg)
+			m.chats[id] = updated.(views.Chat)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+	}
 	if stats, ok := msg.(views.SysStatsMsg); ok {
 		m.sysStats = stats
 		return m, views.SysStatsTick()
@@ -239,8 +260,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}()
 			}
-			return m, nil
+			return m, func() tea.Msg { return views.ThemeChangedMsg{} }
 		}
+
 		// while help is open, only [esc] (or a second [?]) closes it; all other keys are consumed.
 		if m.showHelp {
 			if key.String() == "esc" {

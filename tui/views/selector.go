@@ -82,6 +82,7 @@ func NewModelSelector(client *ipc.Client) ModelSelector {
 		table.WithFocused(true),
 		table.WithHeight(12),
 	)
+	ApplyTableStyles(&t)
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
@@ -102,6 +103,10 @@ func (m ModelSelector) Init() tea.Cmd {
 
 func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ThemeChangedMsg:
+		ApplyTableStyles(&m.table)
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		// topbar(1) + models header(1) + border-top(1) + col-header(1) + border-bottom(1) + status(1) + hint(1) = 7 reserved

@@ -58,6 +58,7 @@ func NewHerd(client *ipc.Client) Herd {
 		// height is overridden on first WindowSizeMsg; 12 is a safe default before that arrives.
 		table.WithHeight(12),
 	)
+	ApplyTableStyles(&t)
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
@@ -76,6 +77,10 @@ func (h Herd) Init() tea.Cmd {
 
 func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ThemeChangedMsg:
+		ApplyTableStyles(&h.table)
+		return h, nil
+
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
 		h.height = msg.Height
