@@ -15,6 +15,33 @@ import (
 const UIWidth = 100
 
 var HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
+
+// titlePalette cycles through an aurora spectrum — blues, purples, pinks — for the
+// title colour effect. each step advances on a 10-second tick; 12 steps = ~2 min full cycle.
+var titlePalette = []lipgloss.Color{
+	"99",  // blue-violet
+	"105", // slate blue
+	"111", // cornflower
+	"117", // sky blue
+	"123", // aqua
+	"159", // ice blue
+	"153", // cool blue
+	"147", // periwinkle
+	"183", // lavender
+	"219", // pink
+	"213", // hot pink
+	"207", // magenta
+}
+
+// TitleTickMsg advances the title colour by one step.
+type TitleTickMsg struct{}
+
+// TitleTick returns a command that fires TitleTickMsg after 10 seconds.
+func TitleTick() tea.Cmd {
+	return tea.Tick(10*time.Second, func(_ time.Time) tea.Msg {
+		return TitleTickMsg{}
+	})
+}
 var ConnOKStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
 var ConnErrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 
@@ -130,11 +157,14 @@ func pingMsg(client *ipc.Client) ConnStatusMsg {
 }
 
 // RenderTopBar renders the single top bar: app title left, cpu/mem/connection right-aligned.
-func RenderTopBar(connErr string, stats SysStatsMsg, width int) string {
+// colorIdx selects the current step from titlePalette for the animated title colour.
+func RenderTopBar(connErr string, stats SysStatsMsg, width, colorIdx int) string {
 	if width <= 0 {
 		width = UIWidth
 	}
-	left := HeaderStyle.Render("🦊 kitsune │ github.com/mirageglobe/ai-inari")
+	color := titlePalette[colorIdx%len(titlePalette)]
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(color)
+	left := titleStyle.Render("🦊 kitsune │ github.com/mirageglobe/ai-inari")
 
 	cpu := fmt.Sprintf("cpu %.0f%%", stats.CPUPercent)
 	mem := fmt.Sprintf("mem %s / %s", formatBytes(int64(stats.MemUsed)), formatBytes(int64(stats.MemTotal)))

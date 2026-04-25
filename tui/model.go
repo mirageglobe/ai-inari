@@ -39,6 +39,7 @@ type Model struct {
 	connOnline    bool // tracks last known connection state to detect offline→online transitions
 	termWidth     int
 	termHeight    int
+	titleColorIdx int // current step in the title colour palette
 }
 
 func New(client *ipc.Client) Model {
@@ -54,7 +55,7 @@ func New(client *ipc.Client) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client))
+	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), views.TitleTick())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -87,6 +88,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if stats, ok := msg.(views.SysStatsMsg); ok {
 		m.sysStats = stats
 		return m, views.SysStatsTick()
+	}
+
+	if _, ok := msg.(views.TitleTickMsg); ok {
+		m.titleColorIdx++
+		return m, views.TitleTick()
 	}
 
 	if conn, ok := msg.(views.ConnStatusMsg); ok {
@@ -234,7 +240,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth) + "\n"
+	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth, m.titleColorIdx) + "\n"
 
 	var body string
 	switch m.current {
