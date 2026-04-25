@@ -92,6 +92,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if conn, ok := msg.(views.ConnStatusMsg); ok {
 		wasOffline := !m.connOnline
 		m.connOnline = conn.OK
+		offline := !conn.OK
+		for id, chat := range m.chats {
+			m.chats[id] = chat.WithOffline(offline)
+		}
 		if conn.OK {
 			m.connErr = ""
 			if wasOffline {
@@ -102,6 +106,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.connErr = "connection failed"
 		}
 		return m, views.ConnTick(m.client)
+	}
+
+	// route stream messages by session ID so background sessions accumulate tokens
+	// even when the user has switched to a different view.
+	if tok, ok := msg.(views.ChatTokenMsg); ok {
+		if chat, exists := m.chats[tok.SessionID]; exists {
+			updated, cmd := chat.Update(tok)
+			m.chats[tok.SessionID] = updated.(views.Chat)
+			return m, cmd
+		}
+		return m, nil
+	}
+	if done, ok := msg.(views.ChatDoneMsg); ok {
+		if chat, exists := m.chats[done.SessionID]; exists {
+			updated, cmd := chat.Update(done)
+			m.chats[done.SessionID] = updated.(views.Chat)
+			return m, cmd
+		}
+		return m, nil
 	}
 
 	if _, ok := msg.(views.BackToHerdMsg); ok {

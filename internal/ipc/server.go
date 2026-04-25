@@ -2,8 +2,10 @@ package ipc
 
 import (
 	"encoding/json"
+	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
@@ -44,9 +46,10 @@ type Server struct {
 	auditor  *audit.Auditor
 	ollama   *ollama.Client
 	quit     chan struct{}
+	verbose  bool
 }
 
-func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, ollamaClient *ollama.Client) (*Server, error) {
+func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, ollamaClient *ollama.Client, verbose bool) (*Server, error) {
 	// Remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
 	os.Remove(socket)
 
@@ -68,6 +71,7 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		auditor:  auditor,
 		ollama:   ollamaClient,
 		quit:     make(chan struct{}),
+		verbose:  verbose,
 	}
 	go s.accept() // accept loop runs in background; NewServer returns immediately
 	return s, nil
@@ -100,7 +104,9 @@ func (s *Server) accept() {
 }
 
 // handle reads JSON-RPC requests from conn in a loop. The connection stays open across multiple
-// calls so fox can reuse it without re-dialing for every operation.
+// calls so kitsune can reuse it without re-dialing for every operation.
+// session.stream is handled specially: it takes over the connection for the duration of the
+// stream and closes it when done, so the loop exits after one streaming call.
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	dec := json.NewDecoder(conn)
@@ -112,8 +118,90 @@ func (s *Server) handle(conn net.Conn) {
 			return
 		}
 		s.auditor.Log(req.Method, req.Params)
+
+		if req.Method == "session.stream" {
+			if s.verbose {
+				log.Printf("rpc → session.stream %s", req.Params)
+			}
+			s.handleStream(conn, req)
+			return
+		}
+
+		if s.verbose {
+			log.Printf("rpc → %s %s", req.Method, req.Params)
+		}
 		resp := s.dispatch(req)
+		if s.verbose {
+			if resp.Error != nil {
+				log.Printf("rpc ← %s error: %s", req.Method, resp.Error.Message)
+			} else {
+				log.Printf("rpc ← %s ok", req.Method)
+			}
+		}
 		enc.Encode(resp)
+	}
+}
+
+// handleStream serves a session.stream request over a dedicated connection.
+// it streams token chunks as newline-delimited JSON frames, persists the full reply on done,
+// and rolls back the user message on error. the connection is closed by the caller (handle).
+func (s *Server) handleStream(conn net.Conn, req Request) {
+	enc := json.NewEncoder(conn)
+
+	var params struct {
+		ID   string `json:"id"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		enc.Encode(map[string]string{"error": "invalid params"})
+		return
+	}
+
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		enc.Encode(map[string]string{"error": "session not found"})
+		return
+	}
+	if sess.Model == "" {
+		enc.Encode(map[string]string{"error": "no model assigned to session"})
+		return
+	}
+
+	sess.AppendMessage(ollama.Message{Role: "user", Content: params.Text})
+
+	chunks := make(chan ollama.ChatResponse, 32)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.ollama.ChatStream(ollama.ChatRequest{
+			Model:    sess.Model,
+			Messages: sess.ChatHistory(),
+			Stream:   true,
+		}, chunks)
+		close(chunks)
+	}()
+
+	var fullReply strings.Builder
+	for chunk := range chunks {
+		if chunk.Message.Content != "" {
+			fullReply.WriteString(chunk.Message.Content)
+			enc.Encode(map[string]string{"token": chunk.Message.Content})
+		}
+	}
+
+	if err := <-errCh; err != nil {
+		sess.Messages = sess.Messages[:len(sess.Messages)-1]
+		enc.Encode(map[string]string{"error": err.Error()})
+		if s.verbose {
+			log.Printf("rpc ← session.stream error: %v", err)
+		}
+		return
+	}
+
+	sess.AppendMessage(ollama.Message{Role: "assistant", Content: fullReply.String()})
+	s.store.Persist(sess.ID)
+	enc.Encode(map[string]bool{"done": true})
+	if s.verbose {
+		log.Printf("rpc ← session.stream ok (%d chars)", fullReply.Len())
 	}
 }
 

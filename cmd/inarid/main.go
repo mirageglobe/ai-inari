@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -31,6 +32,9 @@ import (
 )
 
 func main() {
+	verbose := flag.Bool("v", false, "verbose logging: print every RPC call and response")
+	flag.Parse()
+
 	log.Println("awakening inari daemon 🦊")
 
 	cfg, err := config.Load("config.json")
@@ -71,7 +75,7 @@ func main() {
 	}
 	defer mcpHost.Stop()
 
-	srv, err := ipc.NewServer(cfg.Socket, store, sched, mcpHost, auditor, ollamaClient)
+	srv, err := ipc.NewServer(cfg.Socket, store, sched, mcpHost, auditor, ollamaClient, *verbose)
 	if err != nil {
 		log.Fatalf("ipc: %v", err)
 	}

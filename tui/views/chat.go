@@ -53,6 +53,8 @@ type chatHistoryMsg struct {
 // live in the viewport and moved into display on ChatDoneMsg.
 // streamTokens / streamErrc are the channels for the active stream goroutine;
 // nil when no stream is in flight.
+// offline mirrors the root model's connectivity state; when true, sends are blocked
+// and the hint line shows an "inari is offline" notice instead of the key bindings.
 type Chat struct {
 	client        *ipc.Client
 	sessionID     string
@@ -65,10 +67,18 @@ type Chat struct {
 	waiting       bool
 	ready         bool
 	historyLoaded bool
+	offline       bool
 	ctxChars      int
 	streamBuf     string
 	streamTokens  <-chan string
 	streamErrc    <-chan error
+}
+
+// WithOffline returns a copy of the chat with the offline flag set.
+// called by the root model whenever connectivity changes.
+func (c Chat) WithOffline(offline bool) Chat {
+	c.offline = offline
+	return c
 }
 
 // Init focuses the textarea and fetches the session's message history from inarid
@@ -268,7 +278,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, nil
 
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyEnter && !c.waiting {
+		if msg.Type == tea.KeyEnter && !c.waiting && !c.offline {
 			text := strings.TrimSpace(c.input.Value())
 			if text == "" {
 				return c, nil
@@ -315,13 +325,18 @@ func (c Chat) View() string {
 		"  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render(title) +
 		"  " + ctxStat
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
-	hint := RenderHint([]HintCmd{
-		H("[enter] send"),
-		H("[ctrl+o] model"),
-		HS(),
-		H("[↑↓] scroll"),
-		H("[esc] back"),
-	}, c.viewport.Width+2)
+	var hint string
+	if c.offline {
+		hint = errorStyle.Render("inari is offline")
+	} else {
+		hint = RenderHint([]HintCmd{
+			H("[enter] send"),
+			H("[ctrl+o] model"),
+			HS(),
+			H("[↑↓] scroll"),
+			H("[esc] back"),
+		}, c.viewport.Width+2)
+	}
 	body := herdStyle.Render(c.viewport.View())
 	return header + "\n" + body + "\n" + c.input.View() + "\n" + hint
 }

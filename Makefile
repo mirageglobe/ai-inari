@@ -50,6 +50,10 @@ stop:                        ## Stop inarid background process
 run-daemon:                  ## Run inarid directly (no build)
 	go run ./cmd/inarid
 
+.PHONY: run-daemon-verbose
+run-daemon-verbose:          ## Run inarid with verbose RPC logging (no build)
+	go run ./cmd/inarid -v
+
 .PHONY: run-tui
 run-tui:                     ## Run kitsune TUI directly (no build)
 	go run ./cmd/kitsune

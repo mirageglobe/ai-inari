@@ -264,6 +264,52 @@ func (c *Client) History(sessionID string) ([]ollama.Message, error) {
 	return messages, nil
 }
 
+// ChatStream sends a user message and streams token chunks into tokens.
+// it dials a fresh dedicated UDS connection so it never blocks the shared client
+// connection — multiple sessions can stream concurrently without contention.
+// the caller must drain tokens until it is closed; the goroutine closes it after
+// the stream ends (success or error). the returned error reflects the final outcome.
+func (c *Client) ChatStream(sessionID, text string, tokens chan<- string) error {
+	conn, err := net.Dial("unix", c.socket)
+	if err != nil {
+		return fmt.Errorf("stream dial: %w", err)
+	}
+	defer conn.Close()
+
+	req := Request{
+		JSONRPC: "2.0",
+		Method:  "session.stream",
+		ID:      1,
+	}
+	b, _ := json.Marshal(map[string]string{"id": sessionID, "text": text})
+	req.Params = json.RawMessage(b)
+
+	if err := json.NewEncoder(conn).Encode(req); err != nil {
+		return err
+	}
+
+	dec := json.NewDecoder(conn)
+	for {
+		var frame struct {
+			Token string `json:"token"`
+			Done  bool   `json:"done"`
+			Error string `json:"error"`
+		}
+		if err := dec.Decode(&frame); err != nil {
+			return err
+		}
+		if frame.Error != "" {
+			return fmt.Errorf("%s", frame.Error)
+		}
+		if frame.Done {
+			return nil
+		}
+		if frame.Token != "" {
+			tokens <- frame.Token
+		}
+	}
+}
+
 // Chat sends a single user message to the session identified by sessionID.
 // inarid owns the message history — it appends the message, sends the full
 // history to Ollama, stores the reply, and returns the assistant's text.
