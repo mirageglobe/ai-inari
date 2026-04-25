@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 // SessionInfo is the wire representation of a session returned by session.list and session.create.
@@ -183,7 +183,7 @@ func (c *Client) AssignModel(sessionID, model string) error {
 }
 
 // ListModels returns models available in Ollama via inarid.
-func (c *Client) ListModels() ([]ollama.Model, error) {
+func (c *Client) ListModels() ([]provider.Model, error) {
 	resp, err := c.Call("ollama.models", nil)
 	if err != nil {
 		return nil, err
@@ -195,7 +195,7 @@ func (c *Client) ListModels() ([]ollama.Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	var models []ollama.Model
+	var models []provider.Model
 	if err := json.Unmarshal(b, &models); err != nil {
 		return nil, err
 	}
@@ -203,7 +203,7 @@ func (c *Client) ListModels() ([]ollama.Model, error) {
 }
 
 // ListRunning returns models currently loaded in Ollama memory.
-func (c *Client) ListRunning() ([]ollama.RunningModel, error) {
+func (c *Client) ListRunning() ([]provider.RunningModel, error) {
 	resp, err := c.Call("ollama.running", nil)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func (c *Client) ListRunning() ([]ollama.RunningModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	var models []ollama.RunningModel
+	var models []provider.RunningModel
 	if err := json.Unmarshal(b, &models); err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func (c *Client) UnloadModel(model string) error {
 
 // History fetches the full message history for a session.
 // fox calls this on chat open to restore the conversation display.
-func (c *Client) History(sessionID string) ([]ollama.Message, error) {
+func (c *Client) History(sessionID string) ([]provider.Message, error) {
 	resp, err := c.Call("session.history", map[string]string{"id": sessionID})
 	if err != nil {
 		return nil, err
@@ -260,7 +260,7 @@ func (c *Client) History(sessionID string) ([]ollama.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	var messages []ollama.Message
+	var messages []provider.Message
 	if err := json.Unmarshal(b, &messages); err != nil {
 		return nil, err
 	}

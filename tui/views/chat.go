@@ -13,7 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 var (
@@ -37,7 +37,7 @@ type ChatDoneMsg struct {
 }
 
 type chatHistoryMsg struct {
-	messages []ollama.Message
+	messages []provider.Message
 	err      error
 }
 

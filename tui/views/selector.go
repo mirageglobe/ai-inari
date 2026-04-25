@@ -11,11 +11,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 type modelsMsg struct {
-	models []ollama.Model
+	models []provider.Model
 	err    error
 }
 

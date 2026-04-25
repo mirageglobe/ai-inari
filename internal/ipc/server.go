@@ -12,7 +12,7 @@ import (
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
 	"github.com/mirageglobe/ai-inari/internal/mcp"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
@@ -46,12 +46,12 @@ type Server struct {
 	sched    *scheduler.Scheduler
 	mcpHost  *mcp.Host
 	auditor  *audit.Auditor
-	ollama   *ollama.Client
+	provider provider.Provider
 	quit     chan struct{}
 	verbose  bool
 }
 
-func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, ollamaClient *ollama.Client, verbose bool) (*Server, error) {
+func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool) (*Server, error) {
 	// Remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
 	os.Remove(socket)
 
@@ -71,7 +71,7 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		sched:    sched,
 		mcpHost:  mcpHost,
 		auditor:  auditor,
-		ollama:   ollamaClient,
+		provider: p,
 		quit:     make(chan struct{}),
 		verbose:  verbose,
 	}
@@ -84,11 +84,11 @@ func (s *Server) Quit() <-chan struct{} {
 	return s.quit
 }
 
-// ollamaErr returns an "ollama not configured" error response when s.ollama is nil.
+// providerErr returns a "provider not configured" error response when s.provider is nil.
 // ok is false when the caller should return the response immediately.
-func (s *Server) ollamaErr(req Request) (Response, bool) {
-	if s.ollama == nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: "ollama not configured"}, ID: req.ID}, false
+func (s *Server) providerErr(req Request) (Response, bool) {
+	if s.provider == nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: "provider not configured"}, ID: req.ID}, false
 	}
 	return Response{}, true
 }
@@ -172,19 +172,19 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 		return
 	}
 
-	sess.AppendMessage(ollama.Message{Role: "user", Content: params.Text})
+	sess.AppendMessage(provider.Message{Role: "user", Content: params.Text})
 
-	var tools []ollama.Tool
+	var tools []provider.Tool
 	if sess.CWD != "" {
 		tools = filesystemTools()
 	}
 
 	const maxToolRounds = 10
 	for range maxToolRounds {
-		chunks := make(chan ollama.ChatResponse, 32)
+		chunks := make(chan provider.ChatResponse, 32)
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- s.ollama.ChatStream(ollama.ChatRequest{
+			errCh <- s.provider.ChatStream(provider.ChatRequest{
 				Model:    sess.Model,
 				Messages: sess.ChatHistory(),
 				Stream:   true,
@@ -197,7 +197,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 		// tool-call rounds produce empty content so no tokens are forwarded during those rounds —
 		// only the final text round produces visible output.
 		var textBuf strings.Builder
-		var toolCalls []ollama.ToolCall
+		var toolCalls []provider.ToolCall
 		for chunk := range chunks {
 			if len(chunk.Message.ToolCalls) > 0 {
 				toolCalls = chunk.Message.ToolCalls
@@ -220,7 +220,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 		if len(toolCalls) == 0 {
 			// text response — tokens already streamed above; persist and signal done.
 			reply := textBuf.String()
-			sess.AppendMessage(ollama.Message{Role: "assistant", Content: reply})
+			sess.AppendMessage(provider.Message{Role: "assistant", Content: reply})
 			s.store.Persist(sess.ID)
 			enc.Encode(map[string]bool{"done": true})
 			if s.verbose {
@@ -230,7 +230,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 		}
 
 		// tool-call round: append assistant message with calls, execute each, append results.
-		sess.AppendMessage(ollama.Message{Role: "assistant", ToolCalls: toolCalls})
+		sess.AppendMessage(provider.Message{Role: "assistant", ToolCalls: toolCalls})
 		for _, tc := range toolCalls {
 			result, err := execTool(tc.Function.Name, tc.Function.Arguments, sess.CWD)
 			if err != nil {
@@ -239,7 +239,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 			if s.verbose {
 				log.Printf("tool %s(%v) → %d chars", tc.Function.Name, tc.Function.Arguments, len(result))
 			}
-			sess.AppendMessage(ollama.Message{Role: "tool", Content: result})
+			sess.AppendMessage(provider.Message{Role: "tool", Content: result})
 		}
 	}
 
@@ -395,7 +395,7 @@ func (s *Server) dispatch(req Request) Response {
 	// stores the reply, and returns the assistant's text. History is never sent
 	// over the wire — fox sends only the new user text each turn.
 	case "session.chat":
-		if r, ok := s.ollamaErr(req); !ok {
+		if r, ok := s.providerErr(req); !ok {
 			return r
 		}
 		var params struct {
@@ -412,19 +412,19 @@ func (s *Server) dispatch(req Request) Response {
 		if sess.Model == "" {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no model assigned to session"}, ID: req.ID}
 		}
-		sess.AppendMessage(ollama.Message{Role: "user", Content: params.Text})
-		reply, err := s.ollama.Chat(sess.Model, sess.ChatHistory())
+		sess.AppendMessage(provider.Message{Role: "user", Content: params.Text})
+		reply, err := s.provider.Chat(sess.Model, sess.ChatHistory())
 		if err != nil {
 			// Roll back the user message so the history stays consistent on retry.
 			sess.Messages = sess.Messages[:len(sess.Messages)-1]
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
-		sess.AppendMessage(ollama.Message{Role: "assistant", Content: reply})
+		sess.AppendMessage(provider.Message{Role: "assistant", Content: reply})
 		s.store.Persist(sess.ID)
 		return Response{JSONRPC: "2.0", Result: reply, ID: req.ID}
 
 	case "ollama.load":
-		if r, ok := s.ollamaErr(req); !ok {
+		if r, ok := s.providerErr(req); !ok {
 			return r
 		}
 		var params struct {
@@ -433,12 +433,12 @@ func (s *Server) dispatch(req Request) Response {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
 		}
-		if err := s.ollama.LoadModel(params.Model); err != nil {
+		if err := s.provider.LoadModel(params.Model); err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
 		return Response{JSONRPC: "2.0", Result: "loaded", ID: req.ID}
 	case "ollama.unload":
-		if r, ok := s.ollamaErr(req); !ok {
+		if r, ok := s.providerErr(req); !ok {
 			return r
 		}
 		var params struct {
@@ -447,24 +447,24 @@ func (s *Server) dispatch(req Request) Response {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
 		}
-		if err := s.ollama.UnloadModel(params.Model); err != nil {
+		if err := s.provider.UnloadModel(params.Model); err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
 		return Response{JSONRPC: "2.0", Result: "unloaded", ID: req.ID}
 	case "ollama.running":
-		if r, ok := s.ollamaErr(req); !ok {
+		if r, ok := s.providerErr(req); !ok {
 			return r
 		}
-		running, err := s.ollama.ListRunning()
+		running, err := s.provider.ListRunning()
 		if err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
 		return Response{JSONRPC: "2.0", Result: running, ID: req.ID}
 	case "ollama.models":
-		if r, ok := s.ollamaErr(req); !ok {
+		if r, ok := s.providerErr(req); !ok {
 			return r
 		}
-		models, err := s.ollama.ListModels()
+		models, err := s.provider.ListModels()
 		if err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
@@ -488,16 +488,16 @@ func (s *Server) Close() {
 
 // filesystemTools returns the read-only tool definitions declared to Ollama for
 // sessions that have a working directory set. write operations are intentionally absent.
-func filesystemTools() []ollama.Tool {
-	return []ollama.Tool{
+func filesystemTools() []provider.Tool {
+	return []provider.Tool{
 		{
 			Type: "function",
-			Function: ollama.ToolFunction{
+			Function: provider.ToolFunction{
 				Name:        "read_file",
 				Description: "read the full text content of a file. path must be relative to the session working directory.",
-				Parameters: ollama.ToolParameters{
+				Parameters: provider.ToolParameters{
 					Type: "object",
-					Properties: map[string]ollama.Property{
+					Properties: map[string]provider.Property{
 						"path": {Type: "string", Description: "relative path to the file"},
 					},
 					Required: []string{"path"},
@@ -506,12 +506,12 @@ func filesystemTools() []ollama.Tool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ToolFunction{
+			Function: provider.ToolFunction{
 				Name:        "list_dir",
 				Description: "list the names of files and directories inside a directory. path must be relative to the session working directory.",
-				Parameters: ollama.ToolParameters{
+				Parameters: provider.ToolParameters{
 					Type: "object",
-					Properties: map[string]ollama.Property{
+					Properties: map[string]provider.Property{
 						"path": {Type: "string", Description: "relative path to the directory; use \".\" for the root"},
 					},
 					Required: []string{"path"},

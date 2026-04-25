@@ -1,5 +1,10 @@
-// Package ollama is the HTTP client for the local Ollama inference server.
-// It covers health checks, model listing, and streaming chat requests to /api/chat.
+// Package ollama is the Ollama HTTP backend implementation of provider.Provider.
+// it translates the provider interface into HTTP calls against the Ollama REST API
+// (/api/chat, /api/tags, /api/ps, /api/generate).
+//
+// what it owns: HTTP transport, Ollama-specific request/response encoding.
+// what it does NOT own: type definitions for messages or models (internal/provider),
+// session state (internal/session), or IPC dispatch (internal/ipc).
 package ollama
 
 import (
@@ -8,80 +13,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
-// ToolParameters describes the JSON schema for a tool's input.
-type ToolParameters struct {
-	Type       string              `json:"type"`
-	Properties map[string]Property `json:"properties"`
-	Required   []string            `json:"required,omitempty"`
-}
-
-// Property is a single field in a tool's parameter schema.
-type Property struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
-}
-
-// ToolFunction is the function definition inside a Tool.
-type ToolFunction struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Parameters  ToolParameters `json:"parameters"`
-}
-
-// Tool is declared in a ChatRequest to advertise a callable function to the model.
-type Tool struct {
-	Type     string       `json:"type"` // always "function"
-	Function ToolFunction `json:"function"`
-}
-
-// ToolCallFunction carries the name and arguments returned by the model for a tool call.
-type ToolCallFunction struct {
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments"`
-}
-
-// ToolCall is a single function invocation requested by the model.
-type ToolCall struct {
-	Function ToolCallFunction `json:"function"`
-}
-
-// Message is a single chat message.
-// ToolCalls is populated on assistant messages when the model requests a function call.
-type Message struct {
-	Role      string     `json:"role"`
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-}
-
-// ChatRequest maps to the Ollama /api/chat payload.
-// Tools declares the functions the model may call; omit for sessions without tool support.
-type ChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`
-	Tools    []Tool    `json:"tools,omitempty"`
-}
-
-// ChatResponse is a single streamed chunk from Ollama.
-type ChatResponse struct {
-	Message Message `json:"message"`
-	Done    bool    `json:"done"`
-}
-
-// Model is a locally available Ollama model.
-type Model struct {
-	Name string `json:"name"`
-	Size int64  `json:"size"`
-}
-
-// RunningModel is a model currently loaded in Ollama memory (/api/ps).
-type RunningModel struct {
-	Name      string `json:"name"`
-	SizeVRAM  int64  `json:"size_vram"`
-	ExpiresAt string `json:"expires_at"`
-}
+// compile-time check: *Client must implement provider.Provider.
+var _ provider.Provider = (*Client)(nil)
 
 // Client talks to the Ollama HTTP API.
 type Client struct {
@@ -124,14 +61,14 @@ func (c *Client) getModels(endpoint string, out any) error {
 }
 
 // ListModels returns all locally available models.
-func (c *Client) ListModels() ([]Model, error) {
-	var models []Model
+func (c *Client) ListModels() ([]provider.Model, error) {
+	var models []provider.Model
 	return models, c.getModels("/api/tags", &models)
 }
 
 // ListRunning returns models currently loaded in Ollama memory.
-func (c *Client) ListRunning() ([]RunningModel, error) {
-	var models []RunningModel
+func (c *Client) ListRunning() ([]provider.RunningModel, error) {
+	var models []provider.RunningModel
 	return models, c.getModels("/api/ps", &models)
 }
 
@@ -166,8 +103,8 @@ func (c *Client) UnloadModel(model string) error {
 }
 
 // Chat sends a single blocking request and returns the full reply.
-func (c *Client) Chat(model string, messages []Message) (string, error) {
-	req := ChatRequest{Model: model, Messages: messages, Stream: false}
+func (c *Client) Chat(model string, messages []provider.Message) (string, error) {
+	req := provider.ChatRequest{Model: model, Messages: messages, Stream: false}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return "", err
@@ -180,7 +117,7 @@ func (c *Client) Chat(model string, messages []Message) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("ollama: status %d", resp.StatusCode)
 	}
-	var result ChatResponse
+	var result provider.ChatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
@@ -188,7 +125,7 @@ func (c *Client) Chat(model string, messages []Message) (string, error) {
 }
 
 // ChatStream sends a chat request and yields response chunks via a channel.
-func (c *Client) ChatStream(req ChatRequest, out chan<- ChatResponse) error {
+func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatResponse) error {
 	req.Stream = true
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -207,7 +144,7 @@ func (c *Client) ChatStream(req ChatRequest, out chan<- ChatResponse) error {
 
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
-		var chunk ChatResponse
+		var chunk provider.ChatResponse
 		if err := json.Unmarshal(scanner.Bytes(), &chunk); err != nil {
 			continue
 		}

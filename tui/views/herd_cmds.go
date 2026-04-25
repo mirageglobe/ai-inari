@@ -13,7 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 // runningMeta holds live stats for a running model, used to populate VRAM/Status columns.
@@ -23,7 +23,7 @@ type runningMeta struct {
 }
 
 type runningMsg struct {
-	models []ollama.RunningModel
+	models []provider.RunningModel
 	err    error
 }
 
