@@ -26,7 +26,7 @@ Security-first, minimalist local AI orchestrator.
 
 #### M1 — UDS Bridge
 - [ ] `inarid` starts and binds UDS socket.
-- [ ] `fox` connects and performs handshake.
+- [ ] `kitsune` connects and performs handshake.
 - [ ] Basic ping/pong JSON-RPC round-trip.
 
 #### M2 — Herd UI
@@ -58,10 +58,10 @@ Security-first, minimalist local AI orchestrator.
 - [ ] long-term task planning from high-level prompts
 - [ ] queue mode in chat for messages
 - [ ] interrupt in chat for messages
+- [ ] recap/summary when a chat session has been idle for 10+ mins
 - [ ] show current token count in chat
 - [ ] allow download of context and copy of response as text
 - [ ] daemon: auto-shutdown after 30 mins idle
-- [ ] fox CLI: provide a recap/summary when a discussion has been idle for 10+ mins
 
 #### Ideas
 - [ ] **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
@@ -77,7 +77,7 @@ Security-first, minimalist local AI orchestrator.
 ### 3.3 Status
 
 #### Completed
-- [x] cli tool for local development - `fox` CLI for scriptable access to sessions
+- [x] `fox` CLI removed — functionality superseded by kitsune TUI
 
 #### Open Issues
 - [ ] track and manage known issues and bugs
@@ -90,7 +90,7 @@ Security-first, minimalist local AI orchestrator.
 ### 4.1 System Overview
 
 ```
-  you (kitsune TUI / fox CLI)
+  you (kitsune TUI)
       |
       |  JSON-RPC over Unix socket  (chmod 0600)
       |
@@ -133,7 +133,7 @@ session first, then optionally assigns a model to it. Chat history is stored
 inside the session in inarid — clients are stateless and hold no history locally.
 
 This means:
-- Restarting kitsune or fox reconnects to the existing herd without losing any conversation.
+- Restarting kitsune reconnects to the existing herd without losing any conversation.
 - A session with no model assigned is valid; the model can be swapped at any time.
 - `session.chat` takes a session ID and a single new message; inarid appends it,
   sends the full history to Ollama, stores the reply, and returns only the text.
@@ -189,7 +189,7 @@ never observe a partial file. The file is written on every state change:
 | Scheduler     | Semaphore-based concurrency throttle per resource tier      |
 | Audit Logger  | Append-only log of all JSON-RPC tool-calls with timestamps  |
 
-### 5.2 `kitsune` / `fox` — Clients
+### 5.2 `kitsune` — Client
 
 | View    | Key | Description                              |
 |---------|-----|------------------------------------------|

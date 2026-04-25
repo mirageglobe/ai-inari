@@ -100,15 +100,6 @@ The TUI is inspired by `k9s` and is entirely keyboard-driven.
 - `enter`: send message | `ctrl+o`: change model
 - `↑` / `↓`: scroll | `esc`: back to herd
 
-### fox (CLI)
-
-`fox` is a lightweight CLI companion for scripting and quick prompts.
-
-```sh
-./bin/fox sessions                          # list all sessions
-./bin/fox chat <session-id> <message>       # send a message to a session
-```
-
 ---
 
 ## roadmap

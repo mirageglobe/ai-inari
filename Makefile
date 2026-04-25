@@ -3,7 +3,6 @@
 BIN_DIR     := bin
 DAEMON_BIN  := $(BIN_DIR)/inarid
 TUI_BIN     := $(BIN_DIR)/kitsune
-CLI_BIN     := $(BIN_DIR)/fox
 
 # ============================================================
 # Help
@@ -18,7 +17,7 @@ help:                        ## Show this help
 # ============================================================
 
 .PHONY: build
-build: build-daemon build-tui build-cli  ## Build all binaries
+build: build-daemon build-tui  ## Build all binaries
 
 .PHONY: build-daemon
 build-daemon:                ## Build inarid (daemon)
@@ -29,11 +28,6 @@ build-daemon:                ## Build inarid (daemon)
 build-tui:                   ## Build kitsune (TUI)
 	@mkdir -p $(BIN_DIR)
 	go build -o $(TUI_BIN) ./cmd/kitsune
-
-.PHONY: build-cli
-build-cli:                   ## Build fox (CLI)
-	@mkdir -p $(BIN_DIR)
-	go build -o $(CLI_BIN) ./cmd/fox
 
 # ============================================================
 # Run
@@ -59,10 +53,6 @@ run-daemon:                  ## Run inarid directly (no build)
 .PHONY: run-tui
 run-tui:                     ## Run kitsune TUI directly (no build)
 	go run ./cmd/kitsune
-
-.PHONY: run-cli
-run-cli:                     ## Run fox CLI directly (no build)
-	go run ./cmd/fox
 
 # ============================================================
 # Code quality
