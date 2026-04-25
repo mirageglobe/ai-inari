@@ -22,5 +22,7 @@ logs/
 
 # Go build output
 bin/
+inarid
+kitsune
 *.test
 coverage.out
