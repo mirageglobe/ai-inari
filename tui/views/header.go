@@ -128,9 +128,9 @@ func RenderTopBar(connErr string, stats SysStatsMsg, width, colorIdx int) string
 
 	var connText string
 	if connErr != "" {
-		connText = ConnErrStyle.Render("  ○ offline")
+		connText = ConnErrStyle.Render("  ○ inarid offline")
 	} else {
-		connText = ConnOKStyle.Render("  ● inari daemon")
+		connText = ConnOKStyle.Render("  ● inarid online")
 	}
 
 	right := sysText + connText
