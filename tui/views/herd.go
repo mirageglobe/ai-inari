@@ -79,6 +79,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ThemeChangedMsg:
 		ApplyTableStyles(&h.table)
+		h.spinner.Style = spinnerStyle
 		return h, nil
 
 	case tea.WindowSizeMsg:

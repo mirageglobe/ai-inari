@@ -105,6 +105,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ThemeChangedMsg:
 		ApplyTableStyles(&m.table)
+		m.spinner.Style = spinnerStyle
 		return m, nil
 
 	case tea.WindowSizeMsg:
