@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/mirageglobe/ai-inari/internal/config"
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/tui/views"
 )
@@ -43,6 +44,8 @@ type Model struct {
 	titleColorIdx int  // current ray position; -10 = off-screen (resting between sweeps)
 	titleDir      int  // +1 = left-to-right, -1 = right-to-left
 	showHelp      bool // true while the [?] help overlay is visible
+	themeIdx      int  // index into views.Themes; cycled by [t]
+	configPath    string
 }
 
 // currentViewName maps the active view enum to the string key used by RenderHelpOverlay.
@@ -61,7 +64,8 @@ func (m Model) currentViewName() string {
 	}
 }
 
-func New(client *ipc.Client) Model {
+// New creates the root model. configPath is used to persist theme changes.
+func New(client *ipc.Client, configPath string, themeIdx int) Model {
 	return Model{
 		client:        client,
 		current:       viewHerd,
@@ -71,6 +75,8 @@ func New(client *ipc.Client) Model {
 		describe:      views.NewDescribe(),
 		chats:         make(map[string]views.Chat),
 		titleColorIdx: -10, // off-screen until first sweep begins
+		themeIdx:      themeIdx,
+		configPath:    configPath,
 	}
 }
 
@@ -218,6 +224,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// [?] toggles the help overlay from any view.
 		if key.String() == "?" {
 			m.showHelp = !m.showHelp
+			return m, nil
+		}
+		// [t] cycles to the next built-in theme from any view.
+		if key.String() == "t" {
+			m.themeIdx = (m.themeIdx + 1) % len(views.Themes)
+			views.ApplyTheme(views.Themes[m.themeIdx])
+			if m.configPath != "" {
+				go func() {
+					cfg, err := config.Load(m.configPath)
+					if err == nil {
+						cfg.Theme = views.Themes[m.themeIdx].Name
+						_ = cfg.Save(m.configPath)
+					}
+				}()
+			}
 			return m, nil
 		}
 		// while help is open, only [esc] (or a second [?]) closes it; all other keys are consumed.

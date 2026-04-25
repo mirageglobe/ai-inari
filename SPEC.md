@@ -76,7 +76,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 
 #### Near-term
 - [ ] add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
-- [ ] `[kitsune]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
+- [x] `[kitsune]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
 - [x] `[kitsune]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
 - [ ] `[kitsune]` session search and filter in herd view
 - [ ] `[kitsune]` export chat history to file
@@ -84,7 +84,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[kitsune/inarid]` long-term task planning from high-level prompts
 - [ ] `[kitsune/inarid]` interrupt in chat for messages
 - [ ] `[inarid]` recap/summary when a chat session has been idle for 10+ mins
-- [ ] `[kitsune]` show current token count in chat
+- [x] `[kitsune]` show current token count in chat
 - [ ] `[kitsune]` allow download of context and copy of response as text
 - [ ] `[inarid]` daemon: auto-shutdown after 30 mins idle
 

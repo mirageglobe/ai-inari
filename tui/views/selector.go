@@ -178,9 +178,9 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ModelSelector) View() string {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("models")
+	title := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("models")
 	if m.targetSessionName != "" {
-		title += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render("→ "+m.targetSessionName)
+		title += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
 	}
 	hint := RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back"), HS(), H("[?] help")}, m.width)
 	body := herdStyle.Render(m.table.View())

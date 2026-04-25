@@ -26,6 +26,7 @@ type Config struct {
 	DataDir        string         `json:"data_dir"`
 	MCPConnectors  []MCPConnector `json:"mcp_connectors"`
 	Models         Models         `json:"models"`
+	Theme          string         `json:"theme,omitempty"`
 }
 
 func Load(path string) (*Config, error) {
@@ -40,4 +41,13 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// Save writes the config back to path with indented JSON.
+func (c *Config) Save(path string) error {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
 }

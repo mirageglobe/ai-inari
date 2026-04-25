@@ -330,15 +330,15 @@ func (c Chat) View() string {
 		title = c.sessionName + "  " + lipgloss.NewStyle().Faint(true).Render("("+c.model+")")
 	}
 	ctxStat := lipgloss.NewStyle().Faint(true).Render(fmtTokens(c.ctxChars))
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("chat") +
-		"  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render(title) +
+	header := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("chat") +
+		"  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render(title) +
 		"  " + ctxStat
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hint string
 	if c.offline {
 		hint = errorStyle.Render("inari is offline")
 	} else if c.showTools {
-		toolsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99"))
+		toolsStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Primary)
 		dimStyle := lipgloss.NewStyle().Faint(true)
 		hint = toolsStyle.Render("tools") + "  " +
 			dimStyle.Render("read_file") + "  " +
@@ -358,6 +358,7 @@ func (c Chat) View() string {
 			HS(),
 			H("[↑↓] scroll"),
 			H("[esc] back"),
+			H("[t] theme"),
 			H("[?] help"),
 		}, c.viewport.Width+2)
 	}

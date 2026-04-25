@@ -17,8 +17,8 @@ import (
 
 var HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
 
-// titleBase is the resting colour of the title text.
-const titleBase = lipgloss.Color("99")
+// titleBase is the resting colour of the title text; reassigned by ApplyTheme.
+var titleBase = lipgloss.Color("99")
 
 // rayColors defines the highlight falloff around the ray centre.
 // characters outside this range render at titleBase.

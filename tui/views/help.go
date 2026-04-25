@@ -27,6 +27,7 @@ var helpByView = map[string][]helpEntry{
 		{"[r]", "refresh"},
 		{"[l]", "logs"},
 		{"[d]", "describe"},
+		{"[t]", "cycle theme"},
 		{"[q]", "quit"},
 	},
 	"chat": {
@@ -34,6 +35,7 @@ var helpByView = map[string][]helpEntry{
 		{"[ctrl+o]", "change model"},
 		{"[ctrl+f]", "toggle tools panel"},
 		{"[↑] / [↓]", "scroll history"},
+		{"[t]", "cycle theme"},
 		{"[esc]", "back to sessions"},
 	},
 	"describe": {

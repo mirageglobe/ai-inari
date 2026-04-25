@@ -236,10 +236,10 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d Describe) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("describe")
+	header := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("describe")
 
 	if d.editing {
-		editLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("  editing behavior")
+		editLabel := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Render("  editing behavior")
 		var hintCmds []HintCmd
 		if d.saving {
 			hintCmds = []HintCmd{HD("[ctrl+s] saving…"), HD("[esc] cancel")}

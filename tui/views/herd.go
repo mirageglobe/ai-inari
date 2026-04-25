@@ -275,6 +275,7 @@ func herdHints(hasSession, hasModel bool) []HintCmd {
 		H("[d] describe"),
 		H("[q] quit"),
 		HS(),
+		H("[t] theme"),
 		H("[?] help"),
 	}
 }
