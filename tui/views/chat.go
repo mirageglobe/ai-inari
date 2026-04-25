@@ -54,7 +54,7 @@ type chatHistoryMsg struct {
 // streamTokens / streamErrc are the channels for the active stream goroutine;
 // nil when no stream is in flight.
 // offline mirrors the root model's connectivity state; when true, sends are blocked
-// and the hint line shows an "inari is offline" notice instead of the key bindings.
+// and the send command is visually disabled in the hint bar.
 // cwd is non-empty when filesystem tools (read_file, list_dir) are active for this session.
 // showTools toggles a tools panel in the hint area listing available tools.
 type Chat struct {
@@ -351,11 +351,9 @@ func (c Chat) View() string {
 		"  " + ctxStat
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hint string
-	if c.offline {
-		hint = errorStyle.Render("inari is offline")
-	} else if c.showTools {
+	if c.showTools {
 		toolsStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
-		dimStyle := lipgloss.NewStyle().Faint(true)
+		dimStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
 		hint = toolsStyle.Render("tools") + "  " +
 			dimStyle.Render("read_file") + "  " +
 			dimStyle.Render("list_dir") + "  " +
@@ -367,8 +365,14 @@ func (c Chat) View() string {
 		} else {
 			toolsHint = HD("[ctrl+f] tools")
 		}
+
+		sendHint := H("[enter] send")
+		if c.offline {
+			sendHint = HD("[enter] send")
+		}
+
 		hint = RenderHint([]HintCmd{
-			H("[enter] send"),
+			sendHint,
 			H("[ctrl+o] model"),
 			toolsHint,
 			HS(),
