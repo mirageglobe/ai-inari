@@ -63,6 +63,7 @@ type Chat struct {
 	sessionName   string
 	model         string // display only
 	cwd           string
+	messages      []provider.Message
 	display       []string
 	viewport      viewport.Model
 	input         textarea.Model
@@ -196,8 +197,29 @@ func readNextToken(sessionID string, tokens <-chan string, errc <-chan error) te
 	}
 }
 
+func (c *Chat) rebuildDisplay() {
+	c.display = nil
+	for _, m := range c.messages {
+		switch m.Role {
+		case "user":
+			c.display = append(c.display, userStyle.Render("you: ")+m.Content)
+		case "assistant":
+			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+m.Content)
+		case "error":
+			c.display = append(c.display, errorStyle.Render("error: "+m.Content))
+		}
+	}
+	setViewportContent(&c.viewport, c.viewportContent())
+	c.viewport.GotoBottom()
+}
+
 func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ThemeChangedMsg:
+		c.spinner.Style = spinnerStyle
+		c.rebuildDisplay()
+		return c, nil
+
 	case chatHistoryMsg:
 		if msg.err != nil || c.historyLoaded {
 			return c, nil
@@ -209,16 +231,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(msg.messages) == 0 {
 			return c, nil
 		}
-		for _, m := range msg.messages {
-			switch m.Role {
-			case "user":
-				c.display = append(c.display, userStyle.Render("you: ")+m.Content)
-			case "assistant":
-				c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+m.Content)
-			}
-		}
-		setViewportContent(&c.viewport, c.viewportContent())
-		c.viewport.GotoBottom()
+		c.messages = append(c.messages, msg.messages...)
+		c.rebuildDisplay()
 		return c, nil
 
 	case ChatTokenMsg:
@@ -237,8 +251,10 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		c.waiting = false
 		if msg.Err != nil {
+			c.messages = append(c.messages, provider.Message{Role: "error", Content: msg.Err.Error()})
 			c.display = append(c.display, errorStyle.Render("error: "+msg.Err.Error()))
 		} else {
+			c.messages = append(c.messages, provider.Message{Role: "assistant", Content: c.streamBuf})
 			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+c.streamBuf)
 			c.ctxChars += len(c.streamBuf)
 		}
@@ -292,11 +308,11 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if text == "" {
 				return c, nil
 			}
+			c.messages = append(c.messages, provider.Message{Role: "user", Content: text})
 			c.display = append(c.display, userStyle.Render("you: ")+text)
 			c.ctxChars += len(text)
 			c.input.Reset()
 			c.waiting = true
-
 			// start stream goroutine; store channels on struct so ChatTokenMsg
 			// handlers can schedule the next readNextToken without carrying them in the message.
 			tokens := make(chan string, 64)

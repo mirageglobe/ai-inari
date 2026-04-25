@@ -155,6 +155,12 @@ func (d Describe) buildContent() string {
 
 func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ThemeChangedMsg:
+		if d.ready {
+			d.viewport.SetContent(d.buildContent())
+		}
+		return d, nil
+
 	case tea.WindowSizeMsg:
 		d.width = msg.Width
 		d.height = msg.Height
