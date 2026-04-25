@@ -338,7 +338,7 @@ func (c Chat) View() string {
 	if c.offline {
 		hint = errorStyle.Render("inari is offline")
 	} else if c.showTools {
-		toolsStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Primary)
+		toolsStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
 		dimStyle := lipgloss.NewStyle().Faint(true)
 		hint = toolsStyle.Render("tools") + "  " +
 			dimStyle.Render("read_file") + "  " +
