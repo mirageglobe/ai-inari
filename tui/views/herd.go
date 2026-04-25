@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -424,7 +425,8 @@ func fetchSessions(client *ipc.Client) tea.Cmd {
 
 func createSessionCmd(client *ipc.Client, name string) tea.Cmd {
 	return func() tea.Msg {
-		sess, err := client.CreateSession(name)
+		cwd, _ := os.Getwd()
+		sess, err := client.CreateSession(name, cwd)
 		return createSessionResultMsg{session: sess, err: err}
 	}
 }

@@ -122,8 +122,10 @@ func (c *Client) ListSessions() ([]SessionInfo, error) {
 }
 
 // CreateSession creates a new named session in inarid and returns its summary.
-func (c *Client) CreateSession(name string) (SessionInfo, error) {
-	resp, err := c.Call("session.create", map[string]string{"name": name})
+// cwd is optional; when non-empty inarid injects a shallow file tree into the session's
+// system prompt so the model is aware of the project layout from the first message.
+func (c *Client) CreateSession(name, cwd string) (SessionInfo, error) {
+	resp, err := c.Call("session.create", map[string]string{"name": name, "cwd": cwd})
 	if err != nil {
 		return SessionInfo{}, err
 	}

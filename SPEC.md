@@ -6,6 +6,7 @@ Security-first, minimalist local AI orchestrator.
 
 ## 1. Goals
 
+- Raise the bar on local LLM/SLM performance — through better context, tooling, and orchestration, make small models punch above their weight.
 - Run and orchestrate local LLMs (via Ollama) from a single terminal UI.
 - Keep the security surface minimal: no network exposure, no cloud dependencies.
 - Support parallel model execution with explicit resource budgeting.
@@ -25,35 +26,33 @@ Security-first, minimalist local AI orchestrator.
 ### 3.1 Build Milestones
 
 #### M1 — UDS Bridge
-- [ ] `inarid` starts and binds UDS socket.
-- [ ] `kitsune` connects and performs handshake.
-- [ ] Basic ping/pong JSON-RPC round-trip.
+- [x] `inarid` starts and binds UDS socket.
+- [x] `kitsune` connects and performs handshake.
+- [x] Basic ping/pong JSON-RPC round-trip.
 
 #### M2 — Herd UI
-- [ ] Bubble Tea table renders active sessions.
-- [ ] Sessions update in real time from daemon events.
-- [ ] Keyboard navigation (select, quit).
+- [x] Bubble Tea table renders active sessions.
+- [x] Sessions update in real time from daemon events.
+- [x] Keyboard navigation (select, quit).
 
 #### M3 — Ollama Integration
-- [ ] Daemon POSTs to Ollama `/api/chat` and streams tokens.
-- [ ] Token stream forwarded to `kitsune` Logs view.
-- [ ] Semaphore throttle enforces memory budget.
+- [x] Daemon POSTs to Ollama `/api/chat` and streams tokens.
+- [x] Token stream forwarded to `kitsune` chat view.
+- [x] Semaphore throttle enforces memory budget.
 
 #### M4 — MCP Loader
-- [ ] `config.json` parsed at startup.
-- [ ] Connectors spawned as child processes.
-- [ ] Tool-calls routed and audit-logged.
+- [x] `config.json` parsed at startup.
+- [x] Connectors spawned as child processes.
+- [ ] Tool-calls routed and audit-logged. (`internal/mcp/host.go` `Call()` is a TODO stub — audit logging exists but actual JSON-RPC dispatch over stdio is not implemented)
 
 #### M5 — Chat View
-- [ ] Interactive `i` view wires to Head Inari (Thinker tier).
-- [ ] Message history scoped to session.
-- [ ] Detach/reattach preserves session state.
+- [x] Interactive `i` view wires to Head Inari (Thinker tier).
+- [x] Message history scoped to session.
+- [x] Detach/reattach preserves session state.
 
 ### 3.2 Feature Roadmap
 
 #### Near-term
-- [ ] streaming chat — `session.stream` RPC over dedicated per-call UDS connections; kitsune renders tokens as they arrive
-- [ ] filesystem context (layer 1) — inject working directory path and file tree into a session's system prompt at creation time; kitsune passes `cwd` to `session.create`; inarid prepends it as a system message so the model is aware of the project layout without reading any file content
 - [ ] session search and filter in herd view
 - [ ] export chat history to file
 - [ ] main screen: allow token compression by summarising session content
@@ -83,6 +82,8 @@ Security-first, minimalist local AI orchestrator.
 - [x] `fox` CLI removed — functionality superseded by kitsune TUI
 - [x] thinking spinner in chat session while waiting for a response
 - [x] offline detection in chat — when inarid is unreachable, the hint line shows "inari is offline" and sends are blocked until connectivity is restored
+- [x] streaming chat — `session.stream` RPC over dedicated per-call UDS connections; kitsune renders tokens as they arrive
+- [x] filesystem context (layer 1) — shallow file tree injected into system prompt at session creation; kitsune passes `cwd`, inarid walks up to 3 levels (skipping `.git`, `node_modules`, etc.)
 
 #### Open Issues
 - [ ] track and manage known issues and bugs

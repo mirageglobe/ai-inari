@@ -2,9 +2,11 @@ package ipc
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -238,14 +240,23 @@ func (s *Server) dispatch(req Request) Response {
 		return Response{JSONRPC: "2.0", Result: infos, ID: req.ID}
 
 	// session.create initialises a new named session with no model assigned yet.
+	// if cwd is provided, a shallow file tree is injected into the system prompt so
+	// the model is aware of the project layout without reading any file content.
 	case "session.create":
 		var params struct {
 			Name string `json:"name"`
+			CWD  string `json:"cwd,omitempty"`
 		}
 		if err := json.Unmarshal(req.Params, &params); err != nil || params.Name == "" {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
 		}
 		sess := session.New(params.Name)
+		if params.CWD != "" {
+			sess.CWD = params.CWD
+			tree := buildFileTree(params.CWD, 3)
+			combined := sess.SystemPrompt + "\n\nworking directory: " + params.CWD + "\n" + tree
+			sess.SetSystemPrompt(combined)
+		}
 		s.store.Add(sess)
 		return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
 
@@ -433,4 +444,42 @@ func (s *Server) dispatch(req Request) Response {
 
 func (s *Server) Close() {
 	s.listener.Close()
+}
+
+// skipDirs are directory names that are always excluded from the file tree.
+// these are noise for a model trying to understand a project layout.
+var skipDirs = map[string]bool{
+	".git": true, "node_modules": true, "vendor": true,
+	".venv": true, "__pycache__": true, "dist": true, "build": true,
+	"bin": true, ".idea": true, ".vscode": true,
+}
+
+// buildFileTree returns a compact file tree of dir up to maxDepth levels deep.
+// directories in skipDirs are pruned. the result is suitable for injection into a system prompt.
+func buildFileTree(dir string, maxDepth int) string {
+	var sb strings.Builder
+	walkTree(&sb, dir, dir, 0, maxDepth)
+	return sb.String()
+}
+
+func walkTree(sb *strings.Builder, root, current string, depth, maxDepth int) {
+	if depth > maxDepth {
+		return
+	}
+	entries, err := os.ReadDir(current)
+	if err != nil {
+		return
+	}
+	indent := strings.Repeat("  ", depth)
+	for _, e := range entries {
+		if skipDirs[e.Name()] {
+			continue
+		}
+		if e.IsDir() {
+			fmt.Fprintf(sb, "%s%s/\n", indent, e.Name())
+			walkTree(sb, root, filepath.Join(current, e.Name()), depth+1, maxDepth)
+		} else {
+			fmt.Fprintf(sb, "%s%s\n", indent, e.Name())
+		}
+	}
 }

@@ -40,6 +40,8 @@ const (
 // Model is empty when no model is attached; chat is blocked until one is assigned.
 // SystemPrompt is mirrored as Messages[0] (role:"system") so it is sent to Ollama
 // exactly once per conversation rather than re-prepended on every request.
+// CWD is the working directory injected as filesystem context at session creation;
+// empty means no filesystem context was provided.
 type Session struct {
 	mu           sync.Mutex       // protects Messages
 	ID           string           `json:"id"`
@@ -49,6 +51,7 @@ type Session struct {
 	Status       Status           `json:"status"`
 	Messages     []ollama.Message `json:"messages"`
 	SystemPrompt string           `json:"system_prompt,omitempty"`
+	CWD          string           `json:"cwd,omitempty"`
 	CreatedAt    time.Time        `json:"created_at"`
 	UpdatedAt    time.Time        `json:"updated_at"`
 }
