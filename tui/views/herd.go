@@ -41,6 +41,7 @@ type Herd struct {
 	width       int
 	height      int
 	hintHeight  int // actual rendered hint line count; varies with terminal width
+	offline     bool
 }
 
 func NewHerd(client *ipc.Client) Herd {
@@ -89,7 +90,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// on narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
 		// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
 		// and pushes the root header off the top of the display.
-		hintStr := RenderHint(herdHints(false, false), h.width)
+		hintStr := RenderHint(herdHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
 		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + hint(hintHeight)
 		tableHeight := msg.Height - 4 - h.hintHeight
@@ -215,6 +216,13 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, assignModelCmd(h.client, msg.SessionID, sessionName, msg.ModelName)
 
 	case tea.KeyMsg:
+		if h.offline {
+			// when offline, only allow navigation keys, ignore mutating ones
+			switch msg.String() {
+			case "s", "m", "u", "c", "x", "r", "enter":
+				return h, nil
+			}
+		}
 		switch msg.String() {
 		case "s":
 			name := pickFoxName(h.usedNames())
@@ -265,20 +273,26 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
+// WithOffline returns a copy of the Herd view with the offline flag set.
+func (h Herd) WithOffline(offline bool) Herd {
+	h.offline = offline
+	return h
+}
+
 // herdHints returns the command hint list for the herd view.
-// hasSession and hasModel control which items are enabled.
-func herdHints(hasSession, hasModel bool) []HintCmd {
+// hasSession, hasModel, and offline control which items are enabled.
+func herdHints(hasSession, hasModel, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		H("[s] new kitsune"),
-		hc("[m] model", hasSession),
-		hc("[u] unload", hasModel),
-		hc("[c] chat", hasModel),
-		hc("[x] delete", hasSession),
+		hc("[s] new kitsune", !offline),
+		hc("[m] model", hasSession && !offline),
+		hc("[u] unload", hasModel && !offline),
+		hc("[c] chat", hasModel && !offline),
+		hc("[x] delete", hasSession && !offline),
 		HS(),
-		H("[r] refresh"),
+		hc("[r] refresh", !offline),
 		H("[l] logs"),
-		H("[d] describe"),
+		hc("[d] describe", hasSession && !offline),
 		H("[q] quit"),
 		HS(),
 		H("[t] theme"),
@@ -291,7 +305,7 @@ func (h Herd) View() string {
 	hasSession := idx >= 0 && idx < len(h.sessions)
 	hasModel := hasSession && h.sessions[idx].Model != ""
 
-	hint := RenderHint(herdHints(hasSession, hasModel), h.width)
+	hint := RenderHint(herdHints(hasSession, hasModel, h.offline), h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)

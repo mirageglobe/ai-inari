@@ -165,6 +165,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasOffline := !m.connOnline
 		m.connOnline = conn.OK
 		offline := !conn.OK
+		m.herd = m.herd.WithOffline(offline)
 		for id, chat := range m.chats {
 			m.chats[id] = chat.WithOffline(offline)
 		}
@@ -293,11 +294,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.current = viewLogs
 				return m, m.logs.Init()
 			case "d":
-				if sess, vram, ok := m.herd.SelectedSession(); ok {
-					m.describe = m.describe.ForSession(sess, vram, m.client)
+				if m.connOnline {
+					if sess, vram, ok := m.herd.SelectedSession(); ok {
+						m.describe = m.describe.ForSession(sess, vram, m.client)
+					}
+					m.current = viewDescribe
+					return m, m.describe.Init()
 				}
-				m.current = viewDescribe
-				return m, m.describe.Init()
 			}
 		default:
 			// esc from secondary views returns to herd, except when describe is in edit mode
