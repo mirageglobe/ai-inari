@@ -53,28 +53,31 @@ Security-first, minimalist local AI orchestrator.
 ### 3.2 Feature Roadmap
 
 #### Near-term
-- [ ] session search and filter in herd view
-- [ ] export chat history to file
-- [ ] main screen: allow token compression by summarising session content
-- [ ] long-term task planning from high-level prompts
-- [ ] interrupt in chat for messages
-- [ ] recap/summary when a chat session has been idle for 10+ mins
-- [ ] show current token count in chat
-- [ ] allow download of context and copy of response as text
-- [ ] daemon: auto-shutdown after 30 mins idle
+- [ ] `[kitsune]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
+- [ ] `[kitsune]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
+- [ ] `[kitsune]` session search and filter in herd view
+- [ ] `[kitsune]` export chat history to file
+- [ ] `[kitsune/inarid]` main screen: allow token compression by summarising session content
+- [ ] `[kitsune/inarid]` long-term task planning from high-level prompts
+- [ ] `[kitsune/inarid]` interrupt in chat for messages
+- [ ] `[inarid]` recap/summary when a chat session has been idle for 10+ mins
+- [ ] `[kitsune]` show current token count in chat
+- [ ] `[kitsune]` allow download of context and copy of response as text
+- [ ] `[inarid]` daemon: auto-shutdown after 30 mins idle
 
 #### Ideas
-- [ ] **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
+- [ ] `[kitsune/inarid]` **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
         to summarise the conversation history via the session's own model, replacing old turns
         with a compact summary. keeps the system behavior prompt intact. auto-compression
         variant triggers automatically when context exceeds a configurable threshold.
-- [ ] **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
-- [ ] **MCP filesystem connector (layer 3)** — once the tool-call loop exists, replace built-in tools with `@modelcontextprotocol/server-filesystem` spawned via mcp-go. this is a natural extension of the MCP integration work below.
-- [ ] multiple models per session — allow attaching different models to a single session for collaborative discussions and task execution
-- [ ] MCP integration — replace `internal/mcp` with `github.com/mark3labs/mcp-go`; connectors (Linear, Slack, Google Drive, etc.) configured via `config.json`
-- [ ] multi-model routing — sensor tier classifies intent, dispatches to worker or thinker
-- [ ] session tagging and search
-- [ ] show current ollama context length setting
+- [ ] `[inarid]` **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
+- [ ] `[inarid]` **MCP filesystem connector (layer 3)** — once the tool-call loop exists, replace built-in tools with `@modelcontextprotocol/server-filesystem` spawned via mcp-go. this is a natural extension of the MCP integration work below.
+- [ ] `[inarid]` **destructive action prevention (§8.2)** — risk-tiered auto-approval, blast-radius limits, and dry-run previews for caution-tier tool-calls; prerequisite for any layer 2+ tool execution
+- [ ] `[inarid]` multiple models per session — allow attaching different models to a single session for collaborative discussions and task execution
+- [ ] `[inarid]` MCP integration — replace `internal/mcp` with `github.com/mark3labs/mcp-go`; connectors (Linear, Slack, Google Drive, etc.) configured via `config.json`
+- [ ] `[inarid]` multi-model routing — sensor tier classifies intent, dispatches to worker or thinker
+- [ ] `[kitsune/inarid]` session tagging and search
+- [ ] `[kitsune]` show current ollama context length setting
 
 ### 3.3 Status
 
@@ -83,6 +86,7 @@ Security-first, minimalist local AI orchestrator.
 - [x] thinking spinner in chat session while waiting for a response
 - [x] offline detection in chat — when inarid is unreachable, the hint line shows "inari is offline" and sends are blocked until connectivity is restored
 - [x] streaming chat — `session.stream` RPC over dedicated per-call UDS connections; kitsune renders tokens as they arrive
+- [x] title bar wave animation — per-character purple gradient drifts across the kitsune title at 200ms intervals
 - [x] filesystem context (layer 1) — shallow file tree injected into system prompt at session creation; kitsune passes `cwd`, inarid walks up to 3 levels (skipping `.git`, `node_modules`, etc.)
 
 #### Open Issues
@@ -343,6 +347,77 @@ connector definitions loaded from `config.json` at daemon start. each entry spec
 - All MCP tool-calls written to an append-only audit log.
 - No credentials, tokens, or secrets stored by the daemon.
 - MCP child processes run with inherited (restricted) environment.
+
+### 8.1 Least-Privilege Principle
+
+**default posture: deny.** every capability a model or connector can exercise must be explicitly granted. nothing is open by default.
+
+this applies at every layer where the model can touch the host system:
+
+| layer | default | must be explicitly granted |
+|-------|---------|---------------------------|
+| filesystem context (layer 1) | read file tree (names only, no content) | — (always safe) |
+| filesystem tools (layer 2) | no tools declared | `read_file`, `list_dir` per session, sandboxed to `cwd` |
+| MCP connectors | none spawned | each connector named in `config.json`; scope defined per connector |
+| write operations | never | no write tools at any layer without explicit future design decision |
+
+**sandbox invariants (layer 2+):**
+- all paths are resolved relative to the session's `cwd` and validated before execution.
+- `../` traversal and absolute paths outside `cwd` are rejected.
+- write, delete, and execute operations are out of scope until a deliberate security review approves them.
+
+**MCP connector hygiene:**
+- each connector is spawned as a child process with a minimal, scrubbed environment — only variables it explicitly needs.
+- connectors declare their own tool surface; inarid does not grant capabilities beyond what the connector exposes.
+- adding a new connector to `config.json` is a conscious operator decision, not an automatic one.
+
+**audit log as enforcement:**
+- every tool-call routed through inarid is appended to the audit log before execution, not after. if logging fails, the call is rejected.
+- the log is append-only and owned by the daemon process; connectors cannot write to it directly.
+
+### 8.2 Destructive Action Prevention
+
+the goal is to make the worst-case outcome bounded regardless of user behaviour — confirmation gates alone are insufficient because users start approving blindly under repeated prompts.
+
+**three layers working together:**
+
+**layer A — risk-tiered auto-approval**
+
+every tool-call is classified at dispatch time by a static risk tier. the tier is defined per tool, not inferred from the model's intent or phrasing.
+
+| tier | examples | inarid behaviour |
+|------|----------|-----------------|
+| safe | `read_file`, `list_dir`, `session.list` | execute immediately, log |
+| caution | `write_file`, `create_issue`, `send_message` | dry-run first, then require confirmation |
+| destructive | `delete_file`, `close_issue`, `delete_*` | always require confirmation; shown in red in kitsune |
+| forbidden | process spawn, network calls outside ollama/mcp, shell exec | hard-rejected; never routable |
+
+classification is conservative: if a tool's tier is ambiguous, it is assigned the higher-risk tier. adding a new tool requires an explicit tier assignment — unclassified tools are rejected.
+
+**layer B — blast-radius limits**
+
+hard limits enforced by inarid regardless of tier or confirmation:
+
+- all file operations capped at 1 MB per call.
+- no operations outside the session's `cwd` (path traversal rejected at validation, not policy).
+- no more than 10 tool-calls per model turn (prevents runaway loops).
+- no spawning processes or making network calls from within a tool handler.
+
+**layer C — dry-run for caution-tier actions**
+
+before executing a caution-tier tool-call, inarid computes a dry-run result and sends a `tool.preview` message to kitsune:
+
+```
+[preview] write_file: path/to/file.go
+--- current
++++ proposed
+@@ -1,3 +1,5 @@
+ ...
+```
+
+kitsune renders the preview and waits for `[y] approve` or `[n] reject`. only on approval does inarid execute. rejection is logged. if kitsune is detached, caution-tier calls are automatically rejected — they never execute unattended.
+
+**non-goal:** this design does not attempt to detect malicious intent from model outputs. it bounds damage structurally so that even a model producing harmful tool-calls cannot exceed the permitted blast radius.
 
 ---
 

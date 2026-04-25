@@ -3,6 +3,7 @@
 package tui
 
 import (
+	"math/rand"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,23 +40,27 @@ type Model struct {
 	connOnline    bool // tracks last known connection state to detect offline→online transitions
 	termWidth     int
 	termHeight    int
-	titleColorIdx int // current step in the title colour palette
+	titleColorIdx int // current ray position; -10 = off-screen (resting between sweeps)
+	titleDir      int // +1 = left-to-right, -1 = right-to-left
 }
 
 func New(client *ipc.Client) Model {
 	return Model{
-		client:   client,
-		current:  viewHerd,
-		herd:     views.NewHerd(client),
-		models:   views.NewModelSelector(client),
-		logs:     views.NewLogs(),
-		describe: views.NewDescribe(),
-		chats:    make(map[string]views.Chat),
+		client:        client,
+		current:       viewHerd,
+		herd:          views.NewHerd(client),
+		models:        views.NewModelSelector(client),
+		logs:          views.NewLogs(),
+		describe:      views.NewDescribe(),
+		chats:         make(map[string]views.Chat),
+		titleColorIdx: -10, // off-screen until first sweep begins
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), views.TitleTick())
+	// fire TitleStartMsg immediately so the first sweep begins on launch.
+	firstSweep := func() tea.Msg { return views.TitleStartMsg{} }
+	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -90,8 +95,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, views.SysStatsTick()
 	}
 
+	if _, ok := msg.(views.TitleStartMsg); ok {
+		if rand.Intn(2) == 0 {
+			m.titleDir = 1
+			m.titleColorIdx = 0
+		} else {
+			m.titleDir = -1
+			m.titleColorIdx = views.TitleLen - 1
+		}
+		return m, views.TitleTick()
+	}
+
 	if _, ok := msg.(views.TitleTickMsg); ok {
-		m.titleColorIdx++
+		m.titleColorIdx += m.titleDir
+		// ray has fully exited: right edge (forward) or left edge (reverse, centre < -2)
+		offScreen := m.titleColorIdx >= views.TitleLen || m.titleColorIdx < -2
+		if offScreen {
+			m.titleColorIdx = -10
+			return m, views.TitlePause()
+		}
 		return m, views.TitleTick()
 	}
 
