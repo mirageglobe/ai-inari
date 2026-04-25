@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/internal/ollama"
@@ -22,9 +23,17 @@ var (
 	thinkingStyle  = lipgloss.NewStyle().Faint(true)
 )
 
-type chatReplyMsg struct {
-	text string
-	err  error
+// ChatTokenMsg is sent for each streamed token from inarid.
+// SessionID routes it to the correct Chat view regardless of which view is active.
+type ChatTokenMsg struct {
+	SessionID string
+	Token     string
+}
+
+// ChatDoneMsg is sent when the stream ends (success or error).
+type ChatDoneMsg struct {
+	SessionID string
+	Err       error
 }
 
 type chatHistoryMsg struct {
@@ -33,13 +42,17 @@ type chatHistoryMsg struct {
 }
 
 // Chat is the interactive conversation view for a session.
-// display holds the rendered lines shown in the viewport — local to this fox instance.
-// all message history lives in inarid; fox sends only the new user text each turn.
+// display holds the rendered lines shown in the viewport — local to this kitsune instance.
+// all message history lives in inarid; kitsune sends only the new user text each turn.
 // the waiting spinner is rendered separately and is never written into display.
 // historyLoaded prevents duplicate appends when Init() is called more than once
 // (e.g. returning to this chat after a model-selector round-trip).
 // ctxChars tracks the raw character total of all user+assistant message content,
 // used to estimate token usage (~4 chars per token) shown in the header.
+// streamBuf accumulates in-progress tokens during an active stream; it is rendered
+// live in the viewport and moved into display on ChatDoneMsg.
+// streamTokens / streamErrc are the channels for the active stream goroutine;
+// nil when no stream is in flight.
 type Chat struct {
 	client        *ipc.Client
 	sessionID     string
@@ -53,10 +66,13 @@ type Chat struct {
 	ready         bool
 	historyLoaded bool
 	ctxChars      int
+	streamBuf     string
+	streamTokens  <-chan string
+	streamErrc    <-chan error
 }
 
 // Init focuses the textarea and fetches the session's message history from inarid
-// so prior conversations are restored when fox reconnects to an existing session.
+// so prior conversations are restored when kitsune reconnects to an existing session.
 func (c Chat) Init() tea.Cmd {
 	return tea.Batch(c.input.Focus(), fetchChatHistory(c.client, c.sessionID))
 }
@@ -89,18 +105,26 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model string, ctxChars 
 }
 
 // viewportContent returns the string to show in the viewport.
-// when waiting, the animated spinner line is appended; it is never stored in display
-// so that chatReplyMsg can simply append the real reply without any pop logic.
+// during streaming, streamBuf is rendered as a live in-progress assistant message.
+// before the first token arrives, the spinner is shown instead.
+// neither is ever written into display so finalisation is a simple append.
 func (c Chat) viewportContent() string {
 	base := strings.Join(c.display, "\n")
-	if !c.waiting {
-		return base
+	if c.streamBuf != "" {
+		partial := assistantStyle.Render(c.sessionName+": ") + c.streamBuf
+		if base == "" {
+			return partial
+		}
+		return base + "\n" + partial
 	}
-	thinking := thinkingStyle.Render(c.spinner.View() + " thinking…")
-	if base == "" {
-		return thinking
+	if c.waiting {
+		thinking := thinkingStyle.Render(c.spinner.View() + " thinking…")
+		if base == "" {
+			return thinking
+		}
+		return base + "\n" + thinking
 	}
-	return base + "\n" + thinking
+	return base
 }
 
 // fmtTokens formats a character count as a human-readable estimated token count.
@@ -111,6 +135,18 @@ func fmtTokens(chars int) string {
 		return fmt.Sprintf("~%d tokens", t)
 	}
 	return fmt.Sprintf("~%.1fk tokens", float64(t)/1000)
+}
+
+// setViewportContent pre-wraps content to the viewport width before calling
+// SetContent. bubbles v0.18.0 viewport splits content only on \n — it does not
+// perform terminal line-wrapping itself — so GotoBottom undershoots when long
+// styled lines wrap visually in the terminal. hardwrapping beforehand makes the
+// \n count match the visual row count, fixing the scroll position.
+func setViewportContent(vp *viewport.Model, content string) {
+	if vp.Width > 0 {
+		content = ansi.Hardwrap(content, vp.Width, true)
+	}
+	vp.SetContent(content)
 }
 
 // arrowOnlyKeyMap restricts viewport scrolling to arrow keys only,
@@ -130,6 +166,18 @@ func fetchChatHistory(client *ipc.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {
 		messages, err := client.History(sessionID)
 		return chatHistoryMsg{messages: messages, err: err}
+	}
+}
+
+// readNextToken returns a cmd that blocks until the next token arrives on the channel,
+// then emits ChatTokenMsg or ChatDoneMsg (when the channel is closed).
+func readNextToken(sessionID string, tokens <-chan string, errc <-chan error) tea.Cmd {
+	return func() tea.Msg {
+		token, ok := <-tokens
+		if !ok {
+			return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
+		}
+		return ChatTokenMsg{SessionID: sessionID, Token: token}
 	}
 }
 
@@ -154,19 +202,35 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+m.Content)
 			}
 		}
-		c.viewport.SetContent(c.viewportContent())
+		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
 		return c, nil
 
-	case chatReplyMsg:
-		c.waiting = false
-		if msg.err != nil {
-			c.display = append(c.display, errorStyle.Render("error: "+msg.err.Error()))
-		} else {
-			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+msg.text)
-			c.ctxChars += len(msg.text)
+	case ChatTokenMsg:
+		if msg.SessionID != c.sessionID {
+			return c, nil
 		}
-		c.viewport.SetContent(c.viewportContent())
+		c.streamBuf += msg.Token
+		c.waiting = false // hide spinner once first token arrives
+		setViewportContent(&c.viewport, c.viewportContent())
+		c.viewport.GotoBottom()
+		return c, readNextToken(c.sessionID, c.streamTokens, c.streamErrc)
+
+	case ChatDoneMsg:
+		if msg.SessionID != c.sessionID {
+			return c, nil
+		}
+		c.waiting = false
+		if msg.Err != nil {
+			c.display = append(c.display, errorStyle.Render("error: "+msg.Err.Error()))
+		} else {
+			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+c.streamBuf)
+			c.ctxChars += len(c.streamBuf)
+		}
+		c.streamBuf = ""
+		c.streamTokens = nil
+		c.streamErrc = nil
+		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
 		return c, nil
 
@@ -176,7 +240,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		c.spinner, cmd = c.spinner.Update(msg)
-		c.viewport.SetContent(c.viewportContent())
+		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
 		return c, cmd
 
@@ -199,7 +263,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.viewport.Width = contentW - 2
 			c.viewport.Height = height
 		}
-		c.viewport.SetContent(c.viewportContent())
+		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
 		return c, nil
 
@@ -213,9 +277,22 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.ctxChars += len(text)
 			c.input.Reset()
 			c.waiting = true
-			c.viewport.SetContent(c.viewportContent())
+
+			// start stream goroutine; store channels on struct so ChatTokenMsg
+			// handlers can schedule the next readNextToken without carrying them in the message.
+			tokens := make(chan string, 64)
+			errc := make(chan error, 1)
+			go func() {
+				err := c.client.ChatStream(c.sessionID, text, tokens)
+				errc <- err
+				close(tokens)
+			}()
+			c.streamTokens = tokens
+			c.streamErrc = errc
+
+			setViewportContent(&c.viewport, c.viewportContent())
 			c.viewport.GotoBottom()
-			return c, tea.Batch(sendMessage(c.client, c.sessionID, text), c.spinner.Tick)
+			return c, tea.Batch(readNextToken(c.sessionID, tokens, errc), c.spinner.Tick)
 		}
 	}
 
@@ -247,14 +324,4 @@ func (c Chat) View() string {
 	}, c.viewport.Width+2)
 	body := herdStyle.Render(c.viewport.View())
 	return header + "\n" + body + "\n" + c.input.View() + "\n" + hint
-}
-
-func sendMessage(client *ipc.Client, sessionID, text string) tea.Cmd {
-	return func() tea.Msg {
-		reply, err := client.Chat(sessionID, text)
-		if err != nil {
-			return chatReplyMsg{err: err}
-		}
-		return chatReplyMsg{text: reply}
-	}
 }
