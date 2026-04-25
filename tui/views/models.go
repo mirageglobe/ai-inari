@@ -16,7 +16,8 @@ type SelectModelMsg struct {
 	SessionID    string
 	SessionName  string // display name shown in the chat header
 	ModelName    string
-	ContextChars int // total message chars at open time, for token estimation
+	CWD          string // non-empty when filesystem tools are active for this session
+	ContextChars int    // total message chars at open time, for token estimation
 }
 
 // BackToHerdMsg is emitted to return to the herd view.

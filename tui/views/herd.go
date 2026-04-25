@@ -283,7 +283,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sess := h.sessions[idx]
 				if sess.Model != "" {
 					return h, func() tea.Msg {
-						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, ContextChars: sess.ContextChars}
+						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
 					}
 				}
 			}

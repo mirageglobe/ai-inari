@@ -10,17 +10,58 @@ import (
 	"net/http"
 )
 
+// ToolParameters describes the JSON schema for a tool's input.
+type ToolParameters struct {
+	Type       string              `json:"type"`
+	Properties map[string]Property `json:"properties"`
+	Required   []string            `json:"required,omitempty"`
+}
+
+// Property is a single field in a tool's parameter schema.
+type Property struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
+}
+
+// ToolFunction is the function definition inside a Tool.
+type ToolFunction struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Parameters  ToolParameters `json:"parameters"`
+}
+
+// Tool is declared in a ChatRequest to advertise a callable function to the model.
+type Tool struct {
+	Type     string       `json:"type"` // always "function"
+	Function ToolFunction `json:"function"`
+}
+
+// ToolCallFunction carries the name and arguments returned by the model for a tool call.
+type ToolCallFunction struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
+}
+
+// ToolCall is a single function invocation requested by the model.
+type ToolCall struct {
+	Function ToolCallFunction `json:"function"`
+}
+
 // Message is a single chat message.
+// ToolCalls is populated on assistant messages when the model requests a function call.
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string     `json:"role"`
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 }
 
 // ChatRequest maps to the Ollama /api/chat payload.
+// Tools declares the functions the model may call; omit for sessions without tool support.
 type ChatRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
+	Tools    []Tool    `json:"tools,omitempty"`
 }
 
 // ChatResponse is a single streamed chunk from Ollama.

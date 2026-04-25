@@ -20,6 +20,7 @@ type SessionInfo struct {
 	Name         string `json:"name"`
 	Model        string `json:"model"`
 	SystemPrompt string `json:"system_prompt,omitempty"`
+	CWD          string `json:"cwd,omitempty"`
 	ContextChars int    `json:"context_chars,omitempty"`
 }
 

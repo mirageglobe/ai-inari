@@ -184,7 +184,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sel, ok := msg.(views.SelectModelMsg); ok {
 		m.activeSession = sel.SessionID
 		if _, exists := m.chats[sel.SessionID]; !exists {
-			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.ContextChars)
+			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.CWD, sel.ContextChars)
 			// size the viewport immediately with the known terminal dimensions so the
 			// chat is ready before it ever receives a WindowSizeMsg.
 			if m.termWidth > 0 && m.termHeight > 0 {

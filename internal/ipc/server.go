@@ -145,8 +145,11 @@ func (s *Server) handle(conn net.Conn) {
 }
 
 // handleStream serves a session.stream request over a dedicated connection.
-// it streams token chunks as newline-delimited JSON frames, persists the full reply on done,
-// and rolls back the user message on error. the connection is closed by the caller (handle).
+// if the session has a cwd set, filesystem tools are declared in the request.
+// when the model responds with tool_calls, inarid executes them (sandboxed to cwd),
+// appends the results, and re-sends — looping until the model returns a text reply.
+// only tokens from the final text reply are forwarded to kitsune.
+// the connection is closed by the caller (handle).
 func (s *Server) handleStream(conn net.Conn, req Request) {
 	enc := json.NewEncoder(conn)
 
@@ -171,40 +174,76 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 
 	sess.AppendMessage(ollama.Message{Role: "user", Content: params.Text})
 
-	chunks := make(chan ollama.ChatResponse, 32)
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- s.ollama.ChatStream(ollama.ChatRequest{
-			Model:    sess.Model,
-			Messages: sess.ChatHistory(),
-			Stream:   true,
-		}, chunks)
-		close(chunks)
-	}()
+	var tools []ollama.Tool
+	if sess.CWD != "" {
+		tools = filesystemTools()
+	}
 
-	var fullReply strings.Builder
-	for chunk := range chunks {
-		if chunk.Message.Content != "" {
-			fullReply.WriteString(chunk.Message.Content)
-			enc.Encode(map[string]string{"token": chunk.Message.Content})
+	const maxToolRounds = 10
+	for range maxToolRounds {
+		chunks := make(chan ollama.ChatResponse, 32)
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.ollama.ChatStream(ollama.ChatRequest{
+				Model:    sess.Model,
+				Messages: sess.ChatHistory(),
+				Stream:   true,
+				Tools:    tools,
+			}, chunks)
+			close(chunks)
+		}()
+
+		// stream tokens to kitsune as they arrive; collect tool_calls from the done chunk.
+		// tool-call rounds produce empty content so no tokens are forwarded during those rounds —
+		// only the final text round produces visible output.
+		var textBuf strings.Builder
+		var toolCalls []ollama.ToolCall
+		for chunk := range chunks {
+			if len(chunk.Message.ToolCalls) > 0 {
+				toolCalls = chunk.Message.ToolCalls
+			}
+			if chunk.Message.Content != "" {
+				textBuf.WriteString(chunk.Message.Content)
+				enc.Encode(map[string]string{"token": chunk.Message.Content})
+			}
+		}
+
+		if err := <-errCh; err != nil {
+			sess.Messages = sess.Messages[:len(sess.Messages)-1]
+			enc.Encode(map[string]string{"error": err.Error()})
+			if s.verbose {
+				log.Printf("rpc ← session.stream error: %v", err)
+			}
+			return
+		}
+
+		if len(toolCalls) == 0 {
+			// text response — tokens already streamed above; persist and signal done.
+			reply := textBuf.String()
+			sess.AppendMessage(ollama.Message{Role: "assistant", Content: reply})
+			s.store.Persist(sess.ID)
+			enc.Encode(map[string]bool{"done": true})
+			if s.verbose {
+				log.Printf("rpc ← session.stream ok (%d chars)", len(reply))
+			}
+			return
+		}
+
+		// tool-call round: append assistant message with calls, execute each, append results.
+		sess.AppendMessage(ollama.Message{Role: "assistant", ToolCalls: toolCalls})
+		for _, tc := range toolCalls {
+			result, err := execTool(tc.Function.Name, tc.Function.Arguments, sess.CWD)
+			if err != nil {
+				result = "error: " + err.Error()
+			}
+			if s.verbose {
+				log.Printf("tool %s(%v) → %d chars", tc.Function.Name, tc.Function.Arguments, len(result))
+			}
+			sess.AppendMessage(ollama.Message{Role: "tool", Content: result})
 		}
 	}
 
-	if err := <-errCh; err != nil {
-		sess.Messages = sess.Messages[:len(sess.Messages)-1]
-		enc.Encode(map[string]string{"error": err.Error()})
-		if s.verbose {
-			log.Printf("rpc ← session.stream error: %v", err)
-		}
-		return
-	}
-
-	sess.AppendMessage(ollama.Message{Role: "assistant", Content: fullReply.String()})
-	s.store.Persist(sess.ID)
-	enc.Encode(map[string]bool{"done": true})
-	if s.verbose {
-		log.Printf("rpc ← session.stream ok (%d chars)", fullReply.Len())
-	}
+	enc.Encode(map[string]string{"error": "tool call limit reached"})
 }
 
 // toInfo converts a session to the wire summary sent to fox.
@@ -221,6 +260,7 @@ func toInfo(sess *session.Session) SessionInfo {
 		Name:         sess.Name,
 		Model:        sess.Model,
 		SystemPrompt: sess.SystemPrompt,
+		CWD:          sess.CWD,
 		ContextChars: ctxChars,
 	}
 }
@@ -444,6 +484,91 @@ func (s *Server) dispatch(req Request) Response {
 
 func (s *Server) Close() {
 	s.listener.Close()
+}
+
+// filesystemTools returns the read-only tool definitions declared to Ollama for
+// sessions that have a working directory set. write operations are intentionally absent.
+func filesystemTools() []ollama.Tool {
+	return []ollama.Tool{
+		{
+			Type: "function",
+			Function: ollama.ToolFunction{
+				Name:        "read_file",
+				Description: "read the full text content of a file. path must be relative to the session working directory.",
+				Parameters: ollama.ToolParameters{
+					Type: "object",
+					Properties: map[string]ollama.Property{
+						"path": {Type: "string", Description: "relative path to the file"},
+					},
+					Required: []string{"path"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: ollama.ToolFunction{
+				Name:        "list_dir",
+				Description: "list the names of files and directories inside a directory. path must be relative to the session working directory.",
+				Parameters: ollama.ToolParameters{
+					Type: "object",
+					Properties: map[string]ollama.Property{
+						"path": {Type: "string", Description: "relative path to the directory; use \".\" for the root"},
+					},
+					Required: []string{"path"},
+				},
+			},
+		},
+	}
+}
+
+// execTool dispatches a tool call by name, enforces the cwd sandbox, and returns the result.
+func execTool(name string, args map[string]any, cwd string) (string, error) {
+	rawPath, _ := args["path"].(string)
+	safePath, err := sandboxPath(cwd, rawPath)
+	if err != nil {
+		return "", err
+	}
+	switch name {
+	case "read_file":
+		data, err := os.ReadFile(safePath)
+		if err != nil {
+			return "", err
+		}
+		const maxBytes = 1024 * 1024 // 1 MB blast-radius cap
+		if len(data) > maxBytes {
+			data = data[:maxBytes]
+		}
+		return string(data), nil
+	case "list_dir":
+		entries, err := os.ReadDir(safePath)
+		if err != nil {
+			return "", err
+		}
+		var sb strings.Builder
+		for _, e := range entries {
+			if e.IsDir() {
+				fmt.Fprintf(&sb, "%s/\n", e.Name())
+			} else {
+				fmt.Fprintf(&sb, "%s\n", e.Name())
+			}
+		}
+		return sb.String(), nil
+	default:
+		return "", fmt.Errorf("unknown tool: %s", name)
+	}
+}
+
+// sandboxPath resolves p relative to cwd and rejects any path that escapes the root.
+func sandboxPath(cwd, p string) (string, error) {
+	if p == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	abs := filepath.Join(cwd, filepath.FromSlash(p))
+	rel, err := filepath.Rel(cwd, abs)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("path escapes working directory")
+	}
+	return abs, nil
 }
 
 // skipDirs are directory names that are always excluded from the file tree.

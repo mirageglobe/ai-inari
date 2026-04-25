@@ -55,11 +55,14 @@ type chatHistoryMsg struct {
 // nil when no stream is in flight.
 // offline mirrors the root model's connectivity state; when true, sends are blocked
 // and the hint line shows an "inari is offline" notice instead of the key bindings.
+// cwd is non-empty when filesystem tools (read_file, list_dir) are active for this session.
+// showTools toggles a tools panel in the hint area listing available tools.
 type Chat struct {
 	client        *ipc.Client
 	sessionID     string
 	sessionName   string
 	model         string // display only
+	cwd           string
 	display       []string
 	viewport      viewport.Model
 	input         textarea.Model
@@ -68,6 +71,7 @@ type Chat struct {
 	ready         bool
 	historyLoaded bool
 	offline       bool
+	showTools     bool
 	ctxChars      int
 	streamBuf     string
 	streamTokens  <-chan string
@@ -90,7 +94,7 @@ func (c Chat) Init() tea.Cmd {
 func (c Chat) SessionID() string   { return c.sessionID }
 func (c Chat) SessionName() string { return c.sessionName }
 
-func NewChat(client *ipc.Client, sessionID, sessionName, model string, ctxChars int) Chat {
+func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars int) Chat {
 	ta := textarea.New()
 	ta.Placeholder = "message " + sessionName + " (" + model + ")..."
 	ta.Focus()
@@ -108,6 +112,7 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model string, ctxChars 
 		sessionID:   sessionID,
 		sessionName: sessionName,
 		model:       model,
+		cwd:         cwd,
 		input:       ta,
 		spinner:     sp,
 		ctxChars:    ctxChars,
@@ -278,6 +283,10 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, nil
 
 	case tea.KeyMsg:
+		if msg.String() == "ctrl+f" && c.cwd != "" {
+			c.showTools = !c.showTools
+			return c, nil
+		}
 		if msg.Type == tea.KeyEnter && !c.waiting && !c.offline {
 			text := strings.TrimSpace(c.input.Value())
 			if text == "" {
@@ -328,10 +337,24 @@ func (c Chat) View() string {
 	var hint string
 	if c.offline {
 		hint = errorStyle.Render("inari is offline")
+	} else if c.showTools {
+		toolsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99"))
+		dimStyle := lipgloss.NewStyle().Faint(true)
+		hint = toolsStyle.Render("tools") + "  " +
+			dimStyle.Render("read_file") + "  " +
+			dimStyle.Render("list_dir") + "  " +
+			dimStyle.Render("(sandboxed to cwd)")
 	} else {
+		var toolsHint HintCmd
+		if c.cwd != "" {
+			toolsHint = H("[ctrl+f] tools")
+		} else {
+			toolsHint = HD("[ctrl+f] tools")
+		}
 		hint = RenderHint([]HintCmd{
 			H("[enter] send"),
 			H("[ctrl+o] model"),
+			toolsHint,
 			HS(),
 			H("[↑↓] scroll"),
 			H("[esc] back"),

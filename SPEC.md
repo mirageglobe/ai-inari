@@ -21,6 +21,28 @@ Security-first, minimalist local AI orchestrator.
 
 ---
 
+## 2.1 Development Strategy
+
+**make it work → make it right.**
+
+the guiding sequence for inari is: ship working features on concrete implementations first, then refactor toward open architecture once the right abstraction shape is known.
+
+designing abstractions too early produces interfaces that fit the first implementation but break the moment a second is added. inari currently has one inference backend (Ollama) and one tool-calling mode — introducing a `Provider` interface now would be guessing. the right shape only becomes visible when writing real code against two concrete targets.
+
+**practical sequence:**
+
+1. **finish the basics** — prompt-based tool calling, session context, streaming stability. ship features that prove the design.
+2. **add a second backend** — e.g. LM Studio (OpenAI-compatible). this is the moment the interface shape becomes obvious, not before.
+3. **extract the abstraction** — the `Provider` interface is pulled from two working implementations, not invented upfront. it reflects reality.
+
+**guard against premature abstraction:**
+
+- the Ollama client is already isolated in `internal/ollama` — nothing outside imports Ollama-specific types directly. the boundary is there when needed.
+- do not add `Provider` interfaces, plugin systems, or backend registries until a second concrete backend exists.
+- when in doubt: duplicate once, abstract on the second duplication.
+
+---
+
 ## 3. Roadmap & Milestones
 
 ### 3.1 Build Milestones
@@ -53,6 +75,7 @@ Security-first, minimalist local AI orchestrator.
 ### 3.2 Feature Roadmap
 
 #### Near-term
+- [ ] add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
 - [ ] `[kitsune]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
 - [ ] `[kitsune]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
 - [ ] `[kitsune]` session search and filter in herd view
@@ -70,11 +93,13 @@ Security-first, minimalist local AI orchestrator.
         to summarise the conversation history via the session's own model, replacing old turns
         with a compact summary. keeps the system behavior prompt intact. auto-compression
         variant triggers automatically when context exceeds a configurable threshold.
-- [ ] `[inarid]` **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
+- [x] `[inarid]` **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
 - [ ] `[inarid]` **MCP filesystem connector (layer 3)** — once the tool-call loop exists, replace built-in tools with `@modelcontextprotocol/server-filesystem` spawned via mcp-go. this is a natural extension of the MCP integration work below.
 - [ ] `[inarid]` **destructive action prevention (§8.2)** — risk-tiered auto-approval, blast-radius limits, and dry-run previews for caution-tier tool-calls; prerequisite for any layer 2+ tool execution
 - [ ] `[inarid]` multiple models per session — allow attaching different models to a single session for collaborative discussions and task execution
 - [ ] `[inarid]` MCP integration — replace `internal/mcp` with `github.com/mark3labs/mcp-go`; connectors (Linear, Slack, Google Drive, etc.) configured via `config.json`
+- [ ] `[inarid]` **prompt-based tool calling** — for models without native function-calling support, inject tool definitions as plain text into the system prompt and set `format: "json"`; inarid parses the JSON response to detect tool calls. select mode via session config or auto-detect from model name. makes layer 2 work on any instruction-following model (hermes-3-pro, qwen3-coder, etc.)
+- [ ] `[inarid]` **provider abstraction** — open up the hard-coded Ollama dependency by introducing a `Provider` interface (`Chat`, `ChatStream`, `ListModels`, `ListRunning`). inarid's core talks only to the interface; the concrete provider is selected via `provider` in `config.json`. ollama is the default. this allows swapping to vLLM, LM Studio, llama.cpp server, or even a cloud API (Claude, OpenAI) with a single config change and no core changes.
 - [ ] `[inarid]` multi-model routing — sensor tier classifies intent, dispatches to worker or thinker
 - [ ] `[kitsune/inarid]` session tagging and search
 - [ ] `[kitsune]` show current ollama context length setting
@@ -246,7 +271,45 @@ when ollama returns a `tool_calls` response, inarid's `handleStream` loop:
 4. repeats until ollama returns a `message` (text) response
 5. streams the final text back to kitsune as normal token frames
 
-this requires ollama tool-call support — available for models that declare function-calling capability (qwen3, llama3.2, mistral-nemo, etc.).
+this requires ollama tool-call support — only models that explicitly declare function-calling capability in their model card will use the tools. others silently ignore them and respond with plain text.
+
+**models with tool-call support (layer 2 compatible):**
+
+| model | notes |
+|-------|-------|
+| qwen3 (any size) | recommended; strong tool use across all sizes |
+| llama3.1 / llama3.2 | instruct variants only |
+| mistral-nemo | solid tool support |
+| mistral 7b instruct | function-calling variants |
+| command-r | designed for agentic use |
+
+**models without tool-call support (layer 1 only):**
+
+| model | behaviour |
+|-------|-----------|
+| phi3 / phi4 | ignores tools, responds with text |
+| gemma2 | ignores tools, responds with text |
+| deepseek-r1 | most variants do not support tool calls |
+| older / chat-only models | silent no-op — tools declared but never invoked |
+
+assigning a non-tool-capable model to a session with `cwd` set is safe — tools are declared in the request but the model will not invoke them. layer 1 (file tree in system prompt) still applies and provides value regardless of model capability.
+
+**prompt-based tool calling (fallback for non-native models):**
+
+the native `tools` API parameter solves the "silent ignore" problem only for models that natively support it. for everything else — including strong local models like `hermes-3-pro-8b` or `qwen3-coder` — a more reliable approach is:
+
+1. **do not use the `tools` parameter.** inject tool definitions as plain text into the system prompt instead:
+   ```
+   you have access to the following tools. when you need to use one, respond only with valid JSON in this format:
+   {"tool": "read_file", "path": "relative/path"}
+   {"tool": "list_dir", "path": "."}
+   ```
+2. **set `format: "json"` in the ollama request.** this forces the model to treat tool use as a structured text instruction rather than an API feature, making it reliable across any instruction-following model.
+3. **inarid parses the response.** if the JSON response contains a `tool` key, it is treated as a tool call; otherwise it is a plain text reply.
+
+this approach trades API cleanliness for broad model compatibility. it is the recommended strategy for local SLMs where native function-calling is patchy or absent.
+
+**roadmap:** inarid should detect model capability at session creation (or via config) and automatically select native vs. prompt-based tool calling. the `handleStream` loop is the same either way — only the request format and response parser differ.
 
 **layer 3 — MCP filesystem connector**
 
