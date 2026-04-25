@@ -291,7 +291,7 @@ func herdHints(hasSession, hasModel, offline bool) []HintCmd {
 		hc("[x] delete", hasSession && !offline),
 		HS(),
 		hc("[r] refresh", !offline),
-		H("[l] logs"),
+		hc("[l] logs", !offline),
 		hc("[d] describe", hasSession && !offline),
 		H("[q] quit"),
 		HS(),

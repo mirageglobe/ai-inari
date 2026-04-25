@@ -166,6 +166,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.connOnline = conn.OK
 		offline := !conn.OK
 		m.herd = m.herd.WithOffline(offline)
+		m.describe = m.describe.WithOffline(offline)
 		for id, chat := range m.chats {
 			m.chats[id] = chat.WithOffline(offline)
 		}
@@ -291,8 +292,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q":
 				return m, tea.Quit
 			case "l":
-				m.current = viewLogs
-				return m, m.logs.Init()
+				if m.connOnline {
+					m.current = viewLogs
+					return m, m.logs.Init()
+				}
 			case "d":
 				if m.connOnline {
 					if sess, vram, ok := m.herd.SelectedSession(); ok {

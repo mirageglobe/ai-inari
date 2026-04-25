@@ -40,12 +40,19 @@ type Describe struct {
 	saveErr      string
 	width        int
 	height       int
+	offline      bool
 }
 
 func NewDescribe() Describe {
 	// input must be initialised via textarea.New() — a zero-value textarea panics on SetWidth/SetHeight.
 	// dimensions are set correctly on the first WindowSizeMsg.
 	return Describe{input: newContextInput("", 0, 0)}
+}
+
+// WithOffline updates the offline status of the Describe view.
+func (d Describe) WithOffline(offline bool) Describe {
+	d.offline = offline
+	return d
 }
 
 // ForSession returns a copy of Describe configured for the given session.
@@ -210,7 +217,7 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if d.editing {
 			switch msg.String() {
 			case "ctrl+s":
-				if d.saving {
+				if d.saving || d.offline {
 					return d, nil
 				}
 				d.saving = true
@@ -225,7 +232,7 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.input, cmd = d.input.Update(msg)
 			return d, cmd
 		}
-		if msg.String() == "e" && d.sessID != "" {
+		if msg.String() == "e" && d.sessID != "" && !d.offline {
 			d.input = newContextInput(d.systemPrompt, d.width, d.height)
 			d.editing = true
 			d.saveErr = ""
@@ -247,8 +254,11 @@ func (d Describe) View() string {
 	if d.editing {
 		editLabel := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Render("  editing behavior")
 		var hintCmds []HintCmd
-		if d.saving {
-			hintCmds = []HintCmd{HD("[ctrl+s] saving…"), HD("[esc] cancel")}
+		if d.saving || d.offline {
+			hintCmds = []HintCmd{HD("[ctrl+s] save"), HD("[esc] cancel")}
+			if d.saving {
+				hintCmds[0] = HD("[ctrl+s] saving…")
+			}
 		} else {
 			hintCmds = []HintCmd{H("[ctrl+s] save"), H("[esc] cancel")}
 		}
@@ -259,7 +269,11 @@ func (d Describe) View() string {
 		return header + editLabel + "\n" + d.input.View() + "\n" + hint
 	}
 
-	hint := RenderHint([]HintCmd{H("[e] edit behavior"), H("[esc] back"), HS(), H("[?] help")}, d.width)
+	editHint := H("[e] edit behavior")
+	if d.offline {
+		editHint = HD("[e] edit behavior")
+	}
+	hint := RenderHint([]HintCmd{editHint, H("[esc] back"), HS(), H("[?] help")}, d.width)
 
 	var body string
 	if !d.ready {
