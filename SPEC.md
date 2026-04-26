@@ -43,52 +43,51 @@ designing abstractions too early produces interfaces that fit the first implemen
 
 ---
 
-## 3. Roadmap & Milestones
+## 3. Roadmap
 
-### 3.1 Build Milestones
+### Milestones
 
 #### M1 — UDS Bridge
-- [x] `inarid` starts and binds UDS socket.
-- [x] `kitsune` connects and performs handshake.
-- [x] Basic ping/pong JSON-RPC round-trip.
+- [x] `[inarid]` starts and binds UDS socket.
+- [x] `[kitsune/inarid]` connects and performs handshake.
+- [x] `[kitsune/inarid]` basic ping/pong JSON-RPC round-trip.
 
 #### M2 — Herd UI
-- [x] Bubble Tea table renders active sessions.
-- [x] Sessions update in real time from daemon events.
-- [x] Keyboard navigation (select, quit).
+- [x] `[kitsune]` Bubble Tea table renders active sessions.
+- [x] `[kitsune/inarid]` sessions update in real time from daemon events.
+- [x] `[kitsune]` keyboard navigation (select, quit).
 
 #### M3 — Ollama Integration
-- [x] Daemon POSTs to Ollama `/api/chat` and streams tokens.
-- [x] Token stream forwarded to `kitsune` chat view.
-- [x] Semaphore throttle enforces memory budget.
+- [x] `[inarid]` daemon POSTs to Ollama `/api/chat` and streams tokens.
+- [x] `[kitsune/inarid]` token stream forwarded to kitsune chat view.
+- [x] `[inarid]` semaphore throttle enforces memory budget.
 
 #### M4 — MCP Loader
-- [x] `config.json` parsed at startup.
-- [x] Connectors spawned as child processes.
-- [ ] Tool-calls routed and audit-logged. (`internal/mcp/host.go` `Call()` is a TODO stub — audit logging exists but actual JSON-RPC dispatch over stdio is not implemented)
+- [x] `[inarid]` `config.json` parsed at startup.
+- [x] `[inarid]` connectors spawned as child processes.
+- [ ] `[inarid]` tool-calls routed and audit-logged. (`internal/mcp/host.go` `Call()` is a TODO stub — audit logging exists but actual JSON-RPC dispatch over stdio is not implemented)
 
 #### M5 — Chat View
-- [x] Interactive `i` view wires to Head Inari (Thinker tier).
-- [x] Message history scoped to session.
-- [x] Detach/reattach preserves session state.
+- [x] `[kitsune]` interactive `i` view wires to Head Inari (Thinker tier).
+- [x] `[inarid]` message history scoped to session.
+- [x] `[kitsune/inarid]` detach/reattach preserves session state.
 
-### 3.2 Feature Roadmap
+### Near-term
+- [ ] `[easy]` add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
+- [x] `[kitsune]` `[medium]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
+- [x] `[kitsune]` `[easy]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
+- [ ] `[kitsune]` `[medium]` session search and filter in herd view
+- [ ] `[kitsune]` `[easy]` export chat history to file
+- [ ] `[kitsune/inarid]` `[hard]` main screen: allow token compression by summarising session content
+- [ ] `[kitsune/inarid]` `[hard]` long-term task planning from high-level prompts
+- [ ] `[kitsune/inarid]` `[medium]` interrupt in chat for messages
+- [ ] `[inarid]` `[medium]` recap/summary when a chat session has been idle for 10+ mins
+- [x] `[kitsune]` `[easy]` show current token count in chat
+- [ ] `[kitsune]` `[easy]` allow download of context and copy of response as text
+- [ ] `[inarid]` `[easy]` daemon: auto-shutdown after 30 mins idle
+- [ ] `[inarid/kitsune]` `[medium]` **ollama context window detection and optimum setting** — on session creation (or model change), inarid queries the model's `num_ctx` parameter via the Ollama `/api/show` endpoint; the detected value is surfaced in the kitsune chat view alongside the token count. inarid also exposes a per-session override that sets `num_ctx` in each `/api/chat` request, defaulting to a sensible optimum (e.g. 8192 for worker-tier models, 4096 for sensor-tier) rather than Ollama's built-in default. the kitsune UI allows the user to view and adjust this value per session.
 
-#### Near-term
-- [ ] add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
-- [x] `[kitsune]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
-- [x] `[kitsune]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
-- [ ] `[kitsune]` session search and filter in herd view
-- [ ] `[kitsune]` export chat history to file
-- [ ] `[kitsune/inarid]` main screen: allow token compression by summarising session content
-- [ ] `[kitsune/inarid]` long-term task planning from high-level prompts
-- [ ] `[kitsune/inarid]` interrupt in chat for messages
-- [ ] `[inarid]` recap/summary when a chat session has been idle for 10+ mins
-- [x] `[kitsune]` show current token count in chat
-- [ ] `[kitsune]` allow download of context and copy of response as text
-- [ ] `[inarid]` daemon: auto-shutdown after 30 mins idle
-
-#### Ideas
+### Ideas
 - [ ] `[kitsune/inarid]` **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
         to summarise the conversation history via the session's own model, replacing old turns
         with a compact summary. keeps the system behavior prompt intact. auto-compression
@@ -102,20 +101,18 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` **provider abstraction** — open up the hard-coded Ollama dependency by introducing a `Provider` interface (`Chat`, `ChatStream`, `ListModels`, `ListRunning`). inarid's core talks only to the interface; the concrete provider is selected via `provider` in `config.json`. ollama is the default. this allows swapping to vLLM, LM Studio, llama.cpp server, or even a cloud API (Claude, OpenAI) with a single config change and no core changes.
 - [ ] `[inarid]` multi-model routing — sensor tier classifies intent, dispatches to worker or thinker
 - [ ] `[kitsune/inarid]` session tagging and search
-- [ ] `[kitsune]` show current ollama context length setting
+- [ ] `[kitsune/inarid]` **rename session** — allow the user to rename an existing session from the herd view; kitsune sends a `session.rename` RPC to inarid which updates the stored session name and propagates the change back to all open views.
 
-### 3.3 Status
+### Completed
+- [x] `[fox]` CLI removed — functionality superseded by kitsune TUI
+- [x] `[kitsune]` thinking spinner in chat session while waiting for a response
+- [x] `[kitsune/inarid]` offline detection in chat — when inarid is unreachable, the hint line shows "inari is offline" and sends are blocked until connectivity is restored
+- [x] `[kitsune/inarid]` streaming chat — `session.stream` RPC over dedicated per-call UDS connections; kitsune renders tokens as they arrive
+- [x] `[kitsune]` title bar wave animation — per-character purple gradient drifts across the kitsune title at 200ms intervals
+- [x] `[kitsune/inarid]` filesystem context (layer 1) — shallow file tree injected into system prompt at session creation; kitsune passes `cwd`, inarid walks up to 3 levels (skipping `.git`, `node_modules`, etc.)
 
-#### Completed
-- [x] `fox` CLI removed — functionality superseded by kitsune TUI
-- [x] thinking spinner in chat session while waiting for a response
-- [x] offline detection in chat — when inarid is unreachable, the hint line shows "inari is offline" and sends are blocked until connectivity is restored
-- [x] streaming chat — `session.stream` RPC over dedicated per-call UDS connections; kitsune renders tokens as they arrive
-- [x] title bar wave animation — per-character purple gradient drifts across the kitsune title at 200ms intervals
-- [x] filesystem context (layer 1) — shallow file tree injected into system prompt at session creation; kitsune passes `cwd`, inarid walks up to 3 levels (skipping `.git`, `node_modules`, etc.)
-
-#### Open Issues
-- [ ] track and manage known issues and bugs
+### Open Issues
+- [ ] `[inarid/kitsune]` track and manage known issues and bugs
 
 ---
 
@@ -511,7 +508,25 @@ make build
 
 ---
 
-## 10. Open Questions
+## 10. Complexity Score
+
+> only update this table using a large/strong model after significant architectural changes.
+
+| dimension | score | notes |
+| :--- | :--- | :--- |
+| overall | 3 / 5 | moderate; dual-binary with custom streaming IPC and multi-view TUI |
+| `internal/ipc` | 4 / 5 | highest complexity — custom JSON-RPC over UDS, dedicated per-stream connections, concurrent goroutines |
+| `tui` (kitsune) | 3 / 5 | multi-view Bubble Tea app with message routing, offline resilience, and live token rendering |
+| `internal/session` | 2 / 5 | session lifecycle and atomic disk persistence; well-bounded |
+| `internal/ollama` | 2 / 5 | HTTP streaming client; straightforward |
+| `internal/provider` | 2 / 5 | filesystem tool-call loop (layer 2) with sandbox path validation |
+| `internal/mcp` | 1 / 5 | stub only — `Call()` is a TODO; will rise to 3+ when JSON-RPC dispatch is implemented |
+| `internal/scheduler` | 1 / 5 | semaphore wrapper; minimal |
+| `internal/audit` | 1 / 5 | append-only log; minimal |
+
+---
+
+## 11. Open Questions
 
 - Audit log format: structured JSON lines vs. human-readable?
 - Auth: is owner-only UDS sufficient, or add a local token?

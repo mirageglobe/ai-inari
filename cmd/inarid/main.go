@@ -35,7 +35,7 @@ func main() {
 	verbose := flag.Bool("v", false, "verbose logging: print every RPC call and response")
 	flag.Parse()
 
-	log.Println("awakening inari daemon 🦊")
+	log.Println("awakening inari daemon 👹")
 
 	cfg, err := config.Load("config.json")
 	if err != nil {
@@ -91,5 +91,5 @@ func main() {
 	case <-srv.Quit():
 	}
 
-	log.Println("inarid shutting down")
+	log.Println("👹 inarid shutting down")
 }
