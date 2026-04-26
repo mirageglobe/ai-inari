@@ -3,10 +3,12 @@
 package tui
 
 import (
+	"math/rand"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/mirageglobe/ai-inari/internal/config"
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/tui/views"
 )
@@ -39,22 +41,49 @@ type Model struct {
 	connOnline    bool // tracks last known connection state to detect offline→online transitions
 	termWidth     int
 	termHeight    int
+	titleColorIdx int  // current ray position; -10 = off-screen (resting between sweeps)
+	titleDir      int  // +1 = left-to-right, -1 = right-to-left
+	showHelp      bool // true while the [?] help overlay is visible
+	themeIdx      int  // index into views.Themes; cycled by [t]
+	configPath    string
 }
 
-func New(client *ipc.Client) Model {
+// currentViewName maps the active view enum to the string key used by RenderHelpOverlay.
+func (m Model) currentViewName() string {
+	switch m.current {
+	case viewChat:
+		return "chat"
+	case viewModels:
+		return "models"
+	case viewLogs:
+		return "logs"
+	case viewDescribe:
+		return "describe"
+	default:
+		return "herd"
+	}
+}
+
+// New creates the root model. configPath is used to persist theme changes.
+func New(client *ipc.Client, configPath string, themeIdx int) Model {
 	return Model{
-		client:   client,
-		current:  viewHerd,
-		herd:     views.NewHerd(client),
-		models:   views.NewModelSelector(client),
-		logs:     views.NewLogs(),
-		describe: views.NewDescribe(),
-		chats:    make(map[string]views.Chat),
+		client:        client,
+		current:       viewHerd,
+		herd:          views.NewHerd(client),
+		models:        views.NewModelSelector(client),
+		logs:          views.NewLogs(),
+		describe:      views.NewDescribe(),
+		chats:         make(map[string]views.Chat),
+		titleColorIdx: -10, // off-screen until first sweep begins
+		themeIdx:      themeIdx,
+		configPath:    configPath,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client))
+	// fire TitleStartMsg immediately so the first sweep begins on launch.
+	firstSweep := func() tea.Msg { return views.TitleStartMsg{} }
+	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -84,14 +113,63 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 
+	if themeMsg, ok := msg.(views.ThemeChangedMsg); ok {
+		var cmds []tea.Cmd
+		updated, cmd := m.herd.Update(themeMsg)
+		m.herd = updated.(views.Herd)
+		cmds = append(cmds, cmd)
+		updated2, cmd2 := m.models.Update(themeMsg)
+		m.models = updated2.(views.ModelSelector)
+		cmds = append(cmds, cmd2)
+		updated3, cmd3 := m.describe.Update(themeMsg)
+		m.describe = updated3.(views.Describe)
+		cmds = append(cmds, cmd3)
+		updated4, cmd4 := m.logs.Update(themeMsg)
+		m.logs = updated4.(views.Logs)
+		cmds = append(cmds, cmd4)
+		for id, chat := range m.chats {
+			updated, cmd := chat.Update(themeMsg)
+			m.chats[id] = updated.(views.Chat)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+	}
 	if stats, ok := msg.(views.SysStatsMsg); ok {
 		m.sysStats = stats
 		return m, views.SysStatsTick()
 	}
 
+	if _, ok := msg.(views.TitleStartMsg); ok {
+		if rand.Intn(2) == 0 {
+			m.titleDir = 1
+			m.titleColorIdx = 0
+		} else {
+			m.titleDir = -1
+			m.titleColorIdx = views.TitleLen - 1
+		}
+		return m, views.TitleTick()
+	}
+
+	if _, ok := msg.(views.TitleTickMsg); ok {
+		m.titleColorIdx += m.titleDir
+		// ray has fully exited: right edge (forward) or left edge (reverse, centre < -2)
+		offScreen := m.titleColorIdx >= views.TitleLen || m.titleColorIdx < -2
+		if offScreen {
+			m.titleColorIdx = -10
+			return m, views.TitlePause()
+		}
+		return m, views.TitleTick()
+	}
+
 	if conn, ok := msg.(views.ConnStatusMsg); ok {
 		wasOffline := !m.connOnline
 		m.connOnline = conn.OK
+		offline := !conn.OK
+		m.herd = m.herd.WithOffline(offline)
+		m.describe = m.describe.WithOffline(offline)
+		for id, chat := range m.chats {
+			m.chats[id] = chat.WithOffline(offline)
+		}
 		if conn.OK {
 			m.connErr = ""
 			if wasOffline {
@@ -102,6 +180,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.connErr = "connection failed"
 		}
 		return m, views.ConnTick(m.client)
+	}
+
+	// route stream messages by session ID so background sessions accumulate tokens
+	// even when the user has switched to a different view.
+	if tok, ok := msg.(views.ChatTokenMsg); ok {
+		if chat, exists := m.chats[tok.SessionID]; exists {
+			updated, cmd := chat.Update(tok)
+			m.chats[tok.SessionID] = updated.(views.Chat)
+			return m, cmd
+		}
+		return m, nil
+	}
+	if done, ok := msg.(views.ChatDoneMsg); ok {
+		if chat, exists := m.chats[done.SessionID]; exists {
+			updated, cmd := chat.Update(done)
+			m.chats[done.SessionID] = updated.(views.Chat)
+			return m, cmd
+		}
+		return m, nil
 	}
 
 	if _, ok := msg.(views.BackToHerdMsg); ok {
@@ -133,7 +230,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sel, ok := msg.(views.SelectModelMsg); ok {
 		m.activeSession = sel.SessionID
 		if _, exists := m.chats[sel.SessionID]; !exists {
-			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.ContextChars)
+			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.CWD, sel.ContextChars)
 			// size the viewport immediately with the known terminal dimensions so the
 			// chat is ready before it ever receives a WindowSizeMsg.
 			if m.termWidth > 0 && m.termHeight > 0 {
@@ -147,6 +244,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
+		// [?] toggles the help overlay from any view.
+		if key.String() == "?" {
+			m.showHelp = !m.showHelp
+			return m, nil
+		}
+		// [t] cycles to the next built-in theme from any view.
+		if key.String() == "t" {
+			m.themeIdx = (m.themeIdx + 1) % len(views.Themes)
+			views.ApplyTheme(views.Themes[m.themeIdx])
+			if m.configPath != "" {
+				go func() {
+					cfg, err := config.Load(m.configPath)
+					if err == nil {
+						cfg.Theme = views.Themes[m.themeIdx].Name
+						_ = cfg.Save(m.configPath)
+					}
+				}()
+			}
+			return m, func() tea.Msg { return views.ThemeChangedMsg{} }
+		}
+
+		// while help is open, only [esc] (or a second [?]) closes it; all other keys are consumed.
+		if m.showHelp {
+			if key.String() == "esc" {
+				m.showHelp = false
+			}
+			return m, nil
+		}
+
 		switch m.current {
 		case viewChat:
 			switch key.String() {
@@ -166,14 +292,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q":
 				return m, tea.Quit
 			case "l":
-				m.current = viewLogs
-				return m, m.logs.Init()
-			case "d":
-				if sess, vram, ok := m.herd.SelectedSession(); ok {
-					m.describe = m.describe.ForSession(sess, vram, m.client)
+				if m.connOnline {
+					m.current = viewLogs
+					return m, m.logs.Init()
 				}
-				m.current = viewDescribe
-				return m, m.describe.Init()
+			case "d":
+				if m.connOnline {
+					if sess, vram, ok := m.herd.SelectedSession(); ok {
+						m.describe = m.describe.ForSession(sess, vram, m.client)
+					}
+					m.current = viewDescribe
+					return m, m.describe.Init()
+				}
 			}
 		default:
 			// esc from secondary views returns to herd, except when describe is in edit mode
@@ -211,20 +341,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth) + "\n"
+	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth, m.titleColorIdx) + "\n"
 
 	var body string
-	switch m.current {
-	case viewModels:
-		body = m.models.View()
-	case viewLogs:
-		body = m.logs.View()
-	case viewDescribe:
-		body = m.describe.View()
-	case viewChat:
-		body = m.chats[m.activeSession].View()
-	default:
-		body = m.herd.View()
+	if m.showHelp {
+		// -1 to leave the top bar row; Place fills the remaining rows.
+		body = views.RenderHelpOverlay(m.currentViewName(), m.termWidth, m.termHeight-1)
+	} else {
+		switch m.current {
+		case viewModels:
+			body = m.models.View()
+		case viewLogs:
+			body = m.logs.View()
+		case viewDescribe:
+			body = m.describe.View()
+		case viewChat:
+			body = m.chats[m.activeSession].View()
+		default:
+			body = m.herd.View()
+		}
 	}
 
 	full := topBar + body

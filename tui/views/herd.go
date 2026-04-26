@@ -1,14 +1,13 @@
 // Package views contains the individual screen views rendered by the fox TUI:
 // Herd (session table), Logs (token stream), Describe (session metadata), and Chat (head-inari conversation).
+// this file owns the Herd type, its Init/Update/View methods, and the hint list.
+// message types, commands, and helpers live in herd_cmds.go.
 package views
 
 import (
-	"fmt"
 	"log"
-	"math/rand"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
@@ -16,7 +15,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
 )
 
 var herdStyle = lipgloss.NewStyle().
@@ -28,55 +26,6 @@ var (
 	modelsStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 )
-
-// foxAdjectives are paired with "Fox" to form session names like "Arctic Fox".
-var foxAdjectives = []string{
-	"Arctic", "Amber", "Ash", "Blaze", "Copper", "Crimson", "Dusk",
-	"Ember", "Fire", "Frost", "Ghost", "Golden", "Jade", "Midnight",
-	"Rusty", "Scarlet", "Shadow", "Silver", "Storm", "Swift", "Thunder",
-	"Tundra", "Violet", "Wild",
-}
-
-// runningMeta holds live stats for a running model, used to populate VRAM/Status columns.
-type runningMeta struct {
-	vram   int64
-	expiry string
-}
-
-type modelsMsg struct {
-	models []ollama.Model
-	err    error
-}
-
-type runningMsg struct {
-	models []ollama.RunningModel
-	err    error
-}
-
-type sessionsMsg struct {
-	sessions []ipc.SessionInfo
-	err      error
-}
-
-type createSessionResultMsg struct {
-	session ipc.SessionInfo
-	err     error
-}
-
-type deleteSessionResultMsg struct {
-	id  string
-	err error
-}
-
-type assignModelResultMsg struct {
-	id  string
-	err error
-}
-
-type unassignModelResultMsg struct {
-	id  string
-	err error
-}
 
 // Herd is the default session-list view.
 // sessions are owned by inarid; fox fetches them on init and after mutations.
@@ -92,10 +41,11 @@ type Herd struct {
 	width       int
 	height      int
 	hintHeight  int // actual rendered hint line count; varies with terminal width
+	offline     bool
 }
 
 func NewHerd(client *ipc.Client) Herd {
-	// column widths sum to 88; with 5 cols × 2 padding = 10, plus herdStyle border 2 = 100 total.
+	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
 		{Title: "kitsune", Width: 20},
 		{Title: "model", Width: 28},
@@ -109,6 +59,7 @@ func NewHerd(client *ipc.Client) Herd {
 		// height is overridden on first WindowSizeMsg; 12 is a safe default before that arrives.
 		table.WithHeight(12),
 	)
+	ApplyTableStyles(&t)
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
@@ -127,17 +78,19 @@ func (h Herd) Init() tea.Cmd {
 
 func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ThemeChangedMsg:
+		ApplyTableStyles(&h.table)
+		h.spinner.Style = spinnerStyle
+		return h, nil
+
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
-		if h.width > UIWidth {
-			h.width = UIWidth
-		}
 		h.height = msg.Height
-		// pre-render the hint at the capped width to count its actual line height.
+		// pre-render the hint at the actual width to count its line height.
 		// on narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
 		// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
 		// and pushes the root header off the top of the display.
-		hintStr := RenderHint(herdHints(false, false), h.width)
+		hintStr := RenderHint(herdHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
 		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + hint(hintHeight)
 		tableHeight := msg.Height - 4 - h.hintHeight
@@ -145,6 +98,20 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			tableHeight = 1
 		}
 		h.table.SetHeight(tableHeight)
+		// resize model column to fill available width.
+		// fixed cols: kitsune(20) + vram(12) + status(16) + context(12) = 60
+		// overhead: 5 cols × 2 cell padding + 2 border = 12; total fixed overhead = 72.
+		modelColW := h.width - 72
+		if modelColW < 10 {
+			modelColW = 10
+		}
+		h.table.SetColumns([]table.Column{
+			{Title: "kitsune", Width: 20},
+			{Title: "model", Width: modelColW},
+			{Title: "vram", Width: 12},
+			{Title: "status", Width: 16},
+			{Title: "context", Width: 12},
+		})
 		return h, nil
 
 	case spinner.TickMsg:
@@ -230,7 +197,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			// revert optimistic local update on failure.
 			h.status = connErrStyle.Render("unassign failed: " + msg.err.Error())
-			return h, tea.Batch(fetchSessions(h.client))
+			return h, fetchSessions(h.client)
 		}
 		return h, nil
 
@@ -249,6 +216,13 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, assignModelCmd(h.client, msg.SessionID, sessionName, msg.ModelName)
 
 	case tea.KeyMsg:
+		if h.offline {
+			// when offline, only allow navigation keys, ignore mutating ones
+			switch msg.String() {
+			case "s", "m", "u", "c", "x", "r", "enter":
+				return h, nil
+			}
+		}
 		switch msg.String() {
 		case "s":
 			name := pickFoxName(h.usedNames())
@@ -271,7 +245,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sess := h.sessions[idx]
 				if sess.Model != "" {
 					return h, func() tea.Msg {
-						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, ContextChars: sess.ContextChars}
+						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
 					}
 				}
 			}
@@ -299,21 +273,30 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
+// WithOffline returns a copy of the Herd view with the offline flag set.
+func (h Herd) WithOffline(offline bool) Herd {
+	h.offline = offline
+	return h
+}
+
 // herdHints returns the command hint list for the herd view.
-// hasSession and hasModel control which items are enabled.
-func herdHints(hasSession, hasModel bool) []HintCmd {
+// hasSession, hasModel, and offline control which items are enabled.
+func herdHints(hasSession, hasModel, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		H("[s] new kitsune"),
-		hc("[m] model", hasSession),
-		hc("[u] unload", hasModel),
-		hc("[c] chat", hasModel),
-		hc("[x] delete", hasSession),
+		hc("[s] new kitsune", !offline),
+		hc("[m] model", hasSession && !offline),
+		hc("[u] unload", hasModel && !offline),
+		hc("[c] chat", hasModel && !offline),
+		hc("[x] delete", hasSession && !offline),
 		HS(),
-		H("[r] refresh"),
-		H("[l] logs"),
-		H("[d] describe"),
+		hc("[r] refresh", !offline),
+		hc("[l] logs", !offline),
+		hc("[d] describe", hasSession && !offline),
 		H("[q] quit"),
+		HS(),
+		H("[t] theme"),
+		H("[?] help"),
 	}
 }
 
@@ -322,7 +305,7 @@ func (h Herd) View() string {
 	hasSession := idx >= 0 && idx < len(h.sessions)
 	hasModel := hasSession && h.sessions[idx].Model != ""
 
-	hint := RenderHint(herdHints(hasSession, hasModel), h.width)
+	hint := RenderHint(herdHints(hasSession, hasModel, h.offline), h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
@@ -381,109 +364,4 @@ func (h Herd) usedNames() []string {
 		names[i] = s.Name
 	}
 	return names
-}
-
-// pickFoxName returns a fox-themed name not already in use.
-func pickFoxName(used []string) string {
-	inUse := make(map[string]bool, len(used))
-	for _, v := range used {
-		inUse[v] = true
-	}
-	pool := make([]string, len(foxAdjectives))
-	copy(pool, foxAdjectives)
-	rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
-	for _, adj := range pool {
-		name := adj + " Fox"
-		if !inUse[name] {
-			return name
-		}
-	}
-	return fmt.Sprintf("Fox #%d", len(used)+1)
-}
-
-func fetchSessions(client *ipc.Client) tea.Cmd {
-	return func() tea.Msg {
-		sessions, err := client.ListSessions()
-		if err != nil {
-			return sessionsMsg{err: err}
-		}
-		return sessionsMsg{sessions: sessions}
-	}
-}
-
-func createSessionCmd(client *ipc.Client, name string) tea.Cmd {
-	return func() tea.Msg {
-		sess, err := client.CreateSession(name)
-		return createSessionResultMsg{session: sess, err: err}
-	}
-}
-
-func deleteSessionCmd(client *ipc.Client, id string) tea.Cmd {
-	return func() tea.Msg {
-		err := client.DeleteSession(id)
-		return deleteSessionResultMsg{id: id, err: err}
-	}
-}
-
-func unassignModelCmd(client *ipc.Client, sessionID, sessionName, model string) tea.Cmd {
-	return func() tea.Msg {
-		err := client.UnassignModel(sessionID)
-		if err == nil {
-			log.Printf("kitsune %q (%s): model unloaded ← %s", sessionName, sessionID, model)
-		}
-		return unassignModelResultMsg{id: sessionID, err: err}
-	}
-}
-
-func assignModelCmd(client *ipc.Client, sessionID, sessionName, model string) tea.Cmd {
-	return func() tea.Msg {
-		err := client.AssignModel(sessionID, model)
-		if err == nil {
-			log.Printf("kitsune %q (%s): model assigned → %s", sessionName, sessionID, model)
-		}
-		return assignModelResultMsg{id: sessionID, err: err}
-	}
-}
-
-func fetchModels(client *ipc.Client) tea.Cmd {
-	return func() tea.Msg {
-		names, err := client.ListModels()
-		if err != nil {
-			return modelsMsg{err: err}
-		}
-		return modelsMsg{models: names}
-	}
-}
-
-func fetchRunning(client *ipc.Client) tea.Cmd {
-	return func() tea.Msg {
-		models, err := client.ListRunning()
-		if err != nil {
-			return runningMsg{err: err}
-		}
-		return runningMsg{models: models}
-	}
-}
-
-func formatBytes(b int64) string {
-	switch {
-	case b >= 1<<30:
-		return fmt.Sprintf("%.1fGB", float64(b)/float64(1<<30))
-	case b >= 1<<20:
-		return fmt.Sprintf("%.0fMB", float64(b)/float64(1<<20))
-	default:
-		return fmt.Sprintf("%dB", b)
-	}
-}
-
-func formatExpiry(expiresAt string) string {
-	t, err := time.Parse(time.RFC3339Nano, expiresAt)
-	if err != nil {
-		return "—"
-	}
-	d := time.Until(t).Round(time.Second)
-	if d <= 0 {
-		return "waking"
-	}
-	return fmt.Sprintf("in %s", d)
 }

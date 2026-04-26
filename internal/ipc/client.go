@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 // SessionInfo is the wire representation of a session returned by session.list and session.create.
@@ -20,6 +20,7 @@ type SessionInfo struct {
 	Name         string `json:"name"`
 	Model        string `json:"model"`
 	SystemPrompt string `json:"system_prompt,omitempty"`
+	CWD          string `json:"cwd,omitempty"`
 	ContextChars int    `json:"context_chars,omitempty"`
 }
 
@@ -122,8 +123,10 @@ func (c *Client) ListSessions() ([]SessionInfo, error) {
 }
 
 // CreateSession creates a new named session in inarid and returns its summary.
-func (c *Client) CreateSession(name string) (SessionInfo, error) {
-	resp, err := c.Call("session.create", map[string]string{"name": name})
+// cwd is optional; when non-empty inarid injects a shallow file tree into the session's
+// system prompt so the model is aware of the project layout from the first message.
+func (c *Client) CreateSession(name, cwd string) (SessionInfo, error) {
+	resp, err := c.Call("session.create", map[string]string{"name": name, "cwd": cwd})
 	if err != nil {
 		return SessionInfo{}, err
 	}
@@ -180,7 +183,7 @@ func (c *Client) AssignModel(sessionID, model string) error {
 }
 
 // ListModels returns models available in Ollama via inarid.
-func (c *Client) ListModels() ([]ollama.Model, error) {
+func (c *Client) ListModels() ([]provider.Model, error) {
 	resp, err := c.Call("ollama.models", nil)
 	if err != nil {
 		return nil, err
@@ -192,7 +195,7 @@ func (c *Client) ListModels() ([]ollama.Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	var models []ollama.Model
+	var models []provider.Model
 	if err := json.Unmarshal(b, &models); err != nil {
 		return nil, err
 	}
@@ -200,7 +203,7 @@ func (c *Client) ListModels() ([]ollama.Model, error) {
 }
 
 // ListRunning returns models currently loaded in Ollama memory.
-func (c *Client) ListRunning() ([]ollama.RunningModel, error) {
+func (c *Client) ListRunning() ([]provider.RunningModel, error) {
 	resp, err := c.Call("ollama.running", nil)
 	if err != nil {
 		return nil, err
@@ -212,7 +215,7 @@ func (c *Client) ListRunning() ([]ollama.RunningModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	var models []ollama.RunningModel
+	var models []provider.RunningModel
 	if err := json.Unmarshal(b, &models); err != nil {
 		return nil, err
 	}
@@ -245,7 +248,7 @@ func (c *Client) UnloadModel(model string) error {
 
 // History fetches the full message history for a session.
 // fox calls this on chat open to restore the conversation display.
-func (c *Client) History(sessionID string) ([]ollama.Message, error) {
+func (c *Client) History(sessionID string) ([]provider.Message, error) {
 	resp, err := c.Call("session.history", map[string]string{"id": sessionID})
 	if err != nil {
 		return nil, err
@@ -257,11 +260,57 @@ func (c *Client) History(sessionID string) ([]ollama.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	var messages []ollama.Message
+	var messages []provider.Message
 	if err := json.Unmarshal(b, &messages); err != nil {
 		return nil, err
 	}
 	return messages, nil
+}
+
+// ChatStream sends a user message and streams token chunks into tokens.
+// it dials a fresh dedicated UDS connection so it never blocks the shared client
+// connection — multiple sessions can stream concurrently without contention.
+// the caller must drain tokens until it is closed; the goroutine closes it after
+// the stream ends (success or error). the returned error reflects the final outcome.
+func (c *Client) ChatStream(sessionID, text string, tokens chan<- string) error {
+	conn, err := net.Dial("unix", c.socket)
+	if err != nil {
+		return fmt.Errorf("stream dial: %w", err)
+	}
+	defer conn.Close()
+
+	req := Request{
+		JSONRPC: "2.0",
+		Method:  "session.stream",
+		ID:      1,
+	}
+	b, _ := json.Marshal(map[string]string{"id": sessionID, "text": text})
+	req.Params = json.RawMessage(b)
+
+	if err := json.NewEncoder(conn).Encode(req); err != nil {
+		return err
+	}
+
+	dec := json.NewDecoder(conn)
+	for {
+		var frame struct {
+			Token string `json:"token"`
+			Done  bool   `json:"done"`
+			Error string `json:"error"`
+		}
+		if err := dec.Decode(&frame); err != nil {
+			return err
+		}
+		if frame.Error != "" {
+			return fmt.Errorf("%s", frame.Error)
+		}
+		if frame.Done {
+			return nil
+		}
+		if frame.Token != "" {
+			tokens <- frame.Token
+		}
+	}
 }
 
 // Chat sends a single user message to the session identified by sessionID.

@@ -1,3 +1,5 @@
+// Package views — model selector view: lists available Ollama models and assigns one to a session.
+// this file also owns modelsMsg and fetchModels since the selector is their sole consumer.
 package views
 
 import (
@@ -9,14 +11,31 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
+
+type modelsMsg struct {
+	models []provider.Model
+	err    error
+}
+
+func fetchModels(client *ipc.Client) tea.Cmd {
+	return func() tea.Msg {
+		names, err := client.ListModels()
+		if err != nil {
+			return modelsMsg{err: err}
+		}
+		return modelsMsg{models: names}
+	}
+}
 
 // SelectModelMsg is emitted when the user opens a session for chat.
 type SelectModelMsg struct {
 	SessionID    string
 	SessionName  string // display name shown in the chat header
 	ModelName    string
-	ContextChars int // total message chars at open time, for token estimation
+	CWD          string // non-empty when filesystem tools are active for this session
+	ContextChars int    // total message chars at open time, for token estimation
 }
 
 // BackToHerdMsg is emitted to return to the herd view.
@@ -63,6 +82,7 @@ func NewModelSelector(client *ipc.Client) ModelSelector {
 		table.WithFocused(true),
 		table.WithHeight(12),
 	)
+	ApplyTableStyles(&t)
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
@@ -83,11 +103,13 @@ func (m ModelSelector) Init() tea.Cmd {
 
 func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ThemeChangedMsg:
+		ApplyTableStyles(&m.table)
+		m.spinner.Style = spinnerStyle
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		if m.width > UIWidth {
-			m.width = UIWidth
-		}
 		// topbar(1) + models header(1) + border-top(1) + col-header(1) + border-bottom(1) + status(1) + hint(1) = 7 reserved
 		tableHeight := msg.Height - 7
 		if tableHeight < 1 {
@@ -162,11 +184,11 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ModelSelector) View() string {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("models")
+	title := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("models")
 	if m.targetSessionName != "" {
-		title += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render("→ "+m.targetSessionName)
+		title += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
 	}
-	hint := RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back")}, m.width)
+	hint := RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back"), HS(), H("[?] help")}, m.width)
 	body := herdStyle.Render(m.table.View())
 	if m.status != "" {
 		line := m.status

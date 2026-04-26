@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 type Status string
@@ -40,6 +40,8 @@ const (
 // Model is empty when no model is attached; chat is blocked until one is assigned.
 // SystemPrompt is mirrored as Messages[0] (role:"system") so it is sent to Ollama
 // exactly once per conversation rather than re-prepended on every request.
+// CWD is the working directory injected as filesystem context at session creation;
+// empty means no filesystem context was provided.
 type Session struct {
 	mu           sync.Mutex       // protects Messages
 	ID           string           `json:"id"`
@@ -47,8 +49,9 @@ type Session struct {
 	Model        string           `json:"model"`
 	Tier         Tier             `json:"tier"`
 	Status       Status           `json:"status"`
-	Messages     []ollama.Message `json:"messages"`
+	Messages     []provider.Message `json:"messages"`
 	SystemPrompt string           `json:"system_prompt,omitempty"`
+	CWD          string           `json:"cwd,omitempty"`
 	CreatedAt    time.Time        `json:"created_at"`
 	UpdatedAt    time.Time        `json:"updated_at"`
 }
@@ -64,7 +67,7 @@ func New(name string) *Session {
 		Name:         name,
 		Status:       StatusPending,
 		SystemPrompt: defaultSystemPrompt,
-		Messages:     []ollama.Message{{Role: "system", Content: defaultSystemPrompt}},
+		Messages:     []provider.Message{{Role: "system", Content: defaultSystemPrompt}},
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -96,13 +99,13 @@ func (s *Session) SetSystemPrompt(prompt string) {
 	if hasSystem {
 		s.Messages[0].Content = prompt
 	} else {
-		s.Messages = append([]ollama.Message{{Role: "system", Content: prompt}}, s.Messages...)
+		s.Messages = append([]provider.Message{{Role: "system", Content: prompt}}, s.Messages...)
 	}
 	s.UpdatedAt = time.Now()
 }
 
 // AppendMessage appends msg to the session history under the session lock.
-func (s *Session) AppendMessage(msg ollama.Message) {
+func (s *Session) AppendMessage(msg provider.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Messages = append(s.Messages, msg)
@@ -111,10 +114,10 @@ func (s *Session) AppendMessage(msg ollama.Message) {
 
 // ChatHistory returns a snapshot of the message history for sending to Ollama.
 // A copy is returned so the caller can hold the slice safely while new messages are appended.
-func (s *Session) ChatHistory() []ollama.Message {
+func (s *Session) ChatHistory() []provider.Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]ollama.Message, len(s.Messages))
+	out := make([]provider.Message, len(s.Messages))
 	copy(out, s.Messages)
 	return out
 }
@@ -161,7 +164,7 @@ func (s *Store) loadAll() error {
 		}
 		// migrate sessions persisted before system prompt was stored in Messages.
 		if sess.SystemPrompt != "" && (len(sess.Messages) == 0 || sess.Messages[0].Role != "system") {
-			sess.Messages = append([]ollama.Message{{Role: "system", Content: sess.SystemPrompt}}, sess.Messages...)
+			sess.Messages = append([]provider.Message{{Role: "system", Content: sess.SystemPrompt}}, sess.Messages...)
 		}
 		s.sessions[sess.ID] = &sess
 	}

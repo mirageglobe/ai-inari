@@ -42,9 +42,6 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		l.width = msg.Width
-		if l.width > UIWidth {
-			l.width = UIWidth
-		}
 		// topbar(1) + logs header(1) + border-top(1) + border-bottom(1) + hint(1) = 5 reserved
 		height := msg.Height - 5
 		if height < 1 {
@@ -81,9 +78,9 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (l Logs) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("logs") +
+	header := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("logs") +
 		"  " + lipgloss.NewStyle().Faint(true).Render(logFile)
-	hint := RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back")}, l.width)
+	hint := RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back"), HS(), H("[?] help")}, l.width)
 
 	var body string
 	if !l.ready {

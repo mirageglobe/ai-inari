@@ -17,11 +17,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/mirageglobe/ai-inari/internal/config"
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/tui"
+	"github.com/mirageglobe/ai-inari/tui/views"
 )
 
-const defaultSocket = "/tmp/inari.sock"
+const (
+	defaultSocket     = "/tmp/inari.sock"
+	defaultConfigPath = "config.json"
+)
 
 func main() {
 	// redirect log output to kitsune.log so IPC errors don't bleed into the TUI.
@@ -30,13 +35,20 @@ func main() {
 		defer f.Close()
 	}
 
+	// apply saved theme before the first render; fall back to default on missing/unknown.
+	themeIdx := 0
+	if cfg, err := config.Load(defaultConfigPath); err == nil && cfg.Theme != "" {
+		themeIdx = views.ThemeIndex(cfg.Theme)
+	}
+	views.ApplyTheme(views.Themes[themeIdx])
+
 	client := ipc.NewClient(defaultSocket)
 
 	// prevent lipgloss from querying the terminal background colour via OSC 11;
 	// without this, the terminal's response leaks into the textarea as raw text.
 	lipgloss.SetHasDarkBackground(true)
 
-	p := tea.NewProgram(tui.New(client), tea.WithAltScreen())
+	p := tea.NewProgram(tui.New(client, defaultConfigPath, themeIdx), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("tui: %v", err)
 	}

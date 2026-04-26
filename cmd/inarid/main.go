@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -31,7 +32,10 @@ import (
 )
 
 func main() {
-	log.Println("awakening inari daemon 🦊")
+	verbose := flag.Bool("v", false, "verbose logging: print every RPC call and response")
+	flag.Parse()
+
+	log.Println("awakening inari daemon 👹")
 
 	cfg, err := config.Load("config.json")
 	if err != nil {
@@ -71,7 +75,7 @@ func main() {
 	}
 	defer mcpHost.Stop()
 
-	srv, err := ipc.NewServer(cfg.Socket, store, sched, mcpHost, auditor, ollamaClient)
+	srv, err := ipc.NewServer(cfg.Socket, store, sched, mcpHost, auditor, ollamaClient, *verbose)
 	if err != nil {
 		log.Fatalf("ipc: %v", err)
 	}
@@ -87,5 +91,5 @@ func main() {
 	case <-srv.Quit():
 	}
 
-	log.Println("inarid shutting down")
+	log.Println("👹 inarid shutting down")
 }

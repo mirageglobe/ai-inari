@@ -2,10 +2,12 @@
   "socket": "/tmp/inari.sock",
   "memory_budget_mb": 8192,
   "ollama_base_url": "http://localhost:11434",
+  "data_dir": "",
   "mcp_connectors": [],
   "models": {
     "thinker": "bonsai:8b",
-    "worker":  "bonsai:4b",
-    "sensor":  "qwen3-nano"
-  }
+    "worker": "bonsai:4b",
+    "sensor": "qwen3-nano"
+  },
+  "theme": "rose"
 }
