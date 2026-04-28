@@ -73,7 +73,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune/inarid]` detach/reattach preserves session state.
 
 ### Near-term
-- [ ] `[easy]` add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
+- [x] `[easy]` add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
 - [x] `[kitsune]` `[medium]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
 - [x] `[kitsune]` `[easy]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
 - [ ] `[kitsune]` `[easy]` quick-start fox — if the herd view has no sessions, automatically create a default session so the user can start chatting immediately without a manual create step
