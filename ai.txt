@@ -1,0 +1,9 @@
+{
+  "version": "RSL-1.0",
+  "license": "BSL-1.1",
+  "restrictions": {
+    "ai_training": "denied",
+    "commercial_revenue_limit_usd": 100000
+  },
+  "contact": "mirageglobe@gmail.com"
+}
