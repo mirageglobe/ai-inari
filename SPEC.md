@@ -76,6 +76,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[easy]` add `LICENSE` file — AGPLv3; copyright holder: Jimmy Lim
 - [x] `[kitsune]` `[medium]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
 - [x] `[kitsune]` `[easy]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
+- [ ] `[kitsune]` `[easy]` quick-start fox — if the herd view has no sessions, automatically create a default session so the user can start chatting immediately without a manual create step
 - [ ] `[kitsune]` `[medium]` session search and filter in herd view
 - [ ] `[kitsune]` `[easy]` export chat history to file
 - [ ] `[kitsune/inarid]` `[hard]` main screen: allow token compression by summarising session content
@@ -86,6 +87,9 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[kitsune]` `[easy]` allow download of context and copy of response as text
 - [ ] `[inarid]` `[easy]` daemon: auto-shutdown after 30 mins idle
 - [ ] `[inarid/kitsune]` `[medium]` **ollama context window detection and optimum setting** — on session creation (or model change), inarid queries the model's `num_ctx` parameter via the Ollama `/api/show` endpoint; the detected value is surfaced in the kitsune chat view alongside the token count. inarid also exposes a per-session override that sets `num_ctx` in each `/api/chat` request, defaulting to a sensible optimum (e.g. 8192 for worker-tier models, 4096 for sensor-tier) rather than Ollama's built-in default. the kitsune UI allows the user to view and adjust this value per session.
+- [ ] `[kitsune]` `[easy]` chat navigation shortcuts — implement `ctrl+t` for tools (focus hint bar), `ctrl+p` for command palette/prompt, `ctrl+m` for menu, and `ctrl+g` for help; use `esc` to exit entry fields and return to navigation mode.
+- [ ] `[kitsune]` `[easy]` slash commands — if chat input is empty, entering `/` opens a command selection menu (similar to google cli or slack).
+- [ ] `[kitsune]` `[easy]` chat input mode indicators — update the chat entry prefix to show the active mode (e.g., `[chat] >`, `[tool] >`, `[/] >`) for better visual feedback.
 
 ### Ideas
 - [ ] `[kitsune/inarid]` **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
@@ -100,6 +104,8 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` **prompt-based tool calling** — for models without native function-calling support, inject tool definitions as plain text into the system prompt and set `format: "json"`; inarid parses the JSON response to detect tool calls. select mode via session config or auto-detect from model name. makes layer 2 work on any instruction-following model (hermes-3-pro, qwen3-coder, etc.)
 - [ ] `[inarid]` **provider abstraction** — open up the hard-coded Ollama dependency by introducing a `Provider` interface (`Chat`, `ChatStream`, `ListModels`, `ListRunning`). inarid's core talks only to the interface; the concrete provider is selected via `provider` in `config.json`. ollama is the default. this allows swapping to vLLM, LM Studio, llama.cpp server, or even a cloud API (Claude, OpenAI) with a single config change and no core changes.
 - [ ] `[inarid]` multi-model routing — sensor tier classifies intent, dispatches to worker or thinker
+- [ ] `[inarid]` **context caching / compression / optimisation** — investigate strategies to reduce prompt size and improve response speed: KV-cache reuse across turns, selective message eviction, rolling summary compression, and prefix caching at the provider level; goal is lower latency and higher effective context utilisation without degrading response quality
+- [ ] `[inarid]` **task difficulty/effort classification** — investigate how to define and score task difficulty, complexity, and effort (e.g. token count, tool-call depth, reasoning hops) so inarid can automatically select the appropriate model tier (sensor → worker → thinker) rather than relying on manual session config
 - [ ] `[kitsune/inarid]` session tagging and search
 - [ ] `[kitsune/inarid]` **rename session** — allow the user to rename an existing session from the herd view; kitsune sends a `session.rename` RPC to inarid which updates the stored session name and propagates the change back to all open views.
 
@@ -113,6 +119,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 
 ### Open Issues
 - [ ] `[inarid/kitsune]` track and manage known issues and bugs
+- [ ] `[kitsune]` hotkeys (e.g. `?`, `t`) clash with text input in chat mode — global key bindings must be suppressed when a text input widget is focused  [medium]
 
 ---
 

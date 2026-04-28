@@ -9,5 +9,5 @@
     "worker": "bonsai:4b",
     "sensor": "qwen3-nano"
   },
-  "theme": "rose"
+  "theme": "slate"
 }
