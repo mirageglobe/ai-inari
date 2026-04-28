@@ -378,8 +378,8 @@ func (c Chat) View() string {
 			HS(),
 			H("[↑↓] scroll"),
 			H("[esc] back"),
-			H("[t] theme"),
-			H("[?] help"),
+			HD("[t] theme"),
+			HD("[?] help"),
 		}, c.viewport.Width+2)
 	}
 	body := herdStyle.Render(c.viewport.View())

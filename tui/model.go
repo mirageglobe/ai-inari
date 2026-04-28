@@ -244,13 +244,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
-		// [?] toggles the help overlay from any view.
-		if key.String() == "?" {
+		// [?] toggles the help overlay from any view except chat, where ? is a valid text character.
+		if key.String() == "?" && m.current != viewChat {
 			m.showHelp = !m.showHelp
 			return m, nil
 		}
-		// [t] cycles to the next built-in theme from any view.
-		if key.String() == "t" {
+		// [t] cycles to the next built-in theme from any view except chat, where t is a valid text character.
+		if key.String() == "t" && m.current != viewChat {
 			m.themeIdx = (m.themeIdx + 1) % len(views.Themes)
 			views.ApplyTheme(views.Themes[m.themeIdx])
 			if m.configPath != "" {
