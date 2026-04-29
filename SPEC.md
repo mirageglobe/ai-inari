@@ -65,7 +65,6 @@ designing abstractions too early produces interfaces that fit the first implemen
 #### M4 — MCP Loader
 - [x] `[inarid]` `config.json` parsed at startup.
 - [x] `[inarid]` connectors spawned as child processes.
-- [ ] `[inarid]` tool-calls routed and audit-logged. (`internal/mcp/host.go` `Call()` is a TODO stub — audit logging exists but actual JSON-RPC dispatch over stdio is not implemented)
 
 #### M5 — Chat View
 - [x] `[kitsune]` interactive `i` view wires to Head Inari (Thinker tier).
@@ -73,18 +72,11 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune/inarid]` detach/reattach preserves session state.
 
 ### Near-term
-- [x] `[easy]` add `LICENSE` file — bsl; copyright holder: Jimmy MG Lim
-- [x] `[kitsune]` `[medium]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
-- [x] `[kitsune]` `[easy]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
-- [x] `[kitsune]` `[easy]` quick-start fox — if the herd view has no sessions, automatically create a default session so the user can start chatting immediately without a manual create step
-- [x] `[kitsune]` `[easy]` fox status line in herd view — render a `<session-name> > ` line directly above the hotkey hint bar, showing the name of the currently selected kitsune session as a prompt-style prefix; updates as the table cursor moves
 - [ ] `[kitsune]` `[medium]` session search and filter in herd view
-- [x] `[kitsune]` `[easy]` export chat history to file — `[e]` in herd view fetches full message history via `session.history` RPC, formats as plain text (`role: content` per message, `---` separator), and writes to `~/.local/share/inari/exports/<session-name>-<timestamp>.txt` (XDG data dir); path is shown in the status bar on success
 - [ ] `[kitsune/inarid]` `[hard]` main screen: allow token compression by summarising session content
 - [ ] `[kitsune/inarid]` `[hard]` long-term task planning from high-level prompts
 - [ ] `[kitsune/inarid]` `[medium]` interrupt in chat for messages
 - [ ] `[inarid]` `[medium]` recap/summary when a chat session has been idle for 10+ mins
-- [x] `[kitsune]` `[easy]` show current token count in chat
 - [ ] `[kitsune]` `[easy]` allow download of context and copy of response as text
 - [ ] `[inarid]` `[easy]` daemon: auto-shutdown after 30 mins idle
 - [ ] `[inarid/kitsune]` `[medium]` **ollama context window detection and optimum setting** — on session creation (or model change), inarid queries the model's `num_ctx` parameter via the Ollama `/api/show` endpoint; the detected value is surfaced in the kitsune chat view alongside the token count. inarid also exposes a per-session override that sets `num_ctx` in each `/api/chat` request, defaulting to a sensible optimum (e.g. 8192 for worker-tier models, 4096 for sensor-tier) rather than Ollama's built-in default. the kitsune UI allows the user to view and adjust this value per session.
@@ -95,12 +87,12 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` `[medium]` **ollama runtime env tuning** — investigate and expose three Ollama environment variables as first-class inarid config fields: `OLLAMA_MAX_LOADED_MODELS` (default `3`; caps how many models stay resident in VRAM/RAM simultaneously), `OLLAMA_NUM_PARALLEL` (default `1` for low-RAM setups, `4` for high-throughput; controls concurrent request slots per model), and `OLLAMA_KEEP_ALIVE` (default `5m`; how long an idle model stays loaded). inarid should read these from `config.json` under an `ollama` block and pass them as environment variables when spawning or communicating with the Ollama process, or document them as required host-level env vars if inarid does not manage the Ollama process lifecycle. the kitsune settings view (or a `--ollama-info` flag on inarid) should surface the active values so the user can tune memory vs. throughput trade-offs without needing to know the underlying env var names.
 
 ### Ideas
+- [ ] `[inarid]` **MCP tool-call dispatch** — `internal/mcp/host.go` `Call()` is a TODO stub; audit logging exists but actual JSON-RPC dispatch over stdio is not implemented. complete to fulfil M4.
 - [ ] `[inarid]` `[medium]` **model loop / EOF prevention** — some models enter repetitive generation loops (e.g. `for_for_for...`) that exhaust the context window and terminate the stream with an EOF error. three mitigations to investigate: (1) set `repeat_penalty` (1.3–1.5) and `num_predict` cap in the ollama request options to penalise and hard-limit runaway output; (2) add a stream-side n-gram detector in `handleStream` that buffers the last N tokens, identifies a repeating sequence appearing 3+ times consecutively, and cancels the stream with a graceful error before EOF is hit.
 - [ ] `[kitsune/inarid]` **context compression (ponder)** — manual `[p] ponder` command in chat triggers inarid
         to summarise the conversation history via the session's own model, replacing old turns
         with a compact summary. keeps the system behavior prompt intact. auto-compression
         variant triggers automatically when context exceeds a configurable threshold.
-- [x] `[inarid]` **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
 - [ ] `[inarid]` **MCP filesystem connector (layer 3)** — once the tool-call loop exists, replace built-in tools with `@modelcontextprotocol/server-filesystem` spawned via mcp-go. this is a natural extension of the MCP integration work below.
 - [ ] `[inarid]` **destructive action prevention (§8.2)** — risk-tiered auto-approval, blast-radius limits, and dry-run previews for caution-tier tool-calls; prerequisite for any layer 2+ tool execution
 - [ ] `[inarid]` multiple models per session — allow attaching different models to a single session for collaborative discussions and task execution
@@ -120,6 +112,14 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune/inarid]` streaming chat — `session.stream` RPC over dedicated per-call UDS connections; kitsune renders tokens as they arrive
 - [x] `[kitsune]` title bar wave animation — per-character purple gradient drifts across the kitsune title at 200ms intervals
 - [x] `[kitsune/inarid]` filesystem context (layer 1) — shallow file tree injected into system prompt at session creation; kitsune passes `cwd`, inarid walks up to 3 levels (skipping `.git`, `node_modules`, etc.)
+- [x] `[easy]` add `LICENSE` file — bsl; copyright holder: Jimmy MG Lim
+- [x] `[kitsune]` `[medium]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
+- [x] `[kitsune]` `[easy]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
+- [x] `[kitsune]` `[easy]` quick-start fox — if the herd view has no sessions, automatically create a default session so the user can start chatting immediately without a manual create step
+- [x] `[kitsune]` `[easy]` fox status line in herd view — render a `<session-name> > ` line directly above the hotkey hint bar, showing the name of the currently selected kitsune session as a prompt-style prefix; updates as the table cursor moves
+- [x] `[kitsune]` `[easy]` export chat history to file — `[e]` in herd view fetches full message history via `session.history` RPC, formats as plain text (`role: content` per message, `---` separator), and writes to `~/.local/share/inari/exports/<session-name>-<timestamp>.txt` (XDG data dir); path is shown in the status bar on success
+- [x] `[kitsune]` `[easy]` show current token count in chat
+- [x] `[inarid]` **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
 
 ### Open Issues
 - [ ] `[inarid/kitsune]` track and manage known issues and bugs
