@@ -77,6 +77,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune]` `[medium]` themes — a small set of built-in colour themes (e.g. default purple, amber, slate, rose); cycle through them with `[t]` from any view; theme is stored in config.json and applied at startup
 - [x] `[kitsune]` `[easy]` help overlay — `[?]` opens a modal listing all hotkeys for the current view; `[esc]` or `[?]` dismisses it
 - [x] `[kitsune]` `[easy]` quick-start fox — if the herd view has no sessions, automatically create a default session so the user can start chatting immediately without a manual create step
+- [x] `[kitsune]` `[easy]` fox status line in herd view — render a `<session-name> > ` line directly above the hotkey hint bar, showing the name of the currently selected kitsune session as a prompt-style prefix; updates as the table cursor moves
 - [ ] `[kitsune]` `[medium]` session search and filter in herd view
 - [ ] `[kitsune]` `[easy]` export chat history to file
 - [ ] `[kitsune/inarid]` `[hard]` main screen: allow token compression by summarising session content
