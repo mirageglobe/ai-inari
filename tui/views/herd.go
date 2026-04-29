@@ -31,17 +31,18 @@ var (
 // sessions are owned by inarid; fox fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
 type Herd struct {
-	client      *ipc.Client
-	table       table.Model
-	spinner     spinner.Model
-	loading     bool
-	status      string
-	sessions    []ipc.SessionInfo
-	runningInfo map[string]runningMeta
-	width       int
-	height      int
-	hintHeight  int // actual rendered hint line count; varies with terminal width
-	offline     bool
+	client        *ipc.Client
+	table         table.Model
+	spinner       spinner.Model
+	loading       bool
+	status        string
+	sessions      []ipc.SessionInfo
+	runningInfo   map[string]runningMeta
+	width         int
+	height        int
+	hintHeight    int // actual rendered hint line count; varies with terminal width
+	offline       bool
+	autoCreated   bool // guards against duplicate default-session creation on concurrent fetches
 }
 
 func NewHerd(client *ipc.Client) Herd {
@@ -129,6 +130,10 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			h.status = ""
 			h.sessions = msg.sessions
+			if len(msg.sessions) == 0 && !h.autoCreated {
+				h.autoCreated = true
+				return h, createSessionCmd(h.client, "default")
+			}
 		}
 		h.rebuildTable()
 		return h, nil
@@ -148,11 +153,9 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case createSessionResultMsg:
 		if msg.err != nil {
 			h.status = connErrStyle.Render("create failed: " + msg.err.Error())
-		} else {
-			h.sessions = append(h.sessions, msg.session)
-			h.rebuildTable()
+			return h, nil
 		}
-		return h, nil
+		return h, fetchSessions(h.client)
 
 	case deleteSessionResultMsg:
 		if msg.err != nil {
