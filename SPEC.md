@@ -79,7 +79,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune]` `[easy]` quick-start fox — if the herd view has no sessions, automatically create a default session so the user can start chatting immediately without a manual create step
 - [x] `[kitsune]` `[easy]` fox status line in herd view — render a `<session-name> > ` line directly above the hotkey hint bar, showing the name of the currently selected kitsune session as a prompt-style prefix; updates as the table cursor moves
 - [ ] `[kitsune]` `[medium]` session search and filter in herd view
-- [ ] `[kitsune]` `[easy]` export chat history to file
+- [x] `[kitsune]` `[easy]` export chat history to file — `[e]` in herd view fetches full message history via `session.history` RPC, formats as plain text (`role: content` per message, `---` separator), and writes to `~/.local/share/inari/exports/<session-name>-<timestamp>.txt` (XDG data dir); path is shown in the status bar on success
 - [ ] `[kitsune/inarid]` `[hard]` main screen: allow token compression by summarising session content
 - [ ] `[kitsune/inarid]` `[hard]` long-term task planning from high-level prompts
 - [ ] `[kitsune/inarid]` `[medium]` interrupt in chat for messages

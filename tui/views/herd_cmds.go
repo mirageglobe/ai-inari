@@ -8,6 +8,8 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,6 +52,11 @@ type assignModelResultMsg struct {
 type unassignModelResultMsg struct {
 	id  string
 	err error
+}
+
+type exportChatResultMsg struct {
+	path string
+	err  error
 }
 
 // foxAdjectives are paired with "Fox" to form session names like "Arctic Fox".
@@ -130,6 +137,39 @@ func assignModelCmd(client *ipc.Client, sessionID, sessionName, model string) te
 			log.Printf("kitsune %q (%s): model assigned → %s", sessionName, sessionID, model)
 		}
 		return assignModelResultMsg{id: sessionID, err: err}
+	}
+}
+
+func exportChatCmd(client *ipc.Client, sessionID, sessionName string) tea.Cmd {
+	return func() tea.Msg {
+		msgs, err := client.History(sessionID)
+		if err != nil {
+			return exportChatResultMsg{err: err}
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return exportChatResultMsg{err: err}
+		}
+		dir := filepath.Join(home, ".local", "share", "inari", "exports")
+		if err := os.MkdirAll(dir, 0750); err != nil {
+			return exportChatResultMsg{err: err}
+		}
+		stamp := time.Now().Format("20060102-150405")
+		safeName := strings.ReplaceAll(sessionName, " ", "-")
+		path := filepath.Join(dir, safeName+"-"+stamp+".txt")
+
+		var b strings.Builder
+		for i, m := range msgs {
+			if i > 0 {
+				b.WriteString("---\n")
+			}
+			b.WriteString(m.Role + ": " + m.Content + "\n")
+		}
+		if err := os.WriteFile(path, []byte(b.String()), 0640); err != nil {
+			return exportChatResultMsg{err: err}
+		}
+		log.Printf("kitsune %q (%s): exported to %s", sessionName, sessionID, path)
+		return exportChatResultMsg{path: path}
 	}
 }
 

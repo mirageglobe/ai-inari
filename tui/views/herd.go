@@ -43,6 +43,7 @@ type Herd struct {
 	hintHeight    int // actual rendered hint line count; varies with terminal width
 	offline       bool
 	autoCreated   bool // guards against duplicate default-session creation on concurrent fetches
+	foxInfo       string // transient message shown in the fox status line; cleared on next keypress
 }
 
 func NewHerd(client *ipc.Client) Herd {
@@ -204,6 +205,14 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return h, nil
 
+	case exportChatResultMsg:
+		if msg.err != nil {
+			h.foxInfo = connErrStyle.Render("[error] " + msg.err.Error())
+		} else {
+			h.foxInfo = modelsStyle.Render("[info] exported → " + msg.path)
+		}
+		return h, nil
+
 	case AssignModelMsg:
 		// optimistically update the local session so the table reflects the change immediately.
 		// assignModelCmd fires concurrently to persist the assignment in inarid.
@@ -219,14 +228,21 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, assignModelCmd(h.client, msg.SessionID, sessionName, msg.ModelName)
 
 	case tea.KeyMsg:
+		h.foxInfo = ""
 		if h.offline {
 			// when offline, only allow navigation keys, ignore mutating ones
 			switch msg.String() {
-			case "s", "m", "u", "c", "x", "r", "enter":
+			case "s", "m", "u", "c", "x", "e", "r", "enter":
 				return h, nil
 			}
 		}
 		switch msg.String() {
+		case "e":
+			idx := h.table.Cursor()
+			if idx >= 0 && idx < len(h.sessions) {
+				sess := h.sessions[idx]
+				return h, exportChatCmd(h.client, sess.ID, sess.Name)
+			}
 		case "s":
 			name := pickFoxName(h.usedNames())
 			return h, createSessionCmd(h.client, name)
@@ -292,6 +308,7 @@ func herdHints(hasSession, hasModel, offline bool) []HintCmd {
 		hc("[u] unload", hasModel && !offline),
 		hc("[c] chat", hasModel && !offline),
 		hc("[x] delete", hasSession && !offline),
+		hc("[e] export", hasSession),
 		HS(),
 		hc("[r] refresh", !offline),
 		hc("[l] logs", !offline),
@@ -313,6 +330,9 @@ func (h Herd) View() string {
 		sessionName = h.sessions[idx].Name
 	}
 	foxLine := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render(sessionName+" > ")
+	if h.foxInfo != "" {
+		foxLine += h.foxInfo
+	}
 
 	hint := RenderHint(herdHints(hasSession, hasModel, h.offline), h.width)
 
