@@ -34,7 +34,7 @@ type SelectModelMsg struct {
 	SessionID    string
 	SessionName  string // display name shown in the chat header
 	ModelName    string
-	CWD          string // non-empty when filesystem tools are active for this session
+	CWD          string // non-empty when builtin tools are active for this session
 	ContextChars int    // total message chars at open time, for token estimation
 }
 

@@ -55,8 +55,8 @@ type chatHistoryMsg struct {
 // nil when no stream is in flight.
 // offline mirrors the root model's connectivity state; when true, sends are blocked
 // and the send command is visually disabled in the hint bar.
-// cwd is non-empty when filesystem tools (read_file, list_dir) are active for this session.
-// showTools toggles a tools panel in the hint area listing available tools.
+// cwd is non-empty when builtin tools (read_file, list_dir) are active for this session.
+// showBuiltin toggles a builtin panel in the hint area listing available builtin tools.
 type Chat struct {
 	client        *ipc.Client
 	sessionID     string
@@ -72,7 +72,7 @@ type Chat struct {
 	ready         bool
 	historyLoaded bool
 	offline       bool
-	showTools     bool
+	showBuiltin   bool
 	ctxChars      int
 	streamBuf     string
 	streamTokens  <-chan string
@@ -300,7 +300,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+f" && c.cwd != "" {
-			c.showTools = !c.showTools
+			c.showBuiltin = !c.showBuiltin
 			return c, nil
 		}
 		if msg.Type == tea.KeyEnter && !c.waiting && !c.offline {
@@ -351,19 +351,19 @@ func (c Chat) View() string {
 		"  " + ctxStat
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hint string
-	if c.showTools {
-		toolsStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
+	if c.showBuiltin {
+		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
 		dimStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-		hint = toolsStyle.Render("tools") + "  " +
+		hint = builtinStyle.Render("builtin") + "  " +
 			dimStyle.Render("read_file") + "  " +
 			dimStyle.Render("list_dir") + "  " +
 			dimStyle.Render("(sandboxed to cwd)")
 	} else {
-		var toolsHint HintCmd
+		var builtinHint HintCmd
 		if c.cwd != "" {
-			toolsHint = H("[ctrl+f] tools")
+			builtinHint = H("[ctrl+f] builtin")
 		} else {
-			toolsHint = HD("[ctrl+f] tools")
+			builtinHint = HD("[ctrl+f] builtin")
 		}
 
 		sendHint := H("[enter] send")
@@ -374,7 +374,7 @@ func (c Chat) View() string {
 		hint = RenderHint([]HintCmd{
 			sendHint,
 			H("[ctrl+o] model"),
-			toolsHint,
+			builtinHint,
 			HS(),
 			H("[↑↓] scroll"),
 			H("[esc] back"),

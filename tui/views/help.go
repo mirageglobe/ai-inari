@@ -33,7 +33,7 @@ var helpByView = map[string][]helpEntry{
 	"chat": {
 		{"[enter]", "send message"},
 		{"[ctrl+o]", "change model"},
-		{"[ctrl+f]", "toggle tools panel"},
+		{"[ctrl+f]", "toggle builtin panel"},
 		{"[↑] / [↓]", "scroll history"},
 		{"[t]", "cycle theme"},
 		{"[esc]", "back to sessions"},
