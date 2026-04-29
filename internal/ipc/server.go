@@ -123,21 +123,22 @@ func (s *Server) handle(conn net.Conn) {
 
 		if req.Method == "session.stream" {
 			if s.verbose {
-				log.Printf("rpc → session.stream %s", req.Params)
+				log.Printf("[kitsune→inarid] session.stream %s", req.Params)
 			}
 			s.handleStream(conn, req)
 			return
 		}
 
-		if s.verbose {
-			log.Printf("rpc → %s %s", req.Method, req.Params)
+		// suppress ping — fires on every heartbeat and adds no signal.
+		if req.Method != "ping" && s.verbose {
+			log.Printf("[kitsune→inarid] %s %s", req.Method, req.Params)
 		}
 		resp := s.dispatch(req)
-		if s.verbose {
+		if req.Method != "ping" && s.verbose {
 			if resp.Error != nil {
-				log.Printf("rpc ← %s error: %s", req.Method, resp.Error.Message)
+				log.Printf("[inarid→kitsune] %s error: %s", req.Method, resp.Error.Message)
 			} else {
-				log.Printf("rpc ← %s ok", req.Method)
+				log.Printf("[inarid→kitsune] %s ok", req.Method)
 			}
 		}
 		enc.Encode(resp)
@@ -212,7 +213,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 			sess.Messages = sess.Messages[:len(sess.Messages)-1]
 			enc.Encode(map[string]string{"error": err.Error()})
 			if s.verbose {
-				log.Printf("rpc ← session.stream error: %v", err)
+				log.Printf("[inarid→kitsune] session.stream error: %v", err)
 			}
 			return
 		}
@@ -224,7 +225,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 			s.store.Persist(sess.ID)
 			enc.Encode(map[string]bool{"done": true})
 			if s.verbose {
-				log.Printf("rpc ← session.stream ok (%d chars)", len(reply))
+				log.Printf("[inarid→kitsune] session.stream ok (%d chars)", len(reply))
 			}
 			return
 		}
@@ -237,7 +238,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 				result = "error: " + err.Error()
 			}
 			if s.verbose {
-				log.Printf("tool %s(%v) → %d chars", tc.Function.Name, tc.Function.Arguments, len(result))
+				log.Printf("[inarid→builtin] %s(%v) → %d chars", tc.Function.Name, tc.Function.Arguments, len(result))
 			}
 			sess.AppendMessage(provider.Message{Role: "tool", Content: result})
 		}

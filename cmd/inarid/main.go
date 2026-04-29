@@ -35,6 +35,10 @@ func main() {
 	verbose := flag.Bool("v", false, "verbose logging: print every RPC call and response")
 	flag.Parse()
 
+	if *verbose {
+		log.SetPrefix("[ctrl-c to quit][log] ")
+	}
+
 	log.Println("awakening inari daemon 👹")
 
 	cfg, err := config.Load("config.json")
@@ -46,6 +50,7 @@ func main() {
 	defer auditor.Close()
 
 	ollamaClient := ollama.NewClient(cfg.OllamaBaseURL)
+	ollamaClient.SetVerbose(*verbose)
 	if err := ollamaClient.Ping(); err != nil {
 		log.Printf("ollama not reachable: %v", err)
 		log.Printf("expected at: %s", cfg.OllamaBaseURL)

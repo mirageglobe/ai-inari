@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
@@ -24,11 +25,14 @@ var _ provider.Provider = (*Client)(nil)
 type Client struct {
 	baseURL string
 	http    *http.Client
+	verbose bool
 }
 
 func NewClient(baseURL string) *Client {
 	return &Client{baseURL: baseURL, http: &http.Client{}}
 }
+
+func (c *Client) SetVerbose(v bool) { c.verbose = v }
 
 // Ping returns nil if Ollama is reachable.
 func (c *Client) Ping() error {
@@ -104,6 +108,9 @@ func (c *Client) UnloadModel(model string) error {
 
 // Chat sends a single blocking request and returns the full reply.
 func (c *Client) Chat(model string, messages []provider.Message) (string, error) {
+	if c.verbose {
+		log.Printf("[inarid→ollama] chat model=%s msgs=%d", model, len(messages))
+	}
 	req := provider.ChatRequest{Model: model, Messages: messages, Stream: false}
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -121,11 +128,17 @@ func (c *Client) Chat(model string, messages []provider.Message) (string, error)
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
+	if c.verbose {
+		log.Printf("[ollama→inarid] chat ok (%d chars)", len(result.Message.Content))
+	}
 	return result.Message.Content, nil
 }
 
 // ChatStream sends a chat request and yields response chunks via a channel.
 func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatResponse) error {
+	if c.verbose {
+		log.Printf("[inarid→ollama] chat.stream model=%s msgs=%d", req.Model, len(req.Messages))
+	}
 	req.Stream = true
 	body, err := json.Marshal(req)
 	if err != nil {
