@@ -175,9 +175,9 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 
 	sess.AppendMessage(provider.Message{Role: "user", Content: params.Text})
 
-	var tools []provider.Tool
+	var builtin []provider.Tool
 	if sess.CWD != "" {
-		tools = filesystemTools()
+		builtin = filesystemTools()
 	}
 
 	const maxToolRounds = 10
@@ -189,7 +189,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 				Model:    sess.Model,
 				Messages: sess.ChatHistory(),
 				Stream:   true,
-				Tools:    tools,
+				Tools:    builtin,
 			}, chunks)
 			close(chunks)
 		}()
