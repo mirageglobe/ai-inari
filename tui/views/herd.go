@@ -49,7 +49,7 @@ type Herd struct {
 func NewHerd(client *ipc.Client) Herd {
 	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
-		{Title: "kitsune", Width: 20},
+		{Title: "kitsune (agents)", Width: 20},
 		{Title: "model", Width: 28},
 		{Title: "vram", Width: 12},
 		{Title: "status", Width: 16},
@@ -108,7 +108,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			modelColW = 10
 		}
 		h.table.SetColumns([]table.Column{
-			{Title: "kitsune", Width: 20},
+			{Title: "kitsune (agents)", Width: 20},
 			{Title: "model", Width: modelColW},
 			{Title: "vram", Width: 12},
 			{Title: "status", Width: 16},
@@ -133,7 +133,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h.sessions = msg.sessions
 			if len(msg.sessions) == 0 && !h.autoCreated {
 				h.autoCreated = true
-				return h, createSessionCmd(h.client, "default")
+				return h, createSessionCmd(h.client, "default kitsune")
 			}
 		}
 		h.rebuildTable()

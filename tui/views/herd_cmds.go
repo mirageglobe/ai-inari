@@ -59,30 +59,30 @@ type exportChatResultMsg struct {
 	err  error
 }
 
-// foxAdjectives are paired with "Fox" to form session names like "Arctic Fox".
-var foxAdjectives = []string{
-	"Arctic", "Amber", "Ash", "Blaze", "Copper", "Crimson", "Dusk",
-	"Ember", "Fire", "Frost", "Ghost", "Golden", "Jade", "Midnight",
-	"Rusty", "Scarlet", "Shadow", "Silver", "Storm", "Swift", "Thunder",
-	"Tundra", "Violet", "Wild",
+// kitsunAdjectives are paired with "kitsune" to form session names like "jade kitsune".
+var kitsuneAdjectives = []string{
+	"arctic", "amber", "ash", "blaze", "copper", "crimson", "dusk",
+	"ember", "fire", "frost", "ghost", "golden", "jade", "midnight",
+	"rusty", "scarlet", "shadow", "silver", "storm", "swift", "thunder",
+	"tundra", "violet", "wild",
 }
 
-// pickFoxName returns a fox-themed name not already in use.
+// pickFoxName returns a kitsune-themed name not already in use.
 func pickFoxName(used []string) string {
 	inUse := make(map[string]bool, len(used))
 	for _, v := range used {
 		inUse[v] = true
 	}
-	pool := make([]string, len(foxAdjectives))
-	copy(pool, foxAdjectives)
+	pool := make([]string, len(kitsuneAdjectives))
+	copy(pool, kitsuneAdjectives)
 	rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 	for _, adj := range pool {
-		name := adj + " Fox"
+		name := adj + " kitsune"
 		if !inUse[name] {
 			return name
 		}
 	}
-	return fmt.Sprintf("Fox #%d", len(used)+1)
+	return fmt.Sprintf("kitsune #%d", len(used)+1)
 }
 
 func fetchSessions(client *ipc.Client) tea.Cmd {
@@ -124,7 +124,7 @@ func unassignModelCmd(client *ipc.Client, sessionID, sessionName, model string) 
 	return func() tea.Msg {
 		err := client.UnassignModel(sessionID)
 		if err == nil {
-			log.Printf("kitsune %q (%s): model unloaded ← %s", sessionName, sessionID, model)
+			log.Printf("inariui %q (%s): model unloaded ← %s", sessionName, sessionID, model)
 		}
 		return unassignModelResultMsg{id: sessionID, err: err}
 	}
@@ -134,7 +134,7 @@ func assignModelCmd(client *ipc.Client, sessionID, sessionName, model string) te
 	return func() tea.Msg {
 		err := client.AssignModel(sessionID, model)
 		if err == nil {
-			log.Printf("kitsune %q (%s): model assigned → %s", sessionName, sessionID, model)
+			log.Printf("inariui %q (%s): model assigned → %s", sessionName, sessionID, model)
 		}
 		return assignModelResultMsg{id: sessionID, err: err}
 	}
@@ -168,7 +168,7 @@ func exportChatCmd(client *ipc.Client, sessionID, sessionName string) tea.Cmd {
 		if err := os.WriteFile(path, []byte(b.String()), 0640); err != nil {
 			return exportChatResultMsg{err: err}
 		}
-		log.Printf("kitsune %q (%s): exported to %s", sessionName, sessionID, path)
+		log.Printf("inariui %q (%s): exported to %s", sessionName, sessionID, path)
 		return exportChatResultMsg{path: path}
 	}
 }

@@ -123,7 +123,7 @@ func (s *Server) handle(conn net.Conn) {
 
 		if req.Method == "session.stream" {
 			if s.verbose {
-				log.Printf("[kitsune→inarid] session.stream %s", req.Params)
+				log.Printf("[inariui→inarid] session.stream %s", req.Params)
 			}
 			s.handleStream(conn, req)
 			return
@@ -131,14 +131,14 @@ func (s *Server) handle(conn net.Conn) {
 
 		// suppress ping — fires on every heartbeat and adds no signal.
 		if req.Method != "ping" && s.verbose {
-			log.Printf("[kitsune→inarid] %s %s", req.Method, req.Params)
+			log.Printf("[inariui→inarid] %s %s", req.Method, req.Params)
 		}
 		resp := s.dispatch(req)
 		if req.Method != "ping" && s.verbose {
 			if resp.Error != nil {
-				log.Printf("[inarid→kitsune] %s error: %s", req.Method, resp.Error.Message)
+				log.Printf("[inarid→inariui] %s error: %s", req.Method, resp.Error.Message)
 			} else {
-				log.Printf("[inarid→kitsune] %s ok", req.Method)
+				log.Printf("[inarid→inariui] %s ok", req.Method)
 			}
 		}
 		enc.Encode(resp)
@@ -213,7 +213,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 			sess.Messages = sess.Messages[:len(sess.Messages)-1]
 			enc.Encode(map[string]string{"error": err.Error()})
 			if s.verbose {
-				log.Printf("[inarid→kitsune] session.stream error: %v", err)
+				log.Printf("[inarid→inariui] session.stream error: %v", err)
 			}
 			return
 		}
@@ -225,7 +225,7 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 			s.store.Persist(sess.ID)
 			enc.Encode(map[string]bool{"done": true})
 			if s.verbose {
-				log.Printf("[inarid→kitsune] session.stream ok (%d chars)", len(reply))
+				log.Printf("[inarid→inariui] session.stream ok (%d chars)", len(reply))
 			}
 			return
 		}
