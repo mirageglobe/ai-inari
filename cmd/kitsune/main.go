@@ -13,6 +13,7 @@ package main
 import (
 	"log"
 	"os"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,10 +24,15 @@ import (
 	"github.com/mirageglobe/ai-inari/tui/views"
 )
 
-const (
-	defaultSocket     = "/tmp/inari.sock"
-	defaultConfigPath = "config.json"
-)
+const defaultSocket = "/tmp/inari.sock"
+
+func configPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".config", "inari", "config.json")
+}
 
 func main() {
 	// redirect log output to kitsune.log so IPC errors don't bleed into the TUI.
@@ -35,9 +41,11 @@ func main() {
 		defer f.Close()
 	}
 
+	cfgPath := configPath()
+
 	// apply saved theme before the first render; fall back to default on missing/unknown.
 	themeIdx := 0
-	if cfg, err := config.Load(defaultConfigPath); err == nil && cfg.Theme != "" {
+	if cfg, err := config.Load(cfgPath); err == nil && cfg.Theme != "" {
 		themeIdx = views.ThemeIndex(cfg.Theme)
 	}
 	views.ApplyTheme(views.Themes[themeIdx])
@@ -48,7 +56,7 @@ func main() {
 	// without this, the terminal's response leaks into the textarea as raw text.
 	lipgloss.SetHasDarkBackground(true)
 
-	p := tea.NewProgram(tui.New(client, defaultConfigPath, themeIdx), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(tui.New(client, cfgPath, themeIdx), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("tui: %v", err)
 	}
