@@ -112,6 +112,39 @@ func (s *Session) AppendMessage(msg provider.Message) {
 	s.UpdatedAt = time.Now()
 }
 
+// ReplaceWithSummary clears user/assistant messages and inserts summary as a single
+// assistant message. the system prompt is retained so model behaviour is unchanged.
+func (s *Session) ReplaceWithSummary(summary string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.Messages[:0:0]
+	for _, m := range s.Messages {
+		if m.Role == "system" {
+			kept = append(kept, m)
+			break
+		}
+	}
+	kept = append(kept, provider.Message{Role: "assistant", Content: summary})
+	s.Messages = kept
+	s.UpdatedAt = time.Now()
+}
+
+// ClearHistory removes all user and assistant messages, retaining only the system prompt.
+// the system prompt stays so the model's behaviour is preserved after a clear.
+func (s *Session) ClearHistory() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.Messages[:0:0]
+	for _, m := range s.Messages {
+		if m.Role == "system" {
+			kept = append(kept, m)
+			break
+		}
+	}
+	s.Messages = kept
+	s.UpdatedAt = time.Now()
+}
+
 // ChatHistory returns a snapshot of the message history for sending to Ollama.
 // A copy is returned so the caller can hold the slice safely while new messages are appended.
 func (s *Session) ChatHistory() []provider.Message {

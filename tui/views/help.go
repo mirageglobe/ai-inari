@@ -36,6 +36,8 @@ var helpByView = map[string][]helpEntry{
 	},
 	"chat": {
 		{"[enter]", "send message"},
+		{"/clear", "clear message context"},
+		{"/compact", "summarise and compress context"},
 		{"/model change", "change model"},
 		{"/tools", "toggle builtin panel"},
 		{"[↑] / [↓]", "navigate input history"},
