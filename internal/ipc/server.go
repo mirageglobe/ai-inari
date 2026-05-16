@@ -630,6 +630,15 @@ var allowedCommands = map[string]bool{
 	"whoami":  true,
 	"uname":   true,
 	"wc":      true,
+	"curl":    true,
+	"wget":    true,
+	"find":    true,
+	"ps":      true,
+	"ls":      true,
+	"cat":     true,
+	"df":      true,
+	"uptime":  true,
+	"which":   true,
 }
 
 const runCommandTimeout = 30 * time.Second
