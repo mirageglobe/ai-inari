@@ -1,12 +1,15 @@
 package ipc
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -597,8 +600,34 @@ func filesystemTools() []provider.Tool {
 				},
 			},
 		},
+		{
+			Type: "function",
+			Function: provider.ToolFunction{
+				Name:        "run_command",
+				Description: "run an allowlisted shell command inside the session working directory and return its stdout and stderr. only specific commands are permitted; others are rejected.",
+				Parameters: provider.ToolParameters{
+					Type: "object",
+					Properties: map[string]provider.Property{
+						"command": {Type: "string", Description: "the binary to run (e.g. \"go\", \"make\", \"git\")"},
+						"args":    {Type: "string", Description: "space-separated arguments (e.g. \"test ./...\")"},
+					},
+					Required: []string{"command"},
+				},
+			},
+		},
 	}
 }
+
+// allowedCommands is the set of binaries that run_command may invoke.
+// each entry is the base command name only — arguments are passed separately and never shell-expanded.
+var allowedCommands = map[string]bool{
+	"go":   true,
+	"make": true,
+	"git":  true,
+}
+
+const runCommandTimeout = 30 * time.Second
+const runCommandMaxBytes = 64 * 1024 // 64 KB output cap
 
 // execTool dispatches a tool call by name, enforces the cwd sandbox, and returns the result.
 func execTool(name string, args map[string]any, cwd string) (string, error) {
@@ -673,6 +702,32 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 		}
 		return fmt.Sprintf("path: %s\nsize: %d bytes\nmodified: %s\nis_dir: %v\n",
 			rawPath, info.Size(), info.ModTime().Format(time.RFC3339), info.IsDir()), nil
+	case "run_command":
+		command, _ := args["command"].(string)
+		argsStr, _ := args["args"].(string)
+		if !allowedCommands[command] {
+			return "", fmt.Errorf("command not allowed: %q — permitted: go, make, git", command)
+		}
+		var cmdArgs []string
+		if argsStr != "" {
+			cmdArgs = strings.Fields(argsStr)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), runCommandTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, command, cmdArgs...)
+		cmd.Dir = cwd
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &out
+		runErr := cmd.Run()
+		result := out.Bytes()
+		if len(result) > runCommandMaxBytes {
+			result = append(result[:runCommandMaxBytes], []byte("\n(truncated)")...)
+		}
+		if runErr != nil {
+			return fmt.Sprintf("exit error: %v\n%s", runErr, result), nil
+		}
+		return string(result), nil
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}

@@ -521,40 +521,44 @@ kitsune renders the preview and waits for `[y] approve` or `[n] reject`. only on
 
 **non-goal:** this design does not attempt to detect malicious intent from model outputs. it bounds damage structurally so that even a model producing harmful tool-calls cannot exceed the permitted blast radius.
 
-### 8.3 Extending Tools — Safe Addition Pattern
+### 8.3 run_command — allowlisted bash execution
 
-before adding a new tool (e.g. bash execution), apply this checklist in order:
+`run_command` lets the model invoke a fixed set of development commands inside the session's `cwd`. it is the boundary between read-only filesystem tools and write/execute capability.
 
-**1. scope control first**
-- inherit the session's `cwd` sandbox — no tool operates outside it.
-- prefer an allowlist of specific commands over arbitrary shell access.
-  - safe starting point: `["git status", "go test ./...", "make <target>"]`
-  - only open to arbitrary bash after the approval gating UX is proven in production.
-- if arbitrary commands are needed, use a restricted shell (`rbash`) or run inside a container/`chroot` so the model cannot escape `cwd`.
+**implemented constraints**
 
-**2. assign a risk tier before wiring**
-- all new tools must be assigned a tier (safe / caution / destructive / forbidden) in the dispatch table before they are routable.
-- unclassified tools are hard-rejected. `run_command` is caution-tier at minimum; arbitrary bash is destructive-tier.
+| constraint        | detail                                                                 |
+| :---              | :---                                                                   |
+| allowlist         | `go`, `make`, `git` — binary name only; all others are hard-rejected  |
+| no shell expand   | `exec.Command(binary, args...)` — never `sh -c`; injection impossible |
+| cwd lock          | `cmd.Dir = sess.CWD`; process starts inside the session directory     |
+| timeout           | 30 s hard kill via `context.WithTimeout`                               |
+| output cap        | stdout+stderr truncated to 64 KB before forwarding to the model        |
+| exit errors       | non-zero exit is returned as text, not an error — model sees the output|
 
-**3. approval gating in kitsune**
-- inarid sends a `tool.preview` message to kitsune before executing any caution-or-above tool.
-- kitsune pauses the stream and renders the proposed command with `[y] approve / [n] reject`.
-- auto-execution without user confirmation is never permitted for command-running tools, even if the model requests it.
-- if kitsune is detached, the call is auto-rejected — commands never run unattended.
+**adding a new allowed command**
 
-**4. execution lives in inarid, never in kitsune**
-- kitsune is a display client. it must not spawn processes or evaluate tool outputs.
-- the `RunTool` RPC on the UDS socket is the only path from approval to execution.
+edit `allowedCommands` in `internal/ipc/server.go`. the map key is the binary base name. no other changes are needed — the dispatch is generic.
 
-**5. audit everything**
-- every proposed command is logged before the approval prompt is shown.
-- every approved or rejected decision is logged with the user's response.
-- stdout/stderr from executed commands are truncated to the blast-radius cap (1 MB) before being forwarded as tool result messages.
+**risk tier**
 
-**incremental rollout order:**
-1. allowlist-only `run_command` with per-command approval gating — ships the UX safely.
-2. widen to arbitrary bash (destructive tier) only after step 1 is in production.
-3. replace with MCP filesystem/process connector once the tool-call loop supports it.
+`run_command` is **caution-tier**. the allowlist keeps it out of the destructive tier, but:
+- `git reset --hard`, `make clean`, `go generate` can delete or regenerate files.
+- a future approval-gating UX (§8.2) should gate this tool before widening the allowlist.
+
+**rollout order for future expansion**
+
+1. *(current)* allowlist-only `run_command` — `go`, `make`, `git`.
+2. per-call approval gating in kitsune (§8.2) before widening the allowlist.
+3. arbitrary bash (destructive tier) only after step 2 is in production.
+4. replace with MCP process connector once the tool-call loop supports it.
+
+**what stays forbidden**
+
+- `curl`, `wget`, `ssh`, `scp` — network calls outside ollama/mcp.
+- `rm`, `mv`, `chmod` — destructive filesystem ops.
+- `sh`, `bash`, `zsh`, `python` — shell interpreters that bypass the allowlist.
+- any binary not in `allowedCommands` — hard-rejected at dispatch.
 
 ---
 

@@ -54,7 +54,7 @@ type chatHistoryMsg struct {
 // nil when no stream is in flight.
 // offline mirrors the root model's connectivity state; when true, sends are blocked
 // and the send command is visually disabled in the hint bar.
-// cwd is non-empty when builtin tools (read_file, list_dir, grep_files, file_stat) are active for this session.
+// cwd is non-empty when builtin tools (read_file, list_dir, grep_files, file_stat, run_command) are active for this session.
 // showBuiltin toggles a builtin panel in the hint area listing available builtin tools.
 type Chat struct {
 	client        *ipc.Client
@@ -507,6 +507,7 @@ func (c Chat) View() string {
 			dimStyle.Render("list_dir") + "  " +
 			dimStyle.Render("grep_files") + "  " +
 			dimStyle.Render("file_stat") + "  " +
+			dimStyle.Render("run_command") + "  " +
 			dimStyle.Render("(sandboxed to cwd)")
 	} else {
 		var builtinHint HintCmd
