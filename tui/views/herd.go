@@ -5,6 +5,7 @@
 package views
 
 import (
+	"fmt"
 	"log"
 	"sort"
 	"strings"
@@ -329,7 +330,8 @@ func (h Herd) View() string {
 	if hasSession {
 		sessionName = h.sessions[idx].Name
 	}
-	foxLine := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render(sessionName+" > ")
+	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("herd")
+	foxLine := viewLabel + "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render(sessionName+" > ")
 	if h.foxInfo != "" {
 		foxLine += h.foxInfo
 	}
@@ -374,6 +376,14 @@ func (h *Herd) rebuildTable() {
 		rows[i] = table.Row{s.Name, model, vram, status, ctx}
 	}
 	h.table.SetRows(rows)
+}
+
+func fmtTokens(chars int) string {
+	t := chars / 4
+	if t < 1000 {
+		return fmt.Sprintf("~%d tokens", t)
+	}
+	return fmt.Sprintf("~%.1fk tokens", float64(t)/1000)
 }
 
 // SelectedSession returns the session at the current cursor plus its vram.

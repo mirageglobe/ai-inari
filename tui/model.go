@@ -220,7 +220,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.herd = updated.(views.Herd)
 		if m.returnView == viewChat {
 			m.current = viewChat
-			return m, tea.Batch(cmd, m.chats[m.activeSession].Init())
+			chat := m.chats[m.activeSession].WithModel(assign.ModelName)
+			m.chats[m.activeSession] = chat
+			return m, tea.Batch(cmd, chat.Init())
 		}
 		m.current = viewHerd
 		return m, cmd
