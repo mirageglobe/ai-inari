@@ -332,6 +332,19 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.input.CursorEnd()
 			return c, nil
 		}
+		if msg.Type == tea.KeyTab {
+			inputVal := c.input.Value()
+			if strings.HasPrefix(inputVal, "/") {
+				for _, cmd := range chatCommands {
+					if strings.HasPrefix(cmd, inputVal) {
+						c.input.SetValue(cmd)
+						c.input.CursorEnd()
+						return c, nil
+					}
+				}
+			}
+			return c, nil
+		}
 		if msg.Type == tea.KeyEnter && !c.waiting {
 			text := strings.TrimSpace(c.input.Value())
 			if text == "" {
@@ -381,6 +394,40 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return c, tea.Batch(vpCmd, taCmd)
 }
 
+// chatCommands is the ordered list of slash commands available in the chat view.
+var chatCommands = []string{"/model change", "/tools"}
+
+// renderChatSuggestions replaces the hint bar when the user is typing a slash command.
+// commands that match the current prefix are shown active; others are dimmed.
+func renderChatSuggestions(prefix string, width int) string {
+	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
+	var cmds []HintCmd
+	for _, cmd := range chatCommands {
+		if strings.HasPrefix(cmd, prefix) {
+			cmds = append(cmds, HintCmd{Label: cmd, Enabled: true})
+		} else {
+			cmds = append(cmds, HintCmd{Label: cmd, Enabled: false})
+		}
+	}
+
+	const gap = "  "
+	const prefixRaw = "cmd: "
+	label := labelStyle.Render(prefixRaw)
+	var parts []string
+	for _, c := range cmds {
+		style := activeStyle
+		if !c.Enabled {
+			style = dimStyle
+		}
+		parts = append(parts, style.Render(c.Label))
+	}
+	_ = width
+	return label + strings.Join(parts, gap)
+}
+
 func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
 	case "/model change":
@@ -403,7 +450,9 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 func (c Chat) View() string {
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hint string
-	if c.showBuiltin {
+	if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin {
+		hint = renderChatSuggestions(inputVal, c.viewport.Width+2)
+	} else if c.showBuiltin {
 		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
 		dimStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
 		hint = builtinStyle.Render("tools") + "  " +
