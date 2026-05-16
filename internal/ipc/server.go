@@ -3,10 +3,12 @@ package ipc
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -566,6 +568,35 @@ func filesystemTools() []provider.Tool {
 				},
 			},
 		},
+		{
+			Type: "function",
+			Function: provider.ToolFunction{
+				Name:        "grep_files",
+				Description: "search for a regex pattern in files under a directory. returns matching lines with file path and line number. path must be relative to the session working directory.",
+				Parameters: provider.ToolParameters{
+					Type: "object",
+					Properties: map[string]provider.Property{
+						"path":    {Type: "string", Description: "relative path to the directory to search; use \".\" for the root"},
+						"pattern": {Type: "string", Description: "regular expression to search for"},
+					},
+					Required: []string{"path", "pattern"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: provider.ToolFunction{
+				Name:        "file_stat",
+				Description: "return metadata for a file or directory: size in bytes, modification time, and whether it is a directory. path must be relative to the session working directory.",
+				Parameters: provider.ToolParameters{
+					Type: "object",
+					Properties: map[string]provider.Property{
+						"path": {Type: "string", Description: "relative path to the file or directory"},
+					},
+					Required: []string{"path"},
+				},
+			},
+		},
 	}
 }
 
@@ -601,6 +632,47 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 			}
 		}
 		return sb.String(), nil
+	case "grep_files":
+		rawPattern, _ := args["pattern"].(string)
+		re, err := regexp.Compile(rawPattern)
+		if err != nil {
+			return "", fmt.Errorf("invalid pattern: %w", err)
+		}
+		const maxMatches = 200
+		var sb strings.Builder
+		count := 0
+		walkErr := filepath.WalkDir(safePath, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return nil // skip unreadable files
+			}
+			rel, _ := filepath.Rel(cwd, p)
+			for i, line := range strings.Split(string(data), "\n") {
+				if re.MatchString(line) {
+					fmt.Fprintf(&sb, "%s:%d: %s\n", rel, i+1, line)
+					count++
+					if count >= maxMatches {
+						sb.WriteString("(truncated)\n")
+						return filepath.SkipAll
+					}
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			return "", walkErr
+		}
+		return sb.String(), nil
+	case "file_stat":
+		info, err := os.Stat(safePath)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("path: %s\nsize: %d bytes\nmodified: %s\nis_dir: %v\n",
+			rawPath, info.Size(), info.ModTime().Format(time.RFC3339), info.IsDir()), nil
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
