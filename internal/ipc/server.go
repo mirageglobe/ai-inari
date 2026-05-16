@@ -621,10 +621,15 @@ func filesystemTools() []provider.Tool {
 // allowedCommands is the set of binaries that run_command may invoke.
 // each entry is the base command name only — arguments are passed separately and never shell-expanded.
 var allowedCommands = map[string]bool{
-	"go":   true,
-	"make": true,
-	"git":  true,
-	"date": true,
+	"go":      true,
+	"make":    true,
+	"git":     true,
+	"date":    true,
+	"echo":    true,
+	"pwd":     true,
+	"whoami":  true,
+	"uname":   true,
+	"wc":      true,
 }
 
 const runCommandTimeout = 30 * time.Second

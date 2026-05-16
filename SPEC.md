@@ -529,7 +529,7 @@ kitsune renders the preview and waits for `[y] approve` or `[n] reject`. only on
 
 | constraint        | detail                                                                 |
 | :---              | :---                                                                   |
-| allowlist         | `go`, `make`, `git`, `date` — binary name only; all others are hard-rejected |
+| allowlist         | `go`, `make`, `git`, `date`, `echo`, `pwd`, `whoami`, `uname`, `wc` — binary name only; all others are hard-rejected |
 | no shell expand   | `exec.Command(binary, args...)` — never `sh -c`; injection impossible |
 | cwd lock          | `cmd.Dir = sess.CWD`; process starts inside the session directory     |
 | timeout           | 30 s hard kill via `context.WithTimeout`                               |
