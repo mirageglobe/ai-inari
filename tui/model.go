@@ -37,17 +37,18 @@ type Model struct {
 	describe      views.Describe
 	chats         map[string]views.Chat // keyed by session ID
 	sysStats      views.SysStatsMsg
-	connErr       string
-	connOnline    bool // tracks last known connection state to detect offline→online transitions
-	termWidth     int
-	termHeight    int
-	titleColorIdx int  // current ray position; -10 = off-screen (resting between sweeps)
-	titleDir      int  // +1 = left-to-right, -1 = right-to-left
-	showHelp        bool // true while the [?] help overlay is visible
-	showThemePicker bool // true while the /theme modal is visible
-	themePickerIdx  int  // cursor position in the theme picker
-	themeIdx        int  // index into views.Themes; current active theme
-	configPath      string
+	connErr             string
+	connOnline          bool // tracks last known connection state to detect offline→online transitions
+	termWidth           int
+	termHeight          int
+	titleColorIdx       int  // current ray position; -10 = off-screen (resting between sweeps)
+	titleDir            int  // +1 = left-to-right, -1 = right-to-left
+	showHelp            bool // true while the [?] help overlay is visible
+	showThemePicker     bool // true while the /theme modal is visible
+	showModelSelector   bool // true while the model selector modal is overlaid on herd
+	themePickerIdx      int  // cursor position in the theme picker
+	themeIdx            int  // index into views.Themes; current active theme
+	configPath          string
 }
 
 // currentViewName maps the active view enum to the string key used by RenderHelpOverlay.
@@ -204,6 +205,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if _, ok := msg.(views.BackToHerdMsg); ok {
+		m.showModelSelector = false
 		m.current = viewHerd
 		return m, m.herd.Init()
 	}
@@ -234,8 +236,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// open model selector targeting a specific session.
 	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
-		m.returnView = m.current
 		m.models = m.models.ForSession(openMs.SessionID, openMs.SessionName)
+		if m.current == viewHerd {
+			// modal overlay — stay on herd, resize table to fit the modal box.
+			m.showModelSelector = true
+			m.models = m.models.WithModalDimensions()
+			return m, m.models.Init()
+		}
+		// from chat (ctrl+o) — keep full-view behaviour.
+		m.returnView = m.current
 		m.current = viewModels
 		return m, m.models.Init()
 	}
@@ -244,6 +253,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if assign, ok := msg.(views.AssignModelMsg); ok {
 		updated, cmd := m.herd.Update(assign)
 		m.herd = updated.(views.Herd)
+		if m.showModelSelector {
+			m.showModelSelector = false
+			return m, cmd
+		}
 		if m.returnView == viewChat {
 			m.current = viewChat
 			chat := m.chats[m.activeSession].WithModel(assign.ModelName)
@@ -269,6 +282,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.current = viewChat
 		return m, m.chats[sel.SessionID].Init()
+	}
+
+	// route all remaining messages to the model selector when the modal is active.
+	if m.showModelSelector {
+		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "esc" {
+			m.showModelSelector = false
+			return m, nil
+		}
+		updated, cmd := m.models.Update(msg)
+		m.models = updated.(views.ModelSelector)
+		return m, cmd
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
@@ -373,7 +397,9 @@ func (m Model) View() string {
 	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth, m.titleColorIdx) + "\n"
 
 	var body string
-	if m.showThemePicker {
+	if m.showModelSelector {
+		body = m.models.RenderModal(m.termWidth, m.termHeight-1)
+	} else if m.showThemePicker {
 		body = views.RenderThemeOverlay(m.themePickerIdx, m.termWidth, m.termHeight-1)
 	} else if m.showHelp {
 		// -1 to leave the top bar row; Place fills the remaining rows.

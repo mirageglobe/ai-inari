@@ -21,7 +21,7 @@ var helpByView = map[string][]helpEntry{
 	"herd": {
 		{"/default chat", "open chat for default kitsune"},
 		{"/agent add", "create session"},
-		{"/model select", "assign model"},
+		{"/model select", "assign model (modal)"},
 		{"/model unload", "unload model"},
 		{"/agent chat", "open chat"},
 		{"/agent delete", "delete session"},
