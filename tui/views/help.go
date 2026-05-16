@@ -19,6 +19,7 @@ type helpEntry struct {
 // update this table whenever a new binding is added to a view.
 var helpByView = map[string][]helpEntry{
 	"herd": {
+		{"/default chat", "open chat for default kitsune"},
 		{"/agent add", "create session"},
 		{"/model select", "assign model"},
 		{"/model unload", "unload model"},
