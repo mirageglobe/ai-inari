@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -31,10 +32,13 @@ var (
 // Herd is the default session-list view.
 // sessions are owned by inarid; fox fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
+// input is the command entry field shown in the footer; activated when the user types "/".
 type Herd struct {
 	client        *ipc.Client
 	table         table.Model
 	spinner       spinner.Model
+	input         textinput.Model
+	inputFocused  bool
 	loading       bool
 	status        string
 	sessions      []ipc.SessionInfo
@@ -66,10 +70,17 @@ func NewHerd(client *ipc.Client) Herd {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
+	ti := textinput.New()
+	ti.Placeholder = "type /command  (e.g. /agent add  /agent chat  /model select  /quit)"
+	ti.Prompt = "❯ "
+	ti.CharLimit = 64
+	ti.ShowSuggestions = true
+	ti.SetSuggestions(herdCommands)
 	return Herd{
 		client:      client,
 		table:       t,
 		spinner:     s,
+		input:       ti,
 		loading:     true,
 		runningInfo: make(map[string]runningMeta),
 	}
@@ -95,8 +106,8 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// and pushes the root header off the top of the display.
 		hintStr := RenderHint(herdHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
-		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + hint(hintHeight)
-		tableHeight := msg.Height - 5 - h.hintHeight
+		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + input(1) + hint(hintHeight)
+		tableHeight := msg.Height - 6 - h.hintHeight
 		if tableHeight < 1 {
 			tableHeight = 1
 		}
@@ -228,63 +239,75 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.rebuildTable()
 		return h, assignModelCmd(h.client, msg.SessionID, sessionName, msg.ModelName)
 
-	case tea.KeyMsg:
-		h.foxInfo = ""
-		if h.offline {
-			// when offline, only allow navigation keys, ignore mutating ones
-			switch msg.String() {
-			case "s", "m", "u", "c", "x", "e", "r", "enter":
-				return h, nil
+	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionPress {
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
+				h.table.MoveUp(3)
+			case tea.MouseButtonWheelDown:
+				h.table.MoveDown(3)
+			case tea.MouseButtonLeft:
+				// topbar(1) + box border-top(1) + col-header(1) = first data row at Y=3.
+				// cursorVisRow is the cursor's visual row within the visible window.
+				const tableBodyY = 3
+				tableH := h.table.Height()
+				cursor := h.table.Cursor()
+				cursorVisRow := min(cursor, tableH)
+				clickedVisIdx := msg.Y - tableBodyY
+				newCursor := cursor + clickedVisIdx - cursorVisRow
+				if newCursor >= 0 && newCursor < len(h.sessions) {
+					h.table.SetCursor(newCursor)
+				}
 			}
 		}
-		switch msg.String() {
-		case "e":
-			idx := h.table.Cursor()
-			if idx >= 0 && idx < len(h.sessions) {
-				sess := h.sessions[idx]
-				return h, exportChatCmd(h.client, sess.ID, sess.Name)
-			}
-		case "s":
-			name := pickFoxName(h.usedNames())
-			return h, createSessionCmd(h.client, name)
-		case "m":
-			idx := h.table.Cursor()
-			if idx >= 0 && idx < len(h.sessions) {
-				sess := h.sessions[idx]
-				return h, func() tea.Msg {
-					return OpenModelSelectorMsg{SessionID: sess.ID, SessionName: sess.Name}
+		return h, nil
+
+	case tea.KeyMsg:
+		h.foxInfo = ""
+
+		// "/" activates the command input when not already focused.
+		if !h.inputFocused && msg.String() == "/" {
+			h.input.SetValue("/")
+			h.input.CursorEnd()
+			h.inputFocused = true
+			return h, h.input.Focus()
+		}
+
+		if h.inputFocused {
+			switch msg.String() {
+			case "enter":
+				text := strings.TrimSpace(h.input.Value())
+				h.input.Reset()
+				h.inputFocused = false
+				h.input.Blur()
+				if strings.HasPrefix(text, "/") {
+					return h.handleSlashCommand(text)
 				}
+				return h, nil
+			case "esc":
+				h.input.Reset()
+				h.inputFocused = false
+				h.input.Blur()
+				return h, nil
 			}
-		case "r":
-			h.status = ""
-			h.loading = true
-			return h, tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
-		case "c", "enter":
-			idx := h.table.Cursor()
-			if idx >= 0 && idx < len(h.sessions) {
-				sess := h.sessions[idx]
-				if sess.Model != "" {
-					return h, func() tea.Msg {
-						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
+			var cmd tea.Cmd
+			h.input, cmd = h.input.Update(msg)
+			return h, cmd
+		}
+
+		// table navigation when input is not focused.
+		switch msg.String() {
+		case "enter":
+			if !h.offline {
+				idx := h.table.Cursor()
+				if idx >= 0 && idx < len(h.sessions) {
+					sess := h.sessions[idx]
+					if sess.Model != "" {
+						return h, func() tea.Msg {
+							return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
+						}
 					}
 				}
-			}
-		case "u":
-			idx := h.table.Cursor()
-			if idx >= 0 && idx < len(h.sessions) {
-				sess := h.sessions[idx]
-				if sess.Model != "" {
-					// optimistically clear the model locally; cmd persists it in inarid.
-					h.sessions[idx].Model = ""
-					h.rebuildTable()
-					return h, unassignModelCmd(h.client, sess.ID, sess.Name, sess.Model)
-				}
-			}
-		case "x":
-			idx := h.table.Cursor()
-			if idx >= 0 && idx < len(h.sessions) {
-				id := h.sessions[idx].ID
-				return h, deleteSessionCmd(h.client, id)
 			}
 		}
 	}
@@ -299,25 +322,153 @@ func (h Herd) WithOffline(offline bool) Herd {
 	return h
 }
 
-// herdHints returns the command hint list for the herd view.
+func (h Herd) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
+	switch cmd {
+	case "/agent add":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		name := pickFoxName(h.usedNames())
+		return h, createSessionCmd(h.client, name)
+	case "/model select":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		idx := h.table.Cursor()
+		if idx >= 0 && idx < len(h.sessions) {
+			sess := h.sessions[idx]
+			return h, func() tea.Msg {
+				return OpenModelSelectorMsg{SessionID: sess.ID, SessionName: sess.Name}
+			}
+		}
+	case "/model unload":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		idx := h.table.Cursor()
+		if idx >= 0 && idx < len(h.sessions) {
+			sess := h.sessions[idx]
+			if sess.Model != "" {
+				h.sessions[idx].Model = ""
+				h.rebuildTable()
+				return h, unassignModelCmd(h.client, sess.ID, sess.Name, sess.Model)
+			}
+		}
+	case "/agent chat":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		idx := h.table.Cursor()
+		if idx >= 0 && idx < len(h.sessions) {
+			sess := h.sessions[idx]
+			if sess.Model != "" {
+				return h, func() tea.Msg {
+					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
+				}
+			}
+		}
+	case "/agent delete":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		idx := h.table.Cursor()
+		if idx >= 0 && idx < len(h.sessions) {
+			id := h.sessions[idx].ID
+			return h, deleteSessionCmd(h.client, id)
+		}
+	case "/agent export":
+		idx := h.table.Cursor()
+		if idx >= 0 && idx < len(h.sessions) {
+			sess := h.sessions[idx]
+			return h, exportChatCmd(h.client, sess.ID, sess.Name)
+		}
+	case "/refresh":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		h.status = ""
+		h.loading = true
+		return h, tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
+	case "/agent logs":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		return h, func() tea.Msg { return OpenLogsMsg{} }
+	case "/agent describe":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		return h, func() tea.Msg { return OpenDescribeMsg{} }
+	case "/theme":
+		return h, func() tea.Msg { return CycleThemeMsg{} }
+	case "/help":
+		return h, func() tea.Msg { return ToggleHelpMsg{} }
+	case "/quit":
+		return h, tea.Quit
+	default:
+		h.foxInfo = modelsStyle.Render("[warn] unknown command: " + cmd)
+	}
+	return h, nil
+}
+
+// herdCommands is the ordered list of valid slash commands used for autocomplete suggestions.
+var herdCommands = []string{
+	"/agent add",
+	"/model select",
+	"/model unload",
+	"/agent chat",
+	"/agent delete",
+	"/agent export",
+	"/refresh",
+	"/agent logs",
+	"/agent describe",
+	"/theme",
+	"/help",
+	"/quit",
+}
+
+// herdHints returns the default command hint list for the herd view.
 // hasSession, hasModel, and offline control which items are enabled.
-func herdHints(hasSession, hasModel, offline bool) []HintCmd {
+func herdHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("[s] new kitsune", !offline),
-		hc("[m] model", hasSession && !offline),
-		hc("[u] unload", hasModel && !offline),
-		hc("[c] chat", hasModel && !offline),
-		hc("[x] delete", hasSession && !offline),
-		hc("[e] export", hasSession),
+		hc("/agent", !offline),
+		hc("/model", hasSession && !offline),
 		HS(),
-		hc("[r] refresh", !offline),
-		hc("[l] logs", !offline),
-		hc("[d] describe", hasSession && !offline),
-		H("[q] quit"),
-		HS(),
-		H("[t] theme"),
-		H("[?] help"),
+		hc("/refresh", !offline),
+		H("/theme"),
+		H("/help"),
+		H("/quit"),
+	}
+}
+
+// modelHints returns the expanded /model sub-command hint list shown when the user is typing /model.
+func modelHints(hasSession, hasModel, offline bool) []HintCmd {
+	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
+	return []HintCmd{
+		hc("/model select", hasSession && !offline),
+		hc("/model unload", hasModel && !offline),
+	}
+}
+
+// agentHints returns the expanded /agent sub-command hint list shown when the user is typing /agent.
+func agentHints(hasSession, hasModel, offline bool) []HintCmd {
+	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
+	return []HintCmd{
+		hc("/agent add", !offline),
+		hc("/agent chat", hasModel && !offline),
+		hc("/agent describe", hasSession && !offline),
+		hc("/agent export", hasSession),
+		hc("/agent logs", !offline),
+		hc("/agent delete", hasSession && !offline),
 	}
 }
 
@@ -330,13 +481,46 @@ func (h Herd) View() string {
 	if hasSession {
 		sessionName = h.sessions[idx].Name
 	}
-	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("herd")
-	foxLine := viewLabel + "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render(sessionName+" > ")
-	if h.foxInfo != "" {
-		foxLine += h.foxInfo
+	sepStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	labelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+	metaStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	sep := sepStyle.Render(" | ")
+
+	model := "—"
+	tokens := "—"
+	cwd := "—"
+	if hasSession {
+		sess := h.sessions[idx]
+		if sess.Model != "" {
+			model = sess.Model
+		}
+		if sess.ContextChars > 0 {
+			tokens = fmtTokens(sess.ContextChars)
+		}
+		if sess.CWD != "" {
+			cwd = sess.CWD
+		}
 	}
 
-	hint := RenderHint(herdHints(hasSession, hasModel, h.offline), h.width)
+	foxLine := labelStyle.Render("herd") + sep +
+		labelStyle.Render(sessionName) + sep +
+		metaStyle.Render(model) + sep +
+		metaStyle.Render(tokens) + sep +
+		metaStyle.Render(cwd)
+	if h.foxInfo != "" {
+		foxLine += "  " + h.foxInfo
+	}
+
+	var hints []HintCmd
+	switch {
+	case strings.HasPrefix(h.input.Value(), "/agent"):
+		hints = agentHints(hasSession, hasModel, h.offline)
+	case strings.HasPrefix(h.input.Value(), "/model"):
+		hints = modelHints(hasSession, hasModel, h.offline)
+	default:
+		hints = herdHints(hasSession, hasModel, h.offline)
+	}
+	hint := RenderHint(hints, h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
@@ -348,7 +532,7 @@ func (h Herd) View() string {
 	if h.status != "" {
 		body += "\n" + h.status
 	}
-	return body + "\n" + foxLine + "\n" + hint
+	return body + "\n" + foxLine + "\n" + h.input.View() + "\n" + hint
 }
 
 func (h *Herd) rebuildTable() {

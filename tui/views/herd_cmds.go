@@ -24,6 +24,18 @@ type runningMeta struct {
 	expiry string
 }
 
+// OpenLogsMsg is emitted by herd to navigate to the logs view.
+type OpenLogsMsg struct{}
+
+// OpenDescribeMsg is emitted by herd to navigate to the describe view.
+type OpenDescribeMsg struct{}
+
+// CycleThemeMsg is emitted by herd to cycle to the next theme.
+type CycleThemeMsg struct{}
+
+// ToggleHelpMsg is emitted by herd to open/close the help overlay.
+type ToggleHelpMsg struct{}
+
 type runningMsg struct {
 	models []provider.RunningModel
 	err    error

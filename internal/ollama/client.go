@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
@@ -33,6 +34,20 @@ func NewClient(baseURL string) *Client {
 }
 
 func (c *Client) SetVerbose(v bool) { c.verbose = v }
+
+// ollamaError reads the response body and returns a descriptive error that
+// includes the ollama message when available (e.g. "model not found").
+func ollamaError(resp *http.Response) error {
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	var payload struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(raw, &payload) == nil && payload.Error != "" {
+		return fmt.Errorf("ollama: status %d: %s", resp.StatusCode, payload.Error)
+	}
+	return fmt.Errorf("ollama: status %d", resp.StatusCode)
+}
 
 // Ping returns nil if Ollama is reachable.
 func (c *Client) Ping() error {
@@ -84,10 +99,10 @@ func (c *Client) LoadModel(model string) error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("ollama: status %d", resp.StatusCode)
+		return ollamaError(resp)
 	}
+	resp.Body.Close()
 	return nil
 }
 
@@ -99,10 +114,10 @@ func (c *Client) UnloadModel(model string) error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("ollama: status %d", resp.StatusCode)
+		return ollamaError(resp)
 	}
+	resp.Body.Close()
 	return nil
 }
 
@@ -120,10 +135,10 @@ func (c *Client) Chat(model string, messages []provider.Message) (string, error)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("ollama: status %d", resp.StatusCode)
+		return "", ollamaError(resp)
 	}
+	defer resp.Body.Close()
 	var result provider.ChatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
@@ -149,11 +164,10 @@ func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatRe
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("ollama: status %d", resp.StatusCode)
+		return ollamaError(resp)
 	}
+	defer resp.Body.Close()
 
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {

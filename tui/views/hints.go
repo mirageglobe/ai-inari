@@ -1,11 +1,12 @@
 // Package views — hint bar rendering shared across all views.
-// this file owns the HintCmd type, constructor helpers, and RenderHint.
+// this file owns the HintCmd type, constructor helpers, RenderHint, and RenderScrollbar.
 // it does NOT own view-specific hint lists — those live in their respective view files.
 package views
 
 import (
 	"strings"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -13,6 +14,7 @@ import (
 const UIWidth = 100
 
 var (
+	hintLabelStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	hintActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	hintDisabledStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	hintSepStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
@@ -45,10 +47,12 @@ func RenderHint(cmds []HintCmd, width int) string {
 
 	const gap = "  "
 	const sepRaw = " │ "
+	const prefixRaw = "hint: "
+	prefix := hintLabelStyle.Render(prefixRaw)
 
 	var lines []string
-	lineRaw := ""
-	lineParts := []string{}
+	lineRaw := prefixRaw
+	lineParts := []string{prefix}
 
 	flush := func() {
 		if len(lineParts) > 0 {
@@ -93,4 +97,34 @@ func RenderHint(cmds []HintCmd, width int) string {
 	}
 	flush()
 	return strings.Join(lines, "\n")
+}
+
+// RenderScrollbar returns a 1-character-wide vertical scrollbar for the given viewport.
+// returns an empty string when all content fits without scrolling.
+func RenderScrollbar(vp viewport.Model) string {
+	total := vp.TotalLineCount()
+	h := vp.Height
+	if total <= h || h <= 0 {
+		return ""
+	}
+	thumbH := max(1, h*h/total)
+	maxOffset := total - h
+	thumbTop := 0
+	if maxOffset > 0 {
+		thumbTop = (h - thumbH) * vp.YOffset / maxOffset
+	}
+	trackStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	thumbStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	var sb strings.Builder
+	for i := range h {
+		if i > 0 {
+			sb.WriteByte('\n')
+		}
+		if i >= thumbTop && i < thumbTop+thumbH {
+			sb.WriteString(thumbStyle.Render("█"))
+		} else {
+			sb.WriteString(trackStyle.Render("░"))
+		}
+	}
+	return sb.String()
 }

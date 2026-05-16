@@ -1,114 +1,78 @@
+# ================================================================ info ===== #
+
+# project : ai-inari
+# author  : mirageglobe
+
+# ======================================================= configuration ===== #
+
+PROJECT  := ai-inari
+BIN_DIR  := bin
+DAEMON   := $(BIN_DIR)/inarid
+TUI      := $(BIN_DIR)/kitsune
+
 .DEFAULT_GOAL := help
 
-BIN_DIR     := bin
-DAEMON_BIN  := $(BIN_DIR)/inarid
-TUI_BIN     := $(BIN_DIR)/kitsune
+.SHELLFLAGS := -eu -o pipefail -c
+.ONESHELL:
 
-# ============================================================
-# Help
-# ============================================================
+.PHONY: help all build clean fmt lint test run-daemon run-tui start stop demo
 
-.PHONY: help
-help:                        ## Show this help
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+# ============================================================== targets ===== #
 
-# ============================================================
-# Build
-# ============================================================
+# ----------------------------------------------------------------- meta ----- #
 
-.PHONY: build
-build: build-daemon build-tui  ## Build all binaries
+help: ## show this menu
+	@printf "\n  \033[33m$(PROJECT)\033[0m\n"
+	@printf "\n  usage: make <target>\n\n"
+	@awk '/^##@/ { printf "\n  \033[1m%s\033[0m\n", substr($$0, 5) } /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-15s\033[0m %s\n", substr($$1, 1, length($$1)-1), substr($$0, index($$0, "##")+3) }' $(MAKEFILE_LIST)
+	@printf "\n"
 
-.PHONY: build-daemon
-build-daemon:                ## Build inarid (daemon)
+##@ build
+
+all: lint test ## run lint and test
+
+build: ## build all binaries
 	@mkdir -p $(BIN_DIR)
-	go build -o $(DAEMON_BIN) ./cmd/inarid
+	go build -o $(DAEMON) ./cmd/inarid
+	go build -o $(TUI)    ./cmd/kitsune
 
-.PHONY: build-tui
-build-tui:                   ## Build kitsune (TUI)
-	@mkdir -p $(BIN_DIR)
-	go build -o $(TUI_BIN) ./cmd/kitsune
+clean: ## remove build artefacts and socket
+	rm -rf $(BIN_DIR)
+	rm -f /tmp/inari.sock inari-audit.log kitsune.log
 
-# ============================================================
-# Run
-# ============================================================
+##@ run
 
-.PHONY: start
-start: build                 ## Build, start ollama + inarid in background, then launch kitsune TUI
-	@pgrep ollama > /dev/null || (echo "starting ollama..." && ollama serve > /dev/null 2>&1 &)
-	@sleep 1
-	@pgrep inarid > /dev/null && echo "inarid already running" || (./$(DAEMON_BIN) & echo $$! > /tmp/inarid.pid)
-	@sleep 0.5
-	@./$(TUI_BIN)
-	@$(MAKE) --no-print-directory stop
-
-.PHONY: stop
-stop:                        ## Stop inarid background process
-	@-kill $$(cat /tmp/inarid.pid 2>/dev/null) 2>/dev/null && rm -f /tmp/inarid.pid && echo "inarid stopped" || true
-
-.PHONY: run-daemon
-run-daemon:                  ## Run inarid directly (no build)
+run-daemon: ## run inarid in foreground (no build)
 	go run ./cmd/inarid
 
-.PHONY: run-daemon-verbose
-run-daemon-verbose:          ## Run inarid with verbose RPC logging (no build)
-	go run ./cmd/inarid -v
-
-.PHONY: run-tui
-run-tui:                     ## Run kitsune TUI directly (no build)
+run-tui: ## run kitsune TUI (no build)
 	go run ./cmd/kitsune
 
-# ============================================================
-# Code quality
-# ============================================================
+start: build ## build, start inarid in background, launch kitsune
+	@pgrep ollama > /dev/null || (printf "starting ollama...\n" && ollama serve > /dev/null 2>&1 &)
+	@sleep 1
+	@pgrep inarid > /dev/null && printf "inarid already running\n" || (./$(DAEMON) & printf "$$!\n" > /tmp/inarid.pid)
+	@sleep 0.5
+	@./$(TUI)
+	@$(MAKE) --no-print-directory stop
 
-.PHONY: fmt
-fmt:                         ## Format all Go source files
-	go fmt ./...
+stop: ## stop background inarid
+	@-kill $$(cat /tmp/inarid.pid 2>/dev/null) 2>/dev/null && rm -f /tmp/inarid.pid && printf "inarid stopped\n" || true
 
-.PHONY: vet
-vet:                         ## Run go vet
+##@ verify
+
+lint: ## run vet and staticcheck
 	go vet ./...
+	@command -v staticcheck >/dev/null && staticcheck ./... || printf "  staticcheck not found — skipping\n"
 
-.PHONY: tidy
-tidy:                        ## Tidy and verify go.mod / go.sum
-	go mod tidy
-
-.PHONY: lint
-lint:                        ## Run staticcheck (install: go install honnef.co/go/tools/cmd/staticcheck@latest)
-	staticcheck ./...
-
-# ============================================================
-# Test
-# ============================================================
-
-.PHONY: test
-test:                        ## Run all tests with vet
+test: ## run all tests
 	go vet ./...
 	go test ./...
 
-.PHONY: test-v
-test-v:                      ## Run all tests (verbose) with vet
-	go vet ./...
-	go test -v ./...
+##@ demo
 
-# ============================================================
-# Demo
-# ============================================================
-
-.PHONY: demo
-demo: build-daemon build-tui      ## Generate VHS demo GIF
-	@pgrep inarid > /dev/null && echo "inarid already running" || (./$(DAEMON_BIN) & echo $$! > /tmp/inarid.pid)
+demo: build ## generate vhs demo gif
+	@pgrep inarid > /dev/null && printf "inarid already running\n" || (./$(DAEMON) & printf "$$!\n" > /tmp/inarid.pid)
 	@sleep 1
 	/opt/homebrew/bin/vhs demo.tape
 	@$(MAKE) --no-print-directory stop
-
-# ============================================================
-# Clean
-# ============================================================
-
-.PHONY: clean
-clean:                       ## Remove build artefacts and socket
-	rm -rf $(BIN_DIR)
-	rm -f /tmp/inari.sock
-	rm -f inari-audit.log kitsune.log
