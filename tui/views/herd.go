@@ -357,6 +357,21 @@ func (h Herd) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 				return h, unassignModelCmd(h.client, sess.ID, sess.Name, sess.Model)
 			}
 		}
+	case "/default chat":
+		if h.offline {
+			h.foxInfo = modelsStyle.Render("[warn] offline")
+			return h, nil
+		}
+		// open chat for the first session in the list regardless of cursor position.
+		if len(h.sessions) > 0 {
+			sess := h.sessions[0]
+			if sess.Model != "" {
+				return h, func() tea.Msg {
+					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
+				}
+			}
+			h.foxInfo = modelsStyle.Render("[warn] default kitsune has no model assigned")
+		}
 	case "/agent chat":
 		if h.offline {
 			h.foxInfo = modelsStyle.Render("[warn] offline")
@@ -421,6 +436,7 @@ func (h Herd) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 
 // herdCommands is the ordered list of valid slash commands used for autocomplete suggestions.
 var herdCommands = []string{
+	"/default chat",
 	"/agent add",
 	"/model select",
 	"/model unload",
@@ -440,6 +456,7 @@ var herdCommands = []string{
 func herdHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
+		hc("/default", !offline),
 		hc("/agent", !offline),
 		hc("/model", hasSession && !offline),
 		HS(),
@@ -447,6 +464,14 @@ func herdHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 		H("/theme"),
 		H("/help"),
 		H("/quit"),
+	}
+}
+
+// defaultHints returns the expanded /default sub-command hint list.
+func defaultHints(hasDefault, offline bool) []HintCmd {
+	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
+	return []HintCmd{
+		hc("/default chat", hasDefault && !offline),
 	}
 }
 
@@ -511,8 +536,11 @@ func (h Herd) View() string {
 		foxLine += "  " + h.foxInfo
 	}
 
+	hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
 	var hints []HintCmd
 	switch {
+	case strings.HasPrefix(h.input.Value(), "/default"):
+		hints = defaultHints(hasDefault, h.offline)
 	case strings.HasPrefix(h.input.Value(), "/agent"):
 		hints = agentHints(hasSession, hasModel, h.offline)
 	case strings.HasPrefix(h.input.Value(), "/model"):
