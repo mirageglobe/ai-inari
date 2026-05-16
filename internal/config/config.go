@@ -4,7 +4,9 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
+	"path/filepath"
 )
 
 type MCPConnector struct {
@@ -29,8 +31,33 @@ type Config struct {
 	Theme          string         `json:"theme,omitempty"`
 }
 
+var defaults = &Config{
+	Socket:         "/tmp/inari.sock",
+	MemoryBudgetMB: 8192,
+	OllamaBaseURL:  "http://localhost:11434",
+	MCPConnectors:  []MCPConnector{},
+	Models: Models{
+		Thinker: "bonsai:8b",
+		Worker:  "bonsai:4b",
+		Sensor:  "qwen3-nano",
+	},
+	Theme: "slate",
+}
+
+// Load reads config from path. if the file does not exist it is created with
+// defaults so the user has a starting point to edit.
 func Load(path string) (*Config, error) {
 	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		if mkErr := os.MkdirAll(filepath.Dir(path), 0755); mkErr != nil {
+			return nil, mkErr
+		}
+		cfg := *defaults
+		if saveErr := cfg.Save(path); saveErr != nil {
+			return nil, saveErr
+		}
+		return &cfg, nil
+	}
 	if err != nil {
 		return nil, err
 	}
