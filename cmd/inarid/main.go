@@ -40,12 +40,24 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
-func pidFile() string {
+func inariDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalf("home dir: %v", err)
 	}
-	return filepath.Join(home, ".local", "share", "inari", "inarid.pid")
+	return filepath.Join(home, ".local", "share", "inari")
+}
+
+func pidFile() string {
+	return filepath.Join(inariDir(), "inarid.pid")
+}
+
+func defaultConfigPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("home dir: %v", err)
+	}
+	return filepath.Join(home, ".config", "inari", "config.json")
 }
 
 func readPID() (int, error) {
@@ -119,6 +131,7 @@ func cmdStatus() {
 func main() {
 	verbose := flag.Bool("v", false, "verbose logging: print every RPC call and response")
 	daemon := flag.Bool("daemon", false, "run as background daemon (used internally by 'start')")
+	configFlag := flag.String("config", "", "path to config.json (default: ~/.config/inari/config.json)")
 	flag.Parse()
 
 	switch flag.Arg(0) {
@@ -139,7 +152,11 @@ func main() {
 
 	log.Println("awakening inari daemon")
 
-	cfg, err := config.Load("config.json")
+	cfgPath := defaultConfigPath()
+	if *configFlag != "" {
+		cfgPath = *configFlag
+	}
+	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}

@@ -26,3 +26,6 @@ bin/
 /kitsune
 *.test
 coverage.out
+
+# user-local config (lives at ~/.config/inari/config.json)
+config.json
