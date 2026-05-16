@@ -392,6 +392,53 @@ func (s *Server) dispatch(req Request) Response {
 		}
 		return Response{JSONRPC: "2.0", Result: visible, ID: req.ID}
 
+	// session.clear removes all user/assistant messages, retaining the system prompt.
+	case "session.clear":
+		var params struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		sess, ok := s.store.Get(params.ID)
+		if !ok {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+		}
+		sess.ClearHistory()
+		s.store.Persist(params.ID)
+		return Response{JSONRPC: "2.0", Result: true, ID: req.ID}
+
+	// session.compact summarises the conversation with the assigned model, then replaces
+	// all user/assistant messages with the summary. the system prompt is preserved.
+	case "session.compact":
+		if r, ok := s.providerErr(req); !ok {
+			return r
+		}
+		var params struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		sess, ok := s.store.Get(params.ID)
+		if !ok {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+		}
+		if sess.Model == "" {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no model assigned to session"}, ID: req.ID}
+		}
+		compactPrompt := append(sess.ChatHistory(), provider.Message{
+			Role:    "user",
+			Content: "summarise this conversation in a few concise bullet points. include key decisions and outcomes only.",
+		})
+		summary, err := s.provider.Chat(sess.Model, compactPrompt)
+		if err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
+		}
+		sess.ReplaceWithSummary(summary)
+		s.store.Persist(params.ID)
+		return Response{JSONRPC: "2.0", Result: summary, ID: req.ID}
+
 	// session.chat appends a user message, sends the full history to Ollama,
 	// stores the reply, and returns the assistant's text. History is never sent
 	// over the wire — fox sends only the new user text each turn.

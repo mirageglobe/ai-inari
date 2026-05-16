@@ -219,6 +219,34 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.rebuildDisplay()
 		return c, nil
 
+	case clearHistoryResultMsg:
+		if msg.err != nil {
+			c.status = "[warn] clear failed: " + msg.err.Error()
+			return c, nil
+		}
+		c.messages = nil
+		c.display = nil
+		c.ctxChars = 0
+		c.historyLoaded = true
+		setViewportContent(&c.viewport, c.viewportContent())
+		c.status = ""
+		return c, nil
+
+	case compactHistoryResultMsg:
+		c.waiting = false
+		if msg.err != nil {
+			c.status = "[warn] compact failed: " + msg.err.Error()
+			return c, nil
+		}
+		c.messages = []provider.Message{{Role: "assistant", Content: msg.summary}}
+		c.ctxChars = len(msg.summary)
+		c.historyLoaded = true
+		c.rebuildDisplay()
+		setViewportContent(&c.viewport, c.viewportContent())
+		c.viewport.GotoBottom()
+		c.status = ""
+		return c, nil
+
 	case chatHistoryMsg:
 		if msg.err != nil || c.historyLoaded {
 			return c, nil
@@ -395,7 +423,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // chatCommands is the ordered list of slash commands available in the chat view.
-var chatCommands = []string{"/model change", "/tools"}
+var chatCommands = []string{"/clear", "/compact", "/model change", "/tools"}
 
 // renderChatSuggestions replaces the hint bar when the user is typing a slash command.
 // commands that match the current prefix are shown active; others are dimmed.
@@ -428,8 +456,27 @@ func renderChatSuggestions(prefix string, width int) string {
 	return label + strings.Join(parts, gap)
 }
 
+type clearHistoryResultMsg struct{ err error }
+type compactHistoryResultMsg struct {
+	summary string
+	err     error
+}
+
 func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
+	case "/clear":
+		id := c.sessionID
+		return c, func() tea.Msg {
+			return clearHistoryResultMsg{err: c.client.ClearHistory(id)}
+		}
+	case "/compact":
+		id := c.sessionID
+		c.waiting = true
+		c.status = "compacting…"
+		return c, tea.Batch(c.spinner.Tick, func() tea.Msg {
+			summary, err := c.client.CompactHistory(id)
+			return compactHistoryResultMsg{summary: summary, err: err}
+		})
 	case "/model change":
 		return c, func() tea.Msg {
 			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}

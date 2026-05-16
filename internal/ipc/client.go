@@ -267,6 +267,41 @@ func (c *Client) History(sessionID string) ([]provider.Message, error) {
 	return messages, nil
 }
 
+// ClearHistory removes all user/assistant messages from the session, retaining the system prompt.
+func (c *Client) ClearHistory(sessionID string) error {
+	resp, err := c.Call("session.clear", map[string]string{"id": sessionID})
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Message)
+	}
+	return nil
+}
+
+// CompactHistory summarises the session history with the assigned model and replaces all
+// user/assistant messages with the summary. returns the summary text on success.
+func (c *Client) CompactHistory(sessionID string) (string, error) {
+	resp, err := c.Call("session.compact", map[string]string{"id": sessionID})
+	if err != nil {
+		return "", err
+	}
+	if resp.Error != nil {
+		return "", fmt.Errorf("%s", resp.Error.Message)
+	}
+	summary, ok := resp.Result.(string)
+	if !ok {
+		b, err := json.Marshal(resp.Result)
+		if err != nil {
+			return "", fmt.Errorf("compact: unexpected result type")
+		}
+		if err := json.Unmarshal(b, &summary); err != nil {
+			return "", fmt.Errorf("compact: unexpected result type")
+		}
+	}
+	return summary, nil
+}
+
 // ChatStream sends a user message and streams token chunks into tokens.
 // it dials a fresh dedicated UDS connection so it never blocks the shared client
 // connection — multiple sessions can stream concurrently without contention.
