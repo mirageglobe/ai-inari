@@ -624,6 +624,7 @@ var allowedCommands = map[string]bool{
 	"go":   true,
 	"make": true,
 	"git":  true,
+	"date": true,
 }
 
 const runCommandTimeout = 30 * time.Second
