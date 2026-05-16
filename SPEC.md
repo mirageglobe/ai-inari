@@ -85,6 +85,30 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[kitsune]` `[easy]` chat input mode indicators — update the chat entry prefix to show the active mode (e.g., `[chat] >`, `[tool] >`, `[/] >`) for better visual feedback.
 - [ ] `[inarid]` `[medium]` **local server endpoint profiles** — support named endpoint profiles in `config.json` (e.g. `ollama`, `lmstudio`, `llamacpp`) each specifying a `base_url`, optional `api_key`, and any provider-specific headers or path overrides; inarid selects the active profile via a top-level `provider` field and routes all model requests through it. this is a prerequisite for the provider abstraction idea below and allows users to switch between local inference backends without rebuilding or patching inarid.
 - [ ] `[inarid]` `[medium]` **ollama runtime env tuning** — investigate and expose three Ollama environment variables as first-class inarid config fields: `OLLAMA_MAX_LOADED_MODELS` (default `3`; caps how many models stay resident in VRAM/RAM simultaneously), `OLLAMA_NUM_PARALLEL` (default `1` for low-RAM setups, `4` for high-throughput; controls concurrent request slots per model), and `OLLAMA_KEEP_ALIVE` (default `5m`; how long an idle model stays loaded). inarid should read these from `config.json` under an `ollama` block and pass them as environment variables when spawning or communicating with the Ollama process, or document them as required host-level env vars if inarid does not manage the Ollama process lifecycle. the kitsune settings view (or a `--ollama-info` flag on inarid) should surface the active values so the user can tune memory vs. throughput trade-offs without needing to know the underlying env var names.
+- [ ] `[inarid]` `[medium]` **implement Ollama model curation and role-based assignments** — integrate model roles (coding, general) and curated model lists into session management, allowing users to assign roles and default to recommended models based on the definitions in the "Ollama Model Curation" section.
+
+### Ollama Model Curation
+
+Inarid will support explicit model roles to optimize for common use cases. Each role will have a curated list of recommended Ollama models. Users can assign these roles to sessions, and inarid will suggest or default to models best suited for the role.
+
+#### Coding Role
+
+**Purpose:** Optimized for code generation, review, refactoring, and debugging. Models in this role are typically proficient in multiple programming languages, understand code structure, and can generate accurate and syntactically correct code snippets.
+
+**Curated Models:**
+- `qwen:code` (e.g., qwen:7b-code)
+- `deepseek-coder` (various sizes)
+- `granite:code` (e.g., granite-7b-code)
+
+#### General Role
+
+**Purpose:** Versatile models suitable for a wide range of conversational and text generation tasks, including summarization, creative writing, question answering, and general knowledge queries. These models prioritize broad understanding and fluent language generation.
+
+**Curated Models:**
+- `gemma4` (various sizes)
+- `kimi` (e.g., kimi-8b)
+- `mistral` (various sizes)
+- `qwen:instruct` (e.g., qwen:7b-chat)
 
 ### Ideas
 - [ ] `[inarid]` **MCP tool-call dispatch** — `internal/mcp/host.go` `Call()` is a TODO stub; audit logging exists but actual JSON-RPC dispatch over stdio is not implemented. complete to fulfil M4.
