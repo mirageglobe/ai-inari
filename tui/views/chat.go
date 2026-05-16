@@ -74,6 +74,9 @@ type Chat struct {
 	showBuiltin   bool
 	ctxChars      int
 	status        string // transient status/warn message shown in the status line
+	inputHistory  []string // sent user messages, oldest first
+	historyIdx    int      // index into inputHistory during navigation; -1 = not navigating
+	historyDraft  string   // saves the in-progress input when history navigation starts
 	streamBuf     string
 	streamTokens  <-chan string
 	streamErrc    <-chan error
@@ -122,6 +125,7 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 		input:       ta,
 		spinner:     sp,
 		ctxChars:    ctxChars,
+		historyIdx:  -1,
 	}
 }
 
@@ -168,8 +172,8 @@ func arrowOnlyKeyMap() viewport.KeyMap {
 		PageUp:       key.NewBinding(key.WithKeys()),
 		HalfPageUp:   key.NewBinding(key.WithKeys()),
 		HalfPageDown: key.NewBinding(key.WithKeys()),
-		Up:           key.NewBinding(key.WithKeys("up")),
-		Down:         key.NewBinding(key.WithKeys("down")),
+		Up:           key.NewBinding(key.WithKeys()),
+		Down:         key.NewBinding(key.WithKeys()),
 	}
 }
 
@@ -281,12 +285,13 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// subtract 2 for the left+right border columns that each component adds.
 		contentW := msg.Width
 		c.input.SetWidth(contentW - 2)
+		// viewport is 1 char narrower than the border interior to leave room for the scrollbar.
 		if !c.ready {
-			c.viewport = viewport.New(contentW-2, height)
+			c.viewport = viewport.New(contentW-3, height)
 			c.viewport.KeyMap = arrowOnlyKeyMap()
 			c.ready = true
 		} else {
-			c.viewport.Width = contentW - 2
+			c.viewport.Width = contentW - 3
 			c.viewport.Height = height
 		}
 		setViewportContent(&c.viewport, c.viewportContent())
@@ -296,6 +301,35 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+f" && c.cwd != "" {
 			c.showBuiltin = !c.showBuiltin
+			return c, nil
+		}
+		// up/down navigate input history instead of scrolling the viewport.
+		if msg.String() == "up" && !c.waiting {
+			if len(c.inputHistory) == 0 {
+				return c, nil
+			}
+			if c.historyIdx == -1 {
+				c.historyDraft = c.input.Value()
+				c.historyIdx = len(c.inputHistory) - 1
+			} else if c.historyIdx > 0 {
+				c.historyIdx--
+			}
+			c.input.SetValue(c.inputHistory[c.historyIdx])
+			c.input.CursorEnd()
+			return c, nil
+		}
+		if msg.String() == "down" && !c.waiting {
+			if c.historyIdx == -1 {
+				return c, nil
+			}
+			if c.historyIdx < len(c.inputHistory)-1 {
+				c.historyIdx++
+				c.input.SetValue(c.inputHistory[c.historyIdx])
+			} else {
+				c.historyIdx = -1
+				c.input.SetValue(c.historyDraft)
+			}
+			c.input.CursorEnd()
 			return c, nil
 		}
 		if msg.Type == tea.KeyEnter && !c.waiting {
@@ -311,6 +345,9 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if c.offline {
 				return c, nil
 			}
+			c.inputHistory = append(c.inputHistory, text)
+			c.historyIdx = -1
+			c.historyDraft = ""
 			c.messages = append(c.messages, provider.Message{Role: "user", Content: text})
 			c.display = append(c.display, userStyle.Render("you: ")+text)
 			c.ctxChars += len(text)
@@ -346,7 +383,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
-	case "/model":
+	case "/model change":
 		return c, func() tea.Msg {
 			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}
 		}
@@ -364,7 +401,6 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 }
 
 func (c Chat) View() string {
-	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("chat")
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hint string
 	if c.showBuiltin {
@@ -377,9 +413,9 @@ func (c Chat) View() string {
 	} else {
 		var builtinHint HintCmd
 		if c.cwd != "" {
-			builtinHint = H("[/tools]")
+			builtinHint = H("/tools")
 		} else {
-			builtinHint = HD("[/tools]")
+			builtinHint = HD("/tools")
 		}
 
 		sendHint := H("[enter] send")
@@ -389,22 +425,44 @@ func (c Chat) View() string {
 
 		hint = RenderHint([]HintCmd{
 			sendHint,
-			H("[/model]"),
-			builtinHint,
+			H("[↑↓] history"),
 			HS(),
-			H("[↑↓] scroll"),
+			H("/model change"),
+			builtinHint,
 			H("[esc] back"),
-			HD("[t] theme"),
-			HD("[?] help"),
 		}, c.viewport.Width+2)
 	}
-	body := herdStyle.Render(c.viewport.View())
-	statusText := c.model + "  " + fmtTokens(c.ctxChars)
-	statusStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	if c.status != "" {
-		statusText = c.status
-		statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	scrollbar := RenderScrollbar(c.viewport)
+	var viewContent string
+	if scrollbar != "" {
+		viewContent = lipgloss.JoinHorizontal(lipgloss.Top, c.viewport.View(), scrollbar)
+	} else {
+		viewContent = c.viewport.View()
 	}
-	statusLine := viewLabel + "  " + statusStyle.Render(statusText)
+	body := herdStyle.Render(viewContent)
+	sepStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	metaStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	labelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+	sep := sepStyle.Render(" | ")
+	model := c.model
+	if model == "" {
+		model = "—"
+	}
+	tokens := fmtTokens(c.ctxChars)
+	if c.ctxChars == 0 {
+		tokens = "—"
+	}
+	cwd := c.cwd
+	if cwd == "" {
+		cwd = "—"
+	}
+	statusLine := labelStyle.Render("chat") + sep +
+		labelStyle.Render(c.sessionName) + sep +
+		metaStyle.Render(model) + sep +
+		metaStyle.Render(tokens) + sep +
+		metaStyle.Render(cwd)
+	if c.status != "" {
+		statusLine += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
+	}
 	return body + "\n" + statusLine + "\n" + c.input.View() + "\n" + hint
 }

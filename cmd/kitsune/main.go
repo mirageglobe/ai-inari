@@ -48,7 +48,7 @@ func main() {
 	// without this, the terminal's response leaks into the textarea as raw text.
 	lipgloss.SetHasDarkBackground(true)
 
-	p := tea.NewProgram(tui.New(client, defaultConfigPath, themeIdx), tea.WithAltScreen())
+	p := tea.NewProgram(tui.New(client, defaultConfigPath, themeIdx), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("tui: %v", err)
 	}

@@ -43,9 +43,11 @@ type Model struct {
 	termHeight    int
 	titleColorIdx int  // current ray position; -10 = off-screen (resting between sweeps)
 	titleDir      int  // +1 = left-to-right, -1 = right-to-left
-	showHelp      bool // true while the [?] help overlay is visible
-	themeIdx      int  // index into views.Themes; cycled by [t]
-	configPath    string
+	showHelp        bool // true while the [?] help overlay is visible
+	showThemePicker bool // true while the /theme modal is visible
+	themePickerIdx  int  // cursor position in the theme picker
+	themeIdx        int  // index into views.Themes; current active theme
+	configPath      string
 }
 
 // currentViewName maps the active view enum to the string key used by RenderHelpOverlay.
@@ -206,6 +208,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.herd.Init()
 	}
 
+	if _, ok := msg.(views.OpenLogsMsg); ok {
+		m.current = viewLogs
+		return m, m.logs.Init()
+	}
+
+	if _, ok := msg.(views.OpenDescribeMsg); ok {
+		if sess, vram, ok := m.herd.SelectedSession(); ok {
+			m.describe = m.describe.ForSession(sess, vram, m.client)
+		}
+		m.current = viewDescribe
+		return m, m.describe.Init()
+	}
+
+	if _, ok := msg.(views.CycleThemeMsg); ok {
+		m.themePickerIdx = m.themeIdx
+		m.showThemePicker = true
+		return m, nil
+	}
+
+	if _, ok := msg.(views.ToggleHelpMsg); ok {
+		m.showHelp = !m.showHelp
+		return m, nil
+	}
+
 	// open model selector targeting a specific session.
 	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
 		m.returnView = m.current
@@ -246,25 +272,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if key, ok := msg.(tea.KeyMsg); ok {
-		// [?] toggles the help overlay from any view except chat, where ? is a valid text character.
-		if key.String() == "?" && m.current != viewChat {
-			m.showHelp = !m.showHelp
+		if m.showThemePicker {
+			switch key.String() {
+			case "up", "k":
+				if m.themePickerIdx > 0 {
+					m.themePickerIdx--
+				}
+			case "down", "j":
+				if m.themePickerIdx < len(views.Themes)-1 {
+					m.themePickerIdx++
+				}
+			case "enter":
+				m.showThemePicker = false
+				m.themeIdx = m.themePickerIdx
+				return m.applyTheme(m.themeIdx)
+			case "esc":
+				m.showThemePicker = false
+			}
 			return m, nil
 		}
-		// [t] cycles to the next built-in theme from any view except chat, where t is a valid text character.
-		if key.String() == "t" && m.current != viewChat {
-			m.themeIdx = (m.themeIdx + 1) % len(views.Themes)
-			views.ApplyTheme(views.Themes[m.themeIdx])
-			if m.configPath != "" {
-				go func() {
-					cfg, err := config.Load(m.configPath)
-					if err == nil {
-						cfg.Theme = views.Themes[m.themeIdx].Name
-						_ = cfg.Save(m.configPath)
-					}
-				}()
-			}
-			return m, func() tea.Msg { return views.ThemeChangedMsg{} }
+
+		// [?] toggles help from non-herd, non-chat views; herd uses /help slash command.
+		if key.String() == "?" && m.current != viewChat && m.current != viewHerd {
+			m.showHelp = !m.showHelp
+			return m, nil
 		}
 
 		// while help is open, only [esc] (or a second [?]) closes it; all other keys are consumed.
@@ -288,24 +319,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.current = viewModels
 				return m, m.models.Init()
-			}
-		case viewHerd:
-			switch key.String() {
-			case "q":
-				return m, tea.Quit
-			case "l":
-				if m.connOnline {
-					m.current = viewLogs
-					return m, m.logs.Init()
-				}
-			case "d":
-				if m.connOnline {
-					if sess, vram, ok := m.herd.SelectedSession(); ok {
-						m.describe = m.describe.ForSession(sess, vram, m.client)
-					}
-					m.current = viewDescribe
-					return m, m.describe.Init()
-				}
 			}
 		default:
 			// esc from secondary views returns to herd, except when describe is in edit mode
@@ -342,11 +355,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) applyTheme(idx int) (tea.Model, tea.Cmd) {
+	views.ApplyTheme(views.Themes[idx])
+	if m.configPath != "" {
+		go func() {
+			cfg, err := config.Load(m.configPath)
+			if err == nil {
+				cfg.Theme = views.Themes[idx].Name
+				_ = cfg.Save(m.configPath)
+			}
+		}()
+	}
+	return m, func() tea.Msg { return views.ThemeChangedMsg{} }
+}
+
 func (m Model) View() string {
 	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth, m.titleColorIdx) + "\n"
 
 	var body string
-	if m.showHelp {
+	if m.showThemePicker {
+		body = views.RenderThemeOverlay(m.themePickerIdx, m.termWidth, m.termHeight-1)
+	} else if m.showHelp {
 		// -1 to leave the top bar row; Place fills the remaining rows.
 		body = views.RenderHelpOverlay(m.currentViewName(), m.termWidth, m.termHeight-1)
 	} else {

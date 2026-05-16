@@ -5,6 +5,8 @@
 package views
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -66,6 +68,32 @@ func ThemeIndex(name string) int {
 		}
 	}
 	return 0
+}
+
+// RenderThemeOverlay renders a theme-picker modal centred in termWidth × termHeight.
+// cursor is the index of the currently highlighted theme.
+func RenderThemeOverlay(cursor, termWidth, termHeight int) string {
+	var sb strings.Builder
+	sb.WriteString(helpTitleStyle.Render("theme"))
+	sb.WriteString("\n\n")
+
+	for i, t := range Themes {
+		nameStyle := lipgloss.NewStyle().Foreground(t.Primary)
+		prefix := "  "
+		if i == cursor {
+			prefix = lipgloss.NewStyle().Foreground(t.Primary).Bold(true).Render("▸ ")
+			sb.WriteString(nameStyle.Bold(true).Render(prefix + t.Name))
+		} else {
+			sb.WriteString(nameStyle.Render(prefix + t.Name))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(helpFootStyle.Render("[↑↓] navigate  [enter] apply  [esc] cancel"))
+
+	box := helpBoxStyle.Render(sb.String())
+	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
 // ApplyTheme updates ActiveTheme and all package-level style variables.
