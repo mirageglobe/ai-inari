@@ -171,8 +171,8 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		d.width = msg.Width
 		d.height = msg.Height
-		// topbar(1) + header(1) + border-top(1) + border-bottom(1) + hint(1) = 5 reserved
-		vpHeight := msg.Height - 5
+		// topbar(1) + border-top(1) + border-bottom(1) + hint(1) = 4 reserved
+		vpHeight := msg.Height - 4
 		if vpHeight < 1 {
 			vpHeight = 1
 		}
@@ -249,7 +249,8 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d Describe) View() string {
-	header := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("describe")
+	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("describe")
+	labelW := 10 // len("describe") + len("  ")
 
 	if d.editing {
 		editLabel := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Render("  editing behavior")
@@ -265,15 +266,15 @@ func (d Describe) View() string {
 		if d.saveErr != "" {
 			hintCmds = append(hintCmds, HS(), HD(d.saveErr))
 		}
-		hint := RenderHint(hintCmds, d.width)
-		return header + editLabel + "\n" + d.input.View() + "\n" + hint
+		hint := viewLabel + editLabel + "  " + RenderHint(hintCmds, d.width-labelW-len("  editing behavior")-2)
+		return d.input.View() + "\n" + hint
 	}
 
 	editHint := H("[e] edit behavior")
 	if d.offline {
 		editHint = HD("[e] edit behavior")
 	}
-	hint := RenderHint([]HintCmd{editHint, H("[esc] back"), HS(), H("[?] help")}, d.width)
+	hint := viewLabel + "  " + RenderHint([]HintCmd{editHint, H("[esc] back"), HS(), H("[?] help")}, d.width-labelW)
 
 	var body string
 	if !d.ready {
@@ -282,5 +283,5 @@ func (d Describe) View() string {
 		body = herdStyle.Render(d.viewport.View())
 	}
 
-	return header + "\n" + body + "\n" + hint
+	return body + "\n" + hint
 }

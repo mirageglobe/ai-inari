@@ -1,7 +1,6 @@
 package views
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -74,6 +73,7 @@ type Chat struct {
 	offline       bool
 	showBuiltin   bool
 	ctxChars      int
+	status        string // transient status/warn message shown in the status line
 	streamBuf     string
 	streamTokens  <-chan string
 	streamErrc    <-chan error
@@ -83,6 +83,11 @@ type Chat struct {
 // called by the root model whenever connectivity changes.
 func (c Chat) WithOffline(offline bool) Chat {
 	c.offline = offline
+	return c
+}
+
+func (c Chat) WithModel(model string) Chat {
+	c.model = model
 	return c
 }
 
@@ -141,16 +146,6 @@ func (c Chat) viewportContent() string {
 		return base + "\n" + thinking
 	}
 	return base
-}
-
-// fmtTokens formats a character count as a human-readable estimated token count.
-// uses the ~4 chars-per-token rule of thumb common for English/code text.
-func fmtTokens(chars int) string {
-	t := chars / 4
-	if t < 1000 {
-		return fmt.Sprintf("~%d tokens", t)
-	}
-	return fmt.Sprintf("~%.1fk tokens", float64(t)/1000)
 }
 
 // setViewportContent pre-wraps content to the viewport width before calling
@@ -251,9 +246,9 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		c.waiting = false
 		if msg.Err != nil {
-			c.messages = append(c.messages, provider.Message{Role: "error", Content: msg.Err.Error()})
-			c.display = append(c.display, errorStyle.Render("error: "+msg.Err.Error()))
+			c.status = "[warn] " + msg.Err.Error()
 		} else {
+			c.status = ""
 			c.messages = append(c.messages, provider.Message{Role: "assistant", Content: c.streamBuf})
 			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+c.streamBuf)
 			c.ctxChars += len(c.streamBuf)
@@ -276,8 +271,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, cmd
 
 	case tea.WindowSizeMsg:
-		// topbar(1) + chat header(1) + border-top(1) + viewport(h) + border-bottom(1) +
-		// textarea(1, no border — Base style is plain lipgloss.NewStyle()) + hint(1) = h+6 total.
+		// topbar(1) + border-top(1) + viewport(h) + border-bottom(1) +
+		// textarea(1) + statusLine(1) + hint(1) = h+6 total.
 		height := msg.Height - 6
 		if height < 1 {
 			height = 1
@@ -303,15 +298,24 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.showBuiltin = !c.showBuiltin
 			return c, nil
 		}
-		if msg.Type == tea.KeyEnter && !c.waiting && !c.offline {
+		if msg.Type == tea.KeyEnter && !c.waiting {
 			text := strings.TrimSpace(c.input.Value())
 			if text == "" {
+				return c, nil
+			}
+			if strings.HasPrefix(text, "/") {
+				c.input.Reset()
+				c.status = ""
+				return c.handleSlashCommand(text)
+			}
+			if c.offline {
 				return c, nil
 			}
 			c.messages = append(c.messages, provider.Message{Role: "user", Content: text})
 			c.display = append(c.display, userStyle.Render("you: ")+text)
 			c.ctxChars += len(text)
 			c.input.Reset()
+			c.status = ""
 			c.waiting = true
 			// start stream goroutine; store channels on struct so ChatTokenMsg
 			// handlers can schedule the next readNextToken without carrying them in the message.
@@ -340,30 +344,42 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return c, tea.Batch(vpCmd, taCmd)
 }
 
-func (c Chat) View() string {
-	title := c.model
-	if c.sessionName != "" {
-		title = c.sessionName + "  " + lipgloss.NewStyle().Faint(true).Render("("+c.model+")")
+func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
+	switch cmd {
+	case "/model":
+		return c, func() tea.Msg {
+			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}
+		}
+	case "/tools":
+		if c.cwd != "" {
+			c.showBuiltin = !c.showBuiltin
+		} else {
+			c.status = "[warn] tools not available (no cwd set)"
+		}
+		return c, nil
+	default:
+		c.status = "[warn] unknown command: " + cmd
+		return c, nil
 	}
-	ctxStat := lipgloss.NewStyle().Faint(true).Render(fmtTokens(c.ctxChars))
-	header := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("chat") +
-		"  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render(title) +
-		"  " + ctxStat
+}
+
+func (c Chat) View() string {
+	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("chat")
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hint string
 	if c.showBuiltin {
 		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
 		dimStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-		hint = builtinStyle.Render("builtin") + "  " +
+		hint = builtinStyle.Render("tools") + "  " +
 			dimStyle.Render("read_file") + "  " +
 			dimStyle.Render("list_dir") + "  " +
 			dimStyle.Render("(sandboxed to cwd)")
 	} else {
 		var builtinHint HintCmd
 		if c.cwd != "" {
-			builtinHint = H("[ctrl+f] builtin")
+			builtinHint = H("[/tools]")
 		} else {
-			builtinHint = HD("[ctrl+f] builtin")
+			builtinHint = HD("[/tools]")
 		}
 
 		sendHint := H("[enter] send")
@@ -373,7 +389,7 @@ func (c Chat) View() string {
 
 		hint = RenderHint([]HintCmd{
 			sendHint,
-			H("[ctrl+o] model"),
+			H("[/model]"),
 			builtinHint,
 			HS(),
 			H("[↑↓] scroll"),
@@ -383,5 +399,12 @@ func (c Chat) View() string {
 		}, c.viewport.Width+2)
 	}
 	body := herdStyle.Render(c.viewport.View())
-	return header + "\n" + body + "\n" + c.input.View() + "\n" + hint
+	statusText := c.model + "  " + fmtTokens(c.ctxChars)
+	statusStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	if c.status != "" {
+		statusText = c.status
+		statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	}
+	statusLine := viewLabel + "  " + statusStyle.Render(statusText)
+	return body + "\n" + statusLine + "\n" + c.input.View() + "\n" + hint
 }

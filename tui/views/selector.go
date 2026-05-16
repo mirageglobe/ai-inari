@@ -111,7 +111,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		// topbar(1) + models header(1) + border-top(1) + col-header(1) + border-bottom(1) + status(1) + hint(1) = 7 reserved
-		tableHeight := msg.Height - 7
+		tableHeight := msg.Height - 6
 		if tableHeight < 1 {
 			tableHeight = 1
 		}
@@ -184,11 +184,11 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ModelSelector) View() string {
-	title := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("models")
+	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("models")
 	if m.targetSessionName != "" {
-		title += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
+		viewLabel += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
 	}
-	hint := RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back"), HS(), H("[?] help")}, m.width)
+	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
 	body := herdStyle.Render(m.table.View())
 	if m.status != "" {
 		line := m.status
@@ -197,5 +197,5 @@ func (m ModelSelector) View() string {
 		}
 		body += "\n" + line
 	}
-	return title + "\n" + body + "\n" + hint
+	return body + "\n" + hint
 }
