@@ -521,6 +521,41 @@ kitsune renders the preview and waits for `[y] approve` or `[n] reject`. only on
 
 **non-goal:** this design does not attempt to detect malicious intent from model outputs. it bounds damage structurally so that even a model producing harmful tool-calls cannot exceed the permitted blast radius.
 
+### 8.3 Extending Tools — Safe Addition Pattern
+
+before adding a new tool (e.g. bash execution), apply this checklist in order:
+
+**1. scope control first**
+- inherit the session's `cwd` sandbox — no tool operates outside it.
+- prefer an allowlist of specific commands over arbitrary shell access.
+  - safe starting point: `["git status", "go test ./...", "make <target>"]`
+  - only open to arbitrary bash after the approval gating UX is proven in production.
+- if arbitrary commands are needed, use a restricted shell (`rbash`) or run inside a container/`chroot` so the model cannot escape `cwd`.
+
+**2. assign a risk tier before wiring**
+- all new tools must be assigned a tier (safe / caution / destructive / forbidden) in the dispatch table before they are routable.
+- unclassified tools are hard-rejected. `run_command` is caution-tier at minimum; arbitrary bash is destructive-tier.
+
+**3. approval gating in kitsune**
+- inarid sends a `tool.preview` message to kitsune before executing any caution-or-above tool.
+- kitsune pauses the stream and renders the proposed command with `[y] approve / [n] reject`.
+- auto-execution without user confirmation is never permitted for command-running tools, even if the model requests it.
+- if kitsune is detached, the call is auto-rejected — commands never run unattended.
+
+**4. execution lives in inarid, never in kitsune**
+- kitsune is a display client. it must not spawn processes or evaluate tool outputs.
+- the `RunTool` RPC on the UDS socket is the only path from approval to execution.
+
+**5. audit everything**
+- every proposed command is logged before the approval prompt is shown.
+- every approved or rejected decision is logged with the user's response.
+- stdout/stderr from executed commands are truncated to the blast-radius cap (1 MB) before being forwarded as tool result messages.
+
+**incremental rollout order:**
+1. allowlist-only `run_command` with per-command approval gating — ships the UX safely.
+2. widen to arbitrary bash (destructive tier) only after step 1 is in production.
+3. replace with MCP filesystem/process connector once the tool-call loop supports it.
+
 ---
 
 ## 9. Development & Debugging
