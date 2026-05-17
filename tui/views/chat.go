@@ -88,6 +88,10 @@ type Chat struct {
 	toolReqs      <-chan ipc.ToolRequestMsg
 	toolApprovals chan<- bool
 	pendingTool   *toolApprovalRequestMsg
+	runningTool   string // name of the tool currently executing after approval
+	selActive     bool
+	selStartLine  int // absolute content line (post-hardwrap) where drag started
+	selEndLine    int // absolute content line where drag currently ends
 }
 
 // WithOffline returns a copy of the chat with the offline flag set.
@@ -144,14 +148,6 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 // neither is ever written into display so finalisation is a simple append.
 func (c Chat) viewportContent() string {
 	base := strings.Join(c.display, "\n")
-	if c.pendingTool != nil {
-		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-		pendingLine := warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
-		if base == "" {
-			return pendingLine
-		}
-		return base + "\n" + pendingLine
-	}
 	if c.streamBuf != "" {
 		partial := assistantStyle.Render(c.sessionName+": ") + c.streamBuf
 		if base == "" {
@@ -160,11 +156,16 @@ func (c Chat) viewportContent() string {
 		return base + "\n" + partial
 	}
 	if c.waiting {
-		thinking := thinkingStyle.Render(c.spinner.View() + " thinking…")
-		if base == "" {
-			return thinking
+		var waitLine string
+		if c.runningTool != "" {
+			waitLine = thinkingStyle.Render(c.spinner.View() + " running: " + c.runningTool + "…")
+		} else {
+			waitLine = thinkingStyle.Render(c.spinner.View() + " thinking…")
 		}
-		return base + "\n" + thinking
+		if base == "" {
+			return waitLine
+		}
+		return base + "\n" + waitLine
 	}
 	return base
 }
@@ -179,6 +180,53 @@ func setViewportContent(vp *viewport.Model, content string) {
 		content = ansi.Hardwrap(content, vp.Width, true)
 	}
 	vp.SetContent(content)
+}
+
+// setViewportContentWithSel hardwraps content, applies a highlight background to
+// lines [lo, hi] (inclusive, normalised), then sets the viewport content directly
+// without a second hardwrap pass.
+func setViewportContentWithSel(vp *viewport.Model, content string, lo, hi int) {
+	if vp.Width > 0 {
+		content = ansi.Hardwrap(content, vp.Width, true)
+	}
+	lines := strings.Split(content, "\n")
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	if lo < 0 {
+		lo = 0
+	}
+	if hi >= len(lines) {
+		hi = len(lines) - 1
+	}
+	selStyle := lipgloss.NewStyle().Background(lipgloss.Color("240"))
+	for i := lo; i <= hi; i++ {
+		lines[i] = selStyle.Render(lines[i])
+	}
+	vp.SetContent(strings.Join(lines, "\n"))
+}
+
+// selectedText extracts the plain text for the current selection range.
+func (c Chat) selectedText() string {
+	content := c.viewportContent()
+	if c.viewport.Width > 0 {
+		content = ansi.Hardwrap(content, c.viewport.Width, true)
+	}
+	lines := strings.Split(content, "\n")
+	lo, hi := c.selStartLine, c.selEndLine
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	if lo < 0 {
+		lo = 0
+	}
+	if hi >= len(lines) {
+		hi = len(lines) - 1
+	}
+	if lo > hi {
+		return ""
+	}
+	return ansi.Strip(strings.Join(lines[lo:hi+1], "\n"))
 }
 
 // arrowOnlyKeyMap restricts viewport scrolling to arrow keys only,
@@ -313,6 +361,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return c, nil
 		}
 		c.waiting = false
+		c.runningTool = ""
 		c.pendingTool = &msg
 		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
@@ -324,6 +373,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		c.streamBuf += msg.Token
 		c.waiting = false // hide spinner once first token arrives
+		c.runningTool = ""
 		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
 		return c, readNextToken(c.sessionID, c.streamTokens, c.streamErrc, c.toolReqs)
@@ -346,6 +396,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.streamErrc = nil
 		c.toolReqs = nil
 		c.toolApprovals = nil
+		c.runningTool = ""
 		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
 		return c, nil
@@ -371,13 +422,13 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// subtract 2 for the left+right border columns that each component adds.
 		contentW := msg.Width
 		c.input.SetWidth(contentW - 2)
-		// viewport is 1 char narrower than the border interior to leave room for the scrollbar.
+		// viewport fills the border interior; right border is rendered separately by RenderRightEdge.
 		if !c.ready {
-			c.viewport = viewport.New(contentW-3, height)
+			c.viewport = viewport.New(contentW-2, height)
 			c.viewport.KeyMap = arrowOnlyKeyMap()
 			c.ready = true
 		} else {
-			c.viewport.Width = contentW - 3
+			c.viewport.Width = contentW - 2
 			c.viewport.Height = height
 		}
 		setViewportContent(&c.viewport, c.viewportContent())
@@ -389,6 +440,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c.pendingTool != nil {
 			switch msg.String() {
 			case "y", "Y":
+				c.runningTool = c.pendingTool.Name
 				c.toolApprovals <- true
 				c.pendingTool = nil
 				c.waiting = true
@@ -494,6 +546,41 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.viewport.GotoBottom()
 			return c, tea.Batch(readNextToken(c.sessionID, tokens, errc, toolReqs), c.spinner.Tick)
 		}
+
+	case tea.MouseMsg:
+		// topbar(1) + border-top(1) = viewport content starts at terminal row 2.
+		const viewportTopY = 2
+		switch msg.Action {
+		case tea.MouseActionPress:
+			if msg.Button == tea.MouseButtonLeft {
+				cl := c.viewport.YOffset + (msg.Y - viewportTopY)
+				c.selActive = true
+				c.selStartLine = cl
+				c.selEndLine = cl
+				setViewportContentWithSel(&c.viewport, c.viewportContent(), c.selStartLine, c.selEndLine)
+				return c, nil
+			}
+		case tea.MouseActionMotion:
+			if c.selActive {
+				cl := c.viewport.YOffset + (msg.Y - viewportTopY)
+				c.selEndLine = cl
+				setViewportContentWithSel(&c.viewport, c.viewportContent(), c.selStartLine, c.selEndLine)
+				return c, nil
+			}
+		case tea.MouseActionRelease:
+			if c.selActive {
+				cl := c.viewport.YOffset + (msg.Y - viewportTopY)
+				c.selEndLine = cl
+				if text := c.selectedText(); text != "" {
+					_ = copyToClipboard(text)
+					c.status = "[copied]"
+				}
+				c.selActive = false
+				setViewportContent(&c.viewport, c.viewportContent())
+				return c, nil
+			}
+		}
+		// unhandled mouse events (wheel scroll etc.) fall through to viewport.Update below.
 	}
 
 	var (
@@ -625,16 +712,11 @@ func (c Chat) View() string {
 			H("/model change"),
 			builtinHint,
 			H("[esc] back"),
-		}, c.viewport.Width+2)
+		}, c.viewport.Width+1)
 	}
-	scrollbar := RenderScrollbar(c.viewport)
-	var viewContent string
-	if scrollbar != "" {
-		viewContent = lipgloss.JoinHorizontal(lipgloss.Top, c.viewport.View(), scrollbar)
-	} else {
-		viewContent = c.viewport.View()
-	}
-	body := herdStyle.Render(viewContent)
+	chatBoxStyle := herdStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)
+	rightEdge := RenderRightEdge(c.viewport)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, chatBoxStyle.Render(c.viewport.View()), rightEdge)
 
 	model := c.model
 	if model == "" {
@@ -644,15 +726,14 @@ func (c Chat) View() string {
 	if c.ctxChars == 0 {
 		tokens = "—"
 	}
-	cwd := c.cwd
-	if cwd == "" {
-		cwd = "—"
-	}
-	foxLine := RenderFoxLine("chat", c.sessionName, model, tokens, cwd)
+	foxLine := RenderFoxLine("chat", c.sessionName, model, tokens)
 	cwdLine := renderCWDLine(c.cwd)
 
 	var statusMsg string
-	if c.status != "" {
+	if c.pendingTool != nil {
+		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+		statusMsg = warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
+	} else if c.status != "" {
 		statusMsg = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
 	}
 	return body + "\n" + renderFooter(foxLine, cwdLine, statusMsg, c.input.View(), hint)
