@@ -7,8 +7,7 @@
 
 PROJECT  := ai-inari
 BIN_DIR  := bin
-DAEMON   := $(BIN_DIR)/inarid
-TUI      := $(BIN_DIR)/kitsune
+BINARY   := $(BIN_DIR)/inari
 
 .DEFAULT_GOAL := help
 
@@ -31,33 +30,29 @@ help: ## show this menu
 
 all: lint test ## run lint and test
 
-build: ## build all binaries
+build: ## build inari binary
 	@mkdir -p $(BIN_DIR)
-	go build -o $(DAEMON) ./cmd/inarid
-	go build -o $(TUI)    ./cmd/kitsune
+	go build -o $(BINARY) ./cmd/inari
 
 clean: ## remove build artefacts and socket
 	rm -rf $(BIN_DIR)
-	rm -f /tmp/inari.sock inari-audit.log kitsune.log
+	rm -f /tmp/inari.sock inari-audit.log inari.log
 
 ##@ run
 
-run-daemon: ## run inarid in foreground (no build)
-	go run ./cmd/inarid
+run-daemon: ## run daemon in foreground (no build)
+	go run ./cmd/inari daemon
 
-run-tui: ## run kitsune TUI (no build)
-	go run ./cmd/kitsune
+run-tui: ## run TUI only (no build, assumes daemon running)
+	go run ./cmd/inari tui
 
-start: build ## build, start inarid in background, launch kitsune
+start: build ## build and run inari start (daemon + TUI)
 	@pgrep ollama > /dev/null || (printf "starting ollama...\n" && ollama serve > /dev/null 2>&1 &)
 	@sleep 1
-	@pgrep inarid > /dev/null && printf "inarid already running\n" || (./$(DAEMON) & printf "$$!\n" > /tmp/inarid.pid)
-	@sleep 0.5
-	@./$(TUI)
-	@$(MAKE) --no-print-directory stop
+	./$(BINARY) start
 
-stop: ## stop background inarid
-	@-kill $$(cat /tmp/inarid.pid 2>/dev/null) 2>/dev/null && rm -f /tmp/inarid.pid && printf "inarid stopped\n" || true
+stop: ## stop the running daemon
+	./$(BINARY) stop
 
 ##@ verify
 
@@ -72,7 +67,7 @@ test: ## run all tests
 ##@ demo
 
 demo: build ## generate vhs demo gif
-	@pgrep inarid > /dev/null && printf "inarid already running\n" || (./$(DAEMON) & printf "$$!\n" > /tmp/inarid.pid)
+	./$(BINARY) daemon &
 	@sleep 1
 	/opt/homebrew/bin/vhs demo.tape
-	@$(MAKE) --no-print-directory stop
+	./$(BINARY) stop
