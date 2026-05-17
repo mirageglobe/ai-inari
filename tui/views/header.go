@@ -34,7 +34,7 @@ var rayColors = []struct {
 }
 
 // TitleText is the rendered title string; its rune count drives the sweep length.
-const TitleText = "🦊 inari ui │ github.com/mirageglobe/ai-inari"
+const TitleText = "🦊 inari │ github.com/mirageglobe/ai-inari"
 
 // TitleLen is the number of runes in TitleText, used by the root model to detect
 // when the ray has crossed the full title and the 30s pause should begin.
@@ -130,7 +130,7 @@ func RenderTopBar(connErr string, stats SysStatsMsg, width, colorIdx int) string
 	if connErr != "" {
 		connText = ConnErrStyle.Render("  ○ 👹 inarid offline")
 	} else {
-		connText = ConnOKStyle.Render("  ● 👹 inarid online")
+		connText = ConnOKStyle.Render("  ● inarid online")
 	}
 
 	right := sysText + connText

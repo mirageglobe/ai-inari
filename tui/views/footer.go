@@ -13,11 +13,12 @@ import (
 //	label | name | model | tokens
 func RenderSessionLine(label, name, model, tokens string) string {
 	sepStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	labelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+	labelStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	nameStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
 	metaStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
 	sep := sepStyle.Render(" | ")
-	return labelStyle.Render(label) + sep +
-		labelStyle.Render(name) + sep +
+	return labelStyle.Render("[session]") + " " + labelStyle.Render(label) + sep +
+		nameStyle.Render(name) + sep +
 		metaStyle.Render(model) + sep +
 		metaStyle.Render(tokens)
 }
@@ -33,13 +34,19 @@ func renderFooter(sessionLine, cwdLine, statusLine, inputLine, hintLine string) 
 	return sessionLine + "\n" + cwdLine + "\n" + statusLine + "\n" + inputLine + "\n" + hintLine
 }
 
-// renderCWDLine formats the sandboxed working directory line shown in the footer.
+// renderStatusLine prefixes content with a [status] label; always renders the label.
+func renderStatusLine(content string) string {
+	labelStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	return labelStyle.Render("[status]") + " " + content
+}
+
+// renderCWDLine formats the sandboxed working directory line shown in the footer; always renders the label.
 func renderCWDLine(cwd string) string {
-	if cwd == "" || cwd == "—" {
-		return ""
-	}
 	labelStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
 	pathStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
+	if cwd == "" || cwd == "—" {
+		cwd = "—"
+	}
 	return labelStyle.Render("[cwd]") + " " + pathStyle.Render(cwd)
 }
 

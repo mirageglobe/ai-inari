@@ -553,15 +553,16 @@ func (h Herd) View() string {
 	sessionLine := RenderSessionLine("herd", sessionName, model, tokens)
 	cwdLine := renderCWDLine(cwd)
 
-	var statusLine string
+	var statusContent string
 	switch {
 	case h.status != "" && h.foxInfo != "":
-		statusLine = h.status + "  " + h.foxInfo
+		statusContent = h.status + "  " + h.foxInfo
 	case h.status != "":
-		statusLine = h.status
+		statusContent = h.status
 	case h.foxInfo != "":
-		statusLine = h.foxInfo
+		statusContent = h.foxInfo
 	}
+	statusLine := renderStatusLine(statusContent)
 
 	hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
 	var hints []HintCmd
@@ -580,7 +581,7 @@ func (h Herd) View() string {
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
 		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune…"))
-		return body + "\n" + renderFooter(sessionLine, cwdLine, "", "", hintLine)
+		return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, "", hintLine)
 	}
 
 	body := herdStyle.Render(h.table.View())

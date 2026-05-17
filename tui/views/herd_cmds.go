@@ -185,6 +185,18 @@ func exportChatCmd(client *ipc.Client, sessionID, sessionName string) tea.Cmd {
 	}
 }
 
+type modelCapsMsg struct {
+	model string
+	caps  []string
+}
+
+func fetchModelCapsCmd(client *ipc.Client, model string) tea.Cmd {
+	return func() tea.Msg {
+		caps, _ := client.ModelCaps(model)
+		return modelCapsMsg{model: model, caps: caps}
+	}
+}
+
 // formatBytes formats a byte count as a human-readable string (GB/MB/B).
 func formatBytes(b int64) string {
 	switch {

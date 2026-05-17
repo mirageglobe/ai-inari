@@ -729,12 +729,12 @@ func (c Chat) View() string {
 	sessionLine := RenderSessionLine("chat", c.sessionName, model, tokens)
 	cwdLine := renderCWDLine(c.cwd)
 
-	var statusLine string
+	var statusContent string
 	if c.pendingTool != nil {
 		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-		statusLine = warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
+		statusContent = warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
 	} else if c.status != "" {
-		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
+		statusContent = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
 	}
-	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, c.input.View(), hintLine)
+	return body + "\n" + renderFooter(sessionLine, cwdLine, renderStatusLine(statusContent), c.input.View(), hintLine)
 }

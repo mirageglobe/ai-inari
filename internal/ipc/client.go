@@ -400,6 +400,27 @@ func (c *Client) SetContext(sessionID, prompt string) error {
 	return nil
 }
 
+// ModelCaps returns the capability tags for a model (e.g. "tools", "vision").
+// returns an empty slice when the model is unknown or the backend does not support introspection.
+func (c *Client) ModelCaps(model string) ([]string, error) {
+	resp, err := c.Call("ollama.show", map[string]string{"model": model})
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != nil {
+		return []string{}, nil
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return []string{}, nil
+	}
+	var caps []string
+	if err := json.Unmarshal(b, &caps); err != nil {
+		return []string{}, nil
+	}
+	return caps, nil
+}
+
 func (c *Client) Quit() error {
 	_, err := c.Call("daemon.quit", nil)
 	return err
