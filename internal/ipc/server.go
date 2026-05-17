@@ -130,7 +130,7 @@ func (s *Server) handle(conn net.Conn) {
 			if s.verbose {
 				log.Printf("[inariui→inarid] session.stream %s", req.Params)
 			}
-			s.handleStream(conn, req)
+			s.handleStream(conn, dec, req)
 			return
 		}
 
@@ -156,7 +156,7 @@ func (s *Server) handle(conn net.Conn) {
 // appends the results, and re-sends — looping until the model returns a text reply.
 // only tokens from the final text reply are forwarded to kitsune.
 // the connection is closed by the caller (handle).
-func (s *Server) handleStream(conn net.Conn, req Request) {
+func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	enc := json.NewEncoder(conn)
 
 	var params struct {
@@ -238,6 +238,24 @@ func (s *Server) handleStream(conn net.Conn, req Request) {
 		// tool-call round: append assistant message with calls, execute each, append results.
 		sess.AppendMessage(provider.Message{Role: "assistant", ToolCalls: toolCalls})
 		for _, tc := range toolCalls {
+			// ask kitsune for approval before executing the tool.
+			enc.Encode(map[string]any{
+				"tool_request": map[string]any{
+					"name": tc.Function.Name,
+					"args": tc.Function.Arguments,
+				},
+			})
+			var approval struct {
+				Approved bool `json:"tool_approved"`
+			}
+			if decErr := dec.Decode(&approval); decErr != nil || !approval.Approved {
+				sess.AppendMessage(provider.Message{Role: "tool", Content: "user denied tool execution"})
+				if s.verbose {
+					log.Printf("[inarid→builtin] %s denied by user", tc.Function.Name)
+				}
+				continue
+			}
+
 			result, err := execTool(tc.Function.Name, tc.Function.Arguments, sess.CWD)
 			if err != nil {
 				result = "error: " + err.Error()
@@ -300,7 +318,15 @@ func (s *Server) dispatch(req Request) Response {
 		if params.CWD != "" {
 			sess.CWD = params.CWD
 			tree := buildFileTree(params.CWD, 3)
-			combined := sess.SystemPrompt + "\n\nworking directory: " + params.CWD + "\n" + tree
+			combined := sess.SystemPrompt +
+				"\n\nworking directory: " + params.CWD + "\n" + tree +
+				"\n\nyou have access to the following tools to explore the working directory:\n" +
+				"- read_file(path): read the full text of a file\n" +
+				"- list_dir(path): list files and directories inside a path\n" +
+				"- grep_files(path, pattern): search for a regex pattern across files, returns matching lines\n" +
+				"- file_stat(path): return size, modification time, and type for a file or directory\n" +
+				"- run_command(command, args): run an allowlisted command (go, make, git, ls, cat, find, etc.) in the working directory\n" +
+				"use these tools whenever the user asks about files, code, or the project structure."
 			sess.SetSystemPrompt(combined)
 		}
 		s.store.Add(sess)
@@ -434,7 +460,7 @@ func (s *Server) dispatch(req Request) Response {
 		}
 		compactPrompt := append(sess.ChatHistory(), provider.Message{
 			Role:    "user",
-			Content: "summarise this conversation in a few concise bullet points. include key decisions and outcomes only.",
+			Content: "write a detailed summary of this conversation that preserves enough context for the conversation to continue naturally. include: the main topic and goal, all questions asked and answers given, any code or commands discussed, decisions made and their rationale, current state and what was left to do. use bullet points grouped by topic. do not omit technical details.",
 		})
 		summary, err := s.provider.Chat(sess.Model, compactPrompt)
 		if err != nil {
@@ -646,13 +672,16 @@ const runCommandMaxBytes = 64 * 1024 // 64 KB output cap
 
 // execTool dispatches a tool call by name, enforces the cwd sandbox, and returns the result.
 func execTool(name string, args map[string]any, cwd string) (string, error) {
-	rawPath, _ := args["path"].(string)
-	safePath, err := sandboxPath(cwd, rawPath)
-	if err != nil {
-		return "", err
+	sandboxed := func() (string, error) {
+		rawPath, _ := args["path"].(string)
+		return sandboxPath(cwd, rawPath)
 	}
 	switch name {
 	case "read_file":
+		safePath, err := sandboxed()
+		if err != nil {
+			return "", err
+		}
 		data, err := os.ReadFile(safePath)
 		if err != nil {
 			return "", err
@@ -663,6 +692,10 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 		}
 		return string(data), nil
 	case "list_dir":
+		safePath, err := sandboxed()
+		if err != nil {
+			return "", err
+		}
 		entries, err := os.ReadDir(safePath)
 		if err != nil {
 			return "", err
@@ -677,6 +710,10 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 		}
 		return sb.String(), nil
 	case "grep_files":
+		safePath, err := sandboxed()
+		if err != nil {
+			return "", err
+		}
 		rawPattern, _ := args["pattern"].(string)
 		re, err := regexp.Compile(rawPattern)
 		if err != nil {
@@ -711,6 +748,11 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 		}
 		return sb.String(), nil
 	case "file_stat":
+		rawPath, _ := args["path"].(string)
+		safePath, err := sandboxed()
+		if err != nil {
+			return "", err
+		}
 		info, err := os.Stat(safePath)
 		if err != nil {
 			return "", err

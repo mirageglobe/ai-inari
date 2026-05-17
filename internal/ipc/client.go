@@ -302,17 +302,28 @@ func (c *Client) CompactHistory(sessionID string) (string, error) {
 	return summary, nil
 }
 
+// ToolRequestMsg is sent from the server when a tool call needs user approval before executing.
+type ToolRequestMsg struct {
+	Name string         `json:"name"`
+	Args map[string]any `json:"args"`
+}
+
 // ChatStream sends a user message and streams token chunks into tokens.
 // it dials a fresh dedicated UDS connection so it never blocks the shared client
 // connection — multiple sessions can stream concurrently without contention.
-// the caller must drain tokens until it is closed; the goroutine closes it after
-// the stream ends (success or error). the returned error reflects the final outcome.
-func (c *Client) ChatStream(sessionID, text string, tokens chan<- string) error {
+// when the server needs to run a tool it sends a ToolRequestMsg on toolReqs and
+// blocks until the caller sends true/false on approvals. the caller must drain
+// tokens until it is closed; the goroutine closes it after the stream ends.
+// the returned error reflects the final outcome.
+func (c *Client) ChatStream(sessionID, text string, tokens chan<- string, toolReqs chan<- ToolRequestMsg, approvals <-chan bool) error {
 	conn, err := net.Dial("unix", c.socket)
 	if err != nil {
 		return fmt.Errorf("stream dial: %w", err)
 	}
 	defer conn.Close()
+
+	enc := json.NewEncoder(conn)
+	dec := json.NewDecoder(conn)
 
 	req := Request{
 		JSONRPC: "2.0",
@@ -322,16 +333,16 @@ func (c *Client) ChatStream(sessionID, text string, tokens chan<- string) error 
 	b, _ := json.Marshal(map[string]string{"id": sessionID, "text": text})
 	req.Params = json.RawMessage(b)
 
-	if err := json.NewEncoder(conn).Encode(req); err != nil {
+	if err := enc.Encode(req); err != nil {
 		return err
 	}
 
-	dec := json.NewDecoder(conn)
 	for {
 		var frame struct {
-			Token string `json:"token"`
-			Done  bool   `json:"done"`
-			Error string `json:"error"`
+			Token       string          `json:"token"`
+			Done        bool            `json:"done"`
+			Error       string          `json:"error"`
+			ToolRequest *ToolRequestMsg `json:"tool_request,omitempty"`
 		}
 		if err := dec.Decode(&frame); err != nil {
 			return err
@@ -341,6 +352,15 @@ func (c *Client) ChatStream(sessionID, text string, tokens chan<- string) error 
 		}
 		if frame.Done {
 			return nil
+		}
+		if frame.ToolRequest != nil {
+			// forward to TUI, wait for user decision, send back to server.
+			toolReqs <- *frame.ToolRequest
+			approved := <-approvals
+			if err := enc.Encode(map[string]bool{"tool_approved": approved}); err != nil {
+				return err
+			}
+			continue
 		}
 		if frame.Token != "" {
 			tokens <- frame.Token

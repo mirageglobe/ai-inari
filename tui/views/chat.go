@@ -1,6 +1,8 @@
 package views
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -52,6 +54,9 @@ type chatHistoryMsg struct {
 // live in the viewport and moved into display on ChatDoneMsg.
 // streamTokens / streamErrc are the channels for the active stream goroutine;
 // nil when no stream is in flight.
+// toolReqs / toolApprovals are the tool-approval channels used while a stream is active.
+// pendingTool is non-nil when the server has requested approval to run a tool; the
+// TUI shows an approval prompt and the stream is paused until the user responds.
 // offline mirrors the root model's connectivity state; when true, sends are blocked
 // and the send command is visually disabled in the hint bar.
 // cwd is non-empty when builtin tools (read_file, list_dir, grep_files, file_stat, run_command) are active for this session.
@@ -73,13 +78,16 @@ type Chat struct {
 	offline       bool
 	showBuiltin   bool
 	ctxChars      int
-	status        string // transient status/warn message shown in the status line
+	status        string   // transient status/warn message shown in the status line
 	inputHistory  []string // sent user messages, oldest first
 	historyIdx    int      // index into inputHistory during navigation; -1 = not navigating
 	historyDraft  string   // saves the in-progress input when history navigation starts
 	streamBuf     string
 	streamTokens  <-chan string
 	streamErrc    <-chan error
+	toolReqs      <-chan ipc.ToolRequestMsg
+	toolApprovals chan<- bool
+	pendingTool   *toolApprovalRequestMsg
 }
 
 // WithOffline returns a copy of the chat with the offline flag set.
@@ -132,9 +140,18 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 // viewportContent returns the string to show in the viewport.
 // during streaming, streamBuf is rendered as a live in-progress assistant message.
 // before the first token arrives, the spinner is shown instead.
+// when a tool approval is pending, the pending tool call is shown in place of the spinner.
 // neither is ever written into display so finalisation is a simple append.
 func (c Chat) viewportContent() string {
 	base := strings.Join(c.display, "\n")
+	if c.pendingTool != nil {
+		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+		pendingLine := warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
+		if base == "" {
+			return pendingLine
+		}
+		return base + "\n" + pendingLine
+	}
 	if c.streamBuf != "" {
 		partial := assistantStyle.Render(c.sessionName+": ") + c.streamBuf
 		if base == "" {
@@ -184,15 +201,44 @@ func fetchChatHistory(client *ipc.Client, sessionID string) tea.Cmd {
 	}
 }
 
-// readNextToken returns a cmd that blocks until the next token arrives on the channel,
-// then emits ChatTokenMsg or ChatDoneMsg (when the channel is closed).
-func readNextToken(sessionID string, tokens <-chan string, errc <-chan error) tea.Cmd {
+// toolApprovalRequestMsg is emitted when the server wants to run a tool and needs user approval.
+type toolApprovalRequestMsg struct {
+	SessionID string
+	Name      string
+	Args      map[string]any
+}
+
+// formatToolArgs renders a tool argument map as a compact key=value string for display.
+func formatToolArgs(args map[string]any) string {
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, args[k]))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// readNextToken returns a cmd that blocks until the next token or tool request arrives,
+// then emits ChatTokenMsg, ChatDoneMsg (channel closed), or toolApprovalRequestMsg.
+// selecting on a nil toolReqs channel blocks indefinitely, effectively ignoring it.
+func readNextToken(sessionID string, tokens <-chan string, errc <-chan error, toolReqs <-chan ipc.ToolRequestMsg) tea.Cmd {
 	return func() tea.Msg {
-		token, ok := <-tokens
-		if !ok {
-			return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
+		select {
+		case token, ok := <-tokens:
+			if !ok {
+				return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
+			}
+			return ChatTokenMsg{SessionID: sessionID, Token: token}
+		case req, ok := <-toolReqs:
+			if !ok {
+				return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
+			}
+			return toolApprovalRequestMsg{SessionID: sessionID, Name: req.Name, Args: req.Args}
 		}
-		return ChatTokenMsg{SessionID: sessionID, Token: token}
 	}
 }
 
@@ -262,6 +308,16 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.rebuildDisplay()
 		return c, nil
 
+	case toolApprovalRequestMsg:
+		if msg.SessionID != c.sessionID {
+			return c, nil
+		}
+		c.waiting = false
+		c.pendingTool = &msg
+		setViewportContent(&c.viewport, c.viewportContent())
+		c.viewport.GotoBottom()
+		return c, nil
+
 	case ChatTokenMsg:
 		if msg.SessionID != c.sessionID {
 			return c, nil
@@ -270,7 +326,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.waiting = false // hide spinner once first token arrives
 		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
-		return c, readNextToken(c.sessionID, c.streamTokens, c.streamErrc)
+		return c, readNextToken(c.sessionID, c.streamTokens, c.streamErrc, c.toolReqs)
 
 	case ChatDoneMsg:
 		if msg.SessionID != c.sessionID {
@@ -288,6 +344,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.streamBuf = ""
 		c.streamTokens = nil
 		c.streamErrc = nil
+		c.toolReqs = nil
+		c.toolApprovals = nil
 		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
 		return c, nil
@@ -304,8 +362,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		// topbar(1) + border-top(1) + viewport(h) + border-bottom(1) +
-		// textarea(1) + statusLine(1) + hint(1) = h+6 total.
-		height := msg.Height - 6
+		// textarea(1) + statusLine(1) + statusMsg(1) + hint(1) = h+7 total.
+		height := msg.Height - 7
 		if height < 1 {
 			height = 1
 		}
@@ -327,6 +385,26 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, nil
 
 	case tea.KeyMsg:
+		// tool approval prompt intercepts all keys while a tool request is pending.
+		if c.pendingTool != nil {
+			switch msg.String() {
+			case "y", "Y":
+				c.toolApprovals <- true
+				c.pendingTool = nil
+				c.waiting = true
+				setViewportContent(&c.viewport, c.viewportContent())
+				c.viewport.GotoBottom()
+				return c, tea.Batch(readNextToken(c.sessionID, c.streamTokens, c.streamErrc, c.toolReqs), c.spinner.Tick)
+			case "n", "N", "esc":
+				c.toolApprovals <- false
+				c.pendingTool = nil
+				c.waiting = true
+				setViewportContent(&c.viewport, c.viewportContent())
+				c.viewport.GotoBottom()
+				return c, tea.Batch(readNextToken(c.sessionID, c.streamTokens, c.streamErrc, c.toolReqs), c.spinner.Tick)
+			}
+			return c, nil // absorb other keys while approval is pending
+		}
 		if msg.String() == "ctrl+f" && c.cwd != "" {
 			c.showBuiltin = !c.showBuiltin
 			return c, nil
@@ -399,17 +477,22 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// handlers can schedule the next readNextToken without carrying them in the message.
 			tokens := make(chan string, 64)
 			errc := make(chan error, 1)
+			toolReqs := make(chan ipc.ToolRequestMsg, 1)
+			approvals := make(chan bool, 1)
 			go func() {
-				err := c.client.ChatStream(c.sessionID, text, tokens)
+				err := c.client.ChatStream(c.sessionID, text, tokens, toolReqs, approvals)
 				errc <- err
 				close(tokens)
+				close(toolReqs)
 			}()
 			c.streamTokens = tokens
 			c.streamErrc = errc
+			c.toolReqs = toolReqs
+			c.toolApprovals = approvals
 
 			setViewportContent(&c.viewport, c.viewportContent())
 			c.viewport.GotoBottom()
-			return c, tea.Batch(readNextToken(c.sessionID, tokens, errc), c.spinner.Tick)
+			return c, tea.Batch(readNextToken(c.sessionID, tokens, errc, toolReqs), c.spinner.Tick)
 		}
 	}
 
@@ -494,10 +577,23 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	}
 }
 
+// renderToolApprovalHint renders the hint bar shown when a tool call awaits user approval.
+func renderToolApprovalHint(req *toolApprovalRequestMsg) string {
+	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
+	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	return warnStyle.Render("approve tool:") + "  " +
+		activeStyle.Render(req.Name) + dimStyle.Render("("+formatToolArgs(req.Args)+")") +
+		"  " + activeStyle.Render("[y]") + " approve" +
+		"  " + activeStyle.Render("[n]") + " deny"
+}
+
 func (c Chat) View() string {
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hint string
-	if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin {
+	if c.pendingTool != nil {
+		hint = renderToolApprovalHint(c.pendingTool)
+	} else if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin {
 		hint = renderChatSuggestions(inputVal, c.viewport.Width+2)
 	} else if c.showBuiltin {
 		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
@@ -539,10 +635,7 @@ func (c Chat) View() string {
 		viewContent = c.viewport.View()
 	}
 	body := herdStyle.Render(viewContent)
-	sepStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	metaStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	labelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
-	sep := sepStyle.Render(" | ")
+
 	model := c.model
 	if model == "" {
 		model = "—"
@@ -555,13 +648,11 @@ func (c Chat) View() string {
 	if cwd == "" {
 		cwd = "—"
 	}
-	statusLine := labelStyle.Render("chat") + sep +
-		labelStyle.Render(c.sessionName) + sep +
-		metaStyle.Render(model) + sep +
-		metaStyle.Render(tokens) + sep +
-		metaStyle.Render(cwd)
+	foxLine := RenderFoxLine("chat", c.sessionName, model, tokens, cwd)
+
+	var statusMsg string
 	if c.status != "" {
-		statusLine += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
+		statusMsg = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
 	}
-	return body + "\n" + statusLine + "\n" + c.input.View() + "\n" + hint
+	return body + "\n" + renderFooter(foxLine, statusMsg, c.input.View(), hint)
 }
