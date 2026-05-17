@@ -48,12 +48,13 @@ type Herd struct {
 	offline       bool
 	autoCreated   bool // guards against duplicate default-session creation on concurrent fetches
 	foxInfo       string // transient message shown in the fox status line; cleared on next keypress
+	modelCaps     map[string][]string // capability tags per model name, fetched lazily
 }
 
 func NewHerd(client *ipc.Client) Herd {
 	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
-		{Title: "kitsune (agents)", Width: 20},
+		{Title: "agents (kitsune)", Width: 20},
 		{Title: "model", Width: 28},
 		{Title: "vram", Width: 12},
 		{Title: "status", Width: 16},
@@ -105,7 +106,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// and pushes the root header off the top of the display.
 		hintStr := RenderHint(herdHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
-		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + cwdLine(1) + statusMsg(1) + input(1) + hint(hintHeight)
+		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + cwdLine(1) + statusLine(1) + input(1) + hint(hintHeight)
 		tableHeight := msg.Height - 8 - h.hintHeight
 		if tableHeight < 1 {
 			tableHeight = 1
@@ -119,7 +120,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			modelColW = 10
 		}
 		h.table.SetColumns([]table.Column{
-			{Title: "kitsune (agents)", Width: 20},
+			{Title: "agents (kitsune)", Width: 20},
 			{Title: "model", Width: modelColW},
 			{Title: "vram", Width: 12},
 			{Title: "status", Width: 16},
@@ -147,6 +148,23 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return h, createSessionCmd(h.client, "default kitsune")
 			}
 		}
+		h.rebuildTable()
+		// fetch caps for any model not yet cached
+		var cmds []tea.Cmd
+		for _, s := range h.sessions {
+			if s.Model != "" {
+				if _, ok := h.modelCaps[s.Model]; !ok {
+					cmds = append(cmds, fetchModelCapsCmd(h.client, s.Model))
+				}
+			}
+		}
+		return h, tea.Batch(cmds...)
+
+	case modelCapsMsg:
+		if h.modelCaps == nil {
+			h.modelCaps = make(map[string][]string)
+		}
+		h.modelCaps[msg.model] = msg.caps
 		h.rebuildTable()
 		return h, nil
 
@@ -205,8 +223,18 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h.rebuildTable()
 			return h, nil
 		}
-		// refresh running info so VRAM/status columns reflect the newly loaded model.
-		return h, fetchRunning(h.client)
+		// refresh running info and fetch caps for the newly assigned model.
+		var cmds []tea.Cmd
+		cmds = append(cmds, fetchRunning(h.client))
+		for _, s := range h.sessions {
+			if s.ID == msg.id && s.Model != "" {
+				if _, ok := h.modelCaps[s.Model]; !ok {
+					cmds = append(cmds, fetchModelCapsCmd(h.client, s.Model))
+				}
+				break
+			}
+		}
+		return h, tea.Batch(cmds...)
 
 	case unassignModelResultMsg:
 		if msg.err != nil {
@@ -508,7 +536,7 @@ func (h Herd) View() string {
 
 	model := "—"
 	tokens := "—"
-	cwd := "—"
+	cwd := ""
 	if hasSession {
 		sess := h.sessions[idx]
 		if sess.Model != "" {
@@ -522,17 +550,17 @@ func (h Herd) View() string {
 		}
 	}
 
-	foxLine := RenderFoxLine("herd", sessionName, model, tokens, cwd)
+	sessionLine := RenderSessionLine("herd", sessionName, model, tokens)
 	cwdLine := renderCWDLine(cwd)
 
-	var statusMsg string
+	var statusLine string
 	switch {
 	case h.status != "" && h.foxInfo != "":
-		statusMsg = h.status + "  " + h.foxInfo
+		statusLine = h.status + "  " + h.foxInfo
 	case h.status != "":
-		statusMsg = h.status
+		statusLine = h.status
 	case h.foxInfo != "":
-		statusMsg = h.foxInfo
+		statusLine = h.foxInfo
 	}
 
 	hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
@@ -547,16 +575,16 @@ func (h Herd) View() string {
 	default:
 		hints = herdHints(hasSession, hasModel, h.offline)
 	}
-	hint := RenderHint(hints, h.width)
+	hintLine := RenderHint(hints, h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
 		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune…"))
-		return body + "\n" + renderFooter(foxLine, cwdLine, "", "", hint)
+		return body + "\n" + renderFooter(sessionLine, cwdLine, "", "", hintLine)
 	}
 
 	body := herdStyle.Render(h.table.View())
-	return body + "\n" + renderFooter(foxLine, cwdLine, statusMsg, h.input.View(), hint)
+	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, h.input.View(), hintLine)
 }
 
 func (h *Herd) rebuildTable() {
@@ -576,6 +604,15 @@ func (h *Herd) rebuildTable() {
 		model := s.Model
 		if model == "" {
 			model = "—"
+		} else if caps, ok := h.modelCaps[s.Model]; ok {
+			for _, c := range caps {
+				switch c {
+				case "tools":
+					model += " [tool]"
+				case "vision":
+					model += " [vis]"
+				}
+			}
 		}
 		ctx := "—"
 		if s.ContextChars > 0 {

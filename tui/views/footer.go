@@ -1,4 +1,4 @@
-// Package views — footer.go owns the shared fox-line and footer rendering used by all views.
+// Package views — footer.go owns the shared session-line and footer rendering used by all views.
 // it does NOT own per-view hint lists or status logic — those stay in their respective view files.
 package views
 
@@ -8,10 +8,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// RenderFoxLine builds the status bar common to all views:
+// RenderSessionLine builds the status bar common to all views:
 //
-//	label | name | model | tokens | cwd
-func RenderFoxLine(label, name, model, tokens, cwd string) string {
+//	label | name | model | tokens
+func RenderSessionLine(label, name, model, tokens string) string {
 	sepStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
 	labelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
 	metaStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
@@ -19,19 +19,18 @@ func RenderFoxLine(label, name, model, tokens, cwd string) string {
 	return labelStyle.Render(label) + sep +
 		labelStyle.Render(name) + sep +
 		metaStyle.Render(model) + sep +
-		metaStyle.Render(tokens) + sep +
-		metaStyle.Render(cwd)
+		metaStyle.Render(tokens)
 }
 
 // renderFooter assembles the five-line footer stack shared by all views:
 //
-//	foxLine
+//	sessionLine
 //	cwdLine    (empty string renders as a blank line)
-//	statusMsg  (empty string renders as a blank line)
-//	inputView
-//	hint
-func renderFooter(foxLine, cwdLine, statusMsg, inputView, hint string) string {
-	return foxLine + "\n" + cwdLine + "\n" + statusMsg + "\n" + inputView + "\n" + hint
+//	statusLine  (empty string renders as a blank line)
+//	inputLine
+//	hintLine
+func renderFooter(sessionLine, cwdLine, statusLine, inputLine, hintLine string) string {
+	return sessionLine + "\n" + cwdLine + "\n" + statusLine + "\n" + inputLine + "\n" + hintLine
 }
 
 // renderCWDLine formats the sandboxed working directory line shown in the footer.
@@ -41,7 +40,7 @@ func renderCWDLine(cwd string) string {
 	}
 	labelStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
 	pathStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
-	return labelStyle.Render("cwd [dir]") + " " + pathStyle.Render(cwd)
+	return labelStyle.Render("[cwd]") + " " + pathStyle.Render(cwd)
 }
 
 // fmtTokens converts a raw character count to a human-readable token estimate (~4 chars/token).
