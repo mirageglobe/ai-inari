@@ -149,6 +149,28 @@ func (c *Client) Chat(model string, messages []provider.Message) (string, error)
 	return result.Message.Content, nil
 }
 
+// ModelCaps calls /api/show and returns the model's declared capability tags
+// (e.g. "tools", "vision"). returns an empty slice when the field is absent or
+// when the model is not found rather than an error, so callers can ignore unknowns.
+func (c *Client) ModelCaps(model string) ([]string, error) {
+	body, _ := json.Marshal(map[string]string{"name": model})
+	resp, err := c.http.Post(c.baseURL+"/api/show", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return []string{}, nil
+	}
+	var result struct {
+		Capabilities []string `json:"capabilities"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return []string{}, nil
+	}
+	return result.Capabilities, nil
+}
+
 // ChatStream sends a chat request and yields response chunks via a channel.
 func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatResponse) error {
 	if c.verbose {

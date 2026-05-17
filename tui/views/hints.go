@@ -14,7 +14,6 @@ import (
 const UIWidth = 100
 
 var (
-	hintLabelStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	hintActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	hintDisabledStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	hintSepStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
@@ -48,7 +47,7 @@ func RenderHint(cmds []HintCmd, width int) string {
 	const gap = "  "
 	const sepRaw = " │ "
 	const prefixRaw = "[hint] "
-	prefix := hintLabelStyle.Render(prefixRaw)
+	prefix := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true).Render(prefixRaw)
 
 	var lines []string
 	lineRaw := prefixRaw

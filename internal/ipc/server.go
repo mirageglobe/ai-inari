@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -325,7 +326,7 @@ func (s *Server) dispatch(req Request) Response {
 				"- list_dir(path): list files and directories inside a path\n" +
 				"- grep_files(path, pattern): search for a regex pattern across files, returns matching lines\n" +
 				"- file_stat(path): return size, modification time, and type for a file or directory\n" +
-				"- run_command(command, args): run an allowlisted command (go, make, git, ls, cat, find, etc.) in the working directory\n" +
+				"- run_command(command, args): run an allowlisted command in the working directory; permitted commands: "+sortedAllowedCommands()+"\n" +
 				"use these tools whenever the user asks about files, code, or the project structure."
 			sess.SetSystemPrompt(combined)
 		}
@@ -548,6 +549,21 @@ func (s *Server) dispatch(req Request) Response {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
 		return Response{JSONRPC: "2.0", Result: models, ID: req.ID}
+	case "ollama.show":
+		if r, ok := s.providerErr(req); !ok {
+			return r
+		}
+		var params struct {
+			Model string `json:"model"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+		}
+		caps, err := s.provider.ModelCaps(params.Model)
+		if err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
+		}
+		return Response{JSONRPC: "2.0", Result: caps, ID: req.ID}
 	case "daemon.quit":
 		// Signal main to shut down; close is idempotent via sync.Once pattern.
 		select {
@@ -665,6 +681,16 @@ var allowedCommands = map[string]bool{
 	"df":      true,
 	"uptime":  true,
 	"which":   true,
+}
+
+// sortedAllowedCommands returns the allowed command names as a sorted, comma-separated string.
+func sortedAllowedCommands() string {
+	cmds := make([]string, 0, len(allowedCommands))
+	for k := range allowedCommands {
+		cmds = append(cmds, k)
+	}
+	sort.Strings(cmds)
+	return strings.Join(cmds, ", ")
 }
 
 const runCommandTimeout = 30 * time.Second

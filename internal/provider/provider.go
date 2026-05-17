@@ -101,4 +101,7 @@ type Provider interface {
 	ListModels() ([]Model, error)
 	// ListRunning returns models currently loaded in backend memory.
 	ListRunning() ([]RunningModel, error)
+	// ModelCaps returns the capability tags for a model (e.g. "tools", "vision").
+	// returns an empty slice when the backend does not support capability introspection.
+	ModelCaps(model string) ([]string, error)
 }
