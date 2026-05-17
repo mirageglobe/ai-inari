@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/ai-inari/internal/version"
 )
 
 var HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
@@ -34,7 +35,7 @@ var rayColors = []struct {
 }
 
 // TitleText is the rendered title string; its rune count drives the sweep length.
-const TitleText = "🦊 inari │ github.com/mirageglobe/ai-inari"
+var TitleText = "🦊 inari " + version.Version + " │ github.com/mirageglobe/ai-inari"
 
 // TitleLen is the number of runes in TitleText, used by the root model to detect
 // when the ray has crossed the full title and the 30s pause should begin.
