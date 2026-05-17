@@ -5,7 +5,6 @@
 package views
 
 import (
-	"fmt"
 	"log"
 	"sort"
 	"strings"
@@ -106,8 +105,8 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// and pushes the root header off the top of the display.
 		hintStr := RenderHint(herdHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
-		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + input(1) + hint(hintHeight)
-		tableHeight := msg.Height - 6 - h.hintHeight
+		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + statusMsg(1) + input(1) + hint(hintHeight)
+		tableHeight := msg.Height - 7 - h.hintHeight
 		if tableHeight < 1 {
 			tableHeight = 1
 		}
@@ -506,10 +505,6 @@ func (h Herd) View() string {
 	if hasSession {
 		sessionName = h.sessions[idx].Name
 	}
-	sepStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	labelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
-	metaStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	sep := sepStyle.Render(" | ")
 
 	model := "—"
 	tokens := "—"
@@ -527,13 +522,16 @@ func (h Herd) View() string {
 		}
 	}
 
-	foxLine := labelStyle.Render("herd") + sep +
-		labelStyle.Render(sessionName) + sep +
-		metaStyle.Render(model) + sep +
-		metaStyle.Render(tokens) + sep +
-		metaStyle.Render(cwd)
-	if h.foxInfo != "" {
-		foxLine += "  " + h.foxInfo
+	foxLine := RenderFoxLine("herd", sessionName, model, tokens, cwd)
+
+	var statusMsg string
+	switch {
+	case h.status != "" && h.foxInfo != "":
+		statusMsg = h.status + "  " + h.foxInfo
+	case h.status != "":
+		statusMsg = h.status
+	case h.foxInfo != "":
+		statusMsg = h.foxInfo
 	}
 
 	hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
@@ -553,14 +551,11 @@ func (h Herd) View() string {
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
 		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune…"))
-		return body + "\n" + foxLine + "\n" + hint
+		return body + "\n" + renderFooter(foxLine, "", "", hint)
 	}
 
 	body := herdStyle.Render(h.table.View())
-	if h.status != "" {
-		body += "\n" + h.status
-	}
-	return body + "\n" + foxLine + "\n" + h.input.View() + "\n" + hint
+	return body + "\n" + renderFooter(foxLine, statusMsg, h.input.View(), hint)
 }
 
 func (h *Herd) rebuildTable() {
@@ -590,13 +585,6 @@ func (h *Herd) rebuildTable() {
 	h.table.SetRows(rows)
 }
 
-func fmtTokens(chars int) string {
-	t := chars / 4
-	if t < 1000 {
-		return fmt.Sprintf("~%d tokens", t)
-	}
-	return fmt.Sprintf("~%.1fk tokens", float64(t)/1000)
-}
 
 // SelectedSession returns the session at the current cursor plus its vram.
 // returns false if no session is under the cursor.
