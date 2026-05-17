@@ -47,7 +47,7 @@ func RenderHint(cmds []HintCmd, width int) string {
 
 	const gap = "  "
 	const sepRaw = " │ "
-	const prefixRaw = "hint: "
+	const prefixRaw = "[hint] "
 	prefix := hintLabelStyle.Render(prefixRaw)
 
 	var lines []string
@@ -99,32 +99,39 @@ func RenderHint(cmds []HintCmd, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-// RenderScrollbar returns a 1-character-wide vertical scrollbar for the given viewport.
-// returns an empty string when all content fits without scrolling.
-func RenderScrollbar(vp viewport.Model) string {
-	total := vp.TotalLineCount()
+// RenderRightEdge returns a 1-character-wide right border column for the chat box.
+// height covers the full box: top corner + viewport rows + bottom corner.
+// when content overflows, thumb rows use ┃ (thick) instead of │ to indicate scroll position.
+func RenderRightEdge(vp viewport.Model) string {
 	h := vp.Height
-	if total <= h || h <= 0 {
+	if h <= 0 {
 		return ""
 	}
-	thumbH := max(1, h*h/total)
-	maxOffset := total - h
-	thumbTop := 0
-	if maxOffset > 0 {
-		thumbTop = (h - thumbH) * vp.YOffset / maxOffset
+	borderStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Primary)
+	thumbStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Primary).Bold(true)
+
+	total := vp.TotalLineCount()
+	scrollable := total > h
+	thumbTop, thumbH := 0, 0
+	if scrollable {
+		thumbH = max(1, h*h/total)
+		maxOffset := total - h
+		if maxOffset > 0 {
+			thumbTop = (h - thumbH) * vp.YOffset / maxOffset
+		}
 	}
-	trackStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	thumbStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
 	var sb strings.Builder
+	sb.WriteString(borderStyle.Render("┐"))
 	for i := range h {
-		if i > 0 {
-			sb.WriteByte('\n')
-		}
-		if i >= thumbTop && i < thumbTop+thumbH {
-			sb.WriteString(thumbStyle.Render("█"))
+		sb.WriteByte('\n')
+		if scrollable && i >= thumbTop && i < thumbTop+thumbH {
+			sb.WriteString(thumbStyle.Render("┃"))
 		} else {
-			sb.WriteString(trackStyle.Render("░"))
+			sb.WriteString(borderStyle.Render("│"))
 		}
 	}
+	sb.WriteByte('\n')
+	sb.WriteString(borderStyle.Render("┘"))
 	return sb.String()
 }

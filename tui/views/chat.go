@@ -413,7 +413,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		// topbar(1) + border-top(1) + viewport(h) + border-bottom(1) +
-		// textarea(1) + foxLine(1) + cwdLine(1) + statusMsg(1) + hint(1) = h+8 total.
+		// textarea(1) + sessionLine(1) + cwdLine(1) + statusLine(1) + hint(1) = h+8 total.
 		height := msg.Height - 8
 		if height < 1 {
 			height = 1
@@ -677,15 +677,15 @@ func renderToolApprovalHint(req *toolApprovalRequestMsg) string {
 
 func (c Chat) View() string {
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
-	var hint string
+	var hintLine string
 	if c.pendingTool != nil {
-		hint = renderToolApprovalHint(c.pendingTool)
+		hintLine = renderToolApprovalHint(c.pendingTool)
 	} else if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin {
-		hint = renderChatSuggestions(inputVal, c.viewport.Width+2)
+		hintLine = renderChatSuggestions(inputVal, c.viewport.Width+2)
 	} else if c.showBuiltin {
 		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
 		dimStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-		hint = builtinStyle.Render("tools") + "  " +
+		hintLine = builtinStyle.Render("tools") + "  " +
 			dimStyle.Render("read_file") + "  " +
 			dimStyle.Render("list_dir") + "  " +
 			dimStyle.Render("grep_files") + "  " +
@@ -705,7 +705,7 @@ func (c Chat) View() string {
 			sendHint = HD("[enter] send")
 		}
 
-		hint = RenderHint([]HintCmd{
+		hintLine = RenderHint([]HintCmd{
 			sendHint,
 			H("[↑↓] history"),
 			HS(),
@@ -726,15 +726,15 @@ func (c Chat) View() string {
 	if c.ctxChars == 0 {
 		tokens = "—"
 	}
-	foxLine := RenderFoxLine("chat", c.sessionName, model, tokens)
+	sessionLine := RenderSessionLine("chat", c.sessionName, model, tokens)
 	cwdLine := renderCWDLine(c.cwd)
 
-	var statusMsg string
+	var statusLine string
 	if c.pendingTool != nil {
 		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-		statusMsg = warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
+		statusLine = warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
 	} else if c.status != "" {
-		statusMsg = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
+		statusLine = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
 	}
-	return body + "\n" + renderFooter(foxLine, cwdLine, statusMsg, c.input.View(), hint)
+	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, c.input.View(), hintLine)
 }
