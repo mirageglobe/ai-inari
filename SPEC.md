@@ -63,8 +63,9 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[inarid]` semaphore throttle enforces memory budget.
 
 #### M4 — MCP Loader
-- [x] `[inarid]` `config.json` parsed at startup.
+- [x] `[inarid]` `config.json` parsed at startup; created from defaults if absent.
 - [x] `[inarid]` connectors spawned as child processes.
+- [x] `[inarid]` config path moved to `~/.config/inari/config.json` (XDG-compliant).
 
 #### M5 — Chat View
 - [x] `[kitsune]` interactive `i` view wires to Head Inari (Thinker tier).
@@ -73,48 +74,43 @@ designing abstractions too early produces interfaces that fit the first implemen
 
 ### Near-term
 - [ ] `[kitsune]` `[medium]` session search and filter in herd view
-- [ ] `[kitsune/inarid]` `[hard]` main screen: allow token compression by summarising session content
 - [ ] `[kitsune/inarid]` `[hard]` long-term task planning from high-level prompts
 - [ ] `[kitsune/inarid]` `[medium]` interrupt in chat for messages
 - [ ] `[inarid]` `[medium]` recap/summary when a chat session has been idle for 10+ mins
 - [ ] `[kitsune]` `[easy]` allow download of context and copy of response as text
+- [ ] `[kitsune]` `[hard]` **chat viewport text selection** — mouse drag within the chat viewport highlights a region and copies it to the system clipboard (`pbcopy`/`xclip`). requires mapping raw terminal cell coordinates to viewport content rows (accounting for scroll offset and `ansi.Hardwrap` line splits), then re-parsing ANSI sequences to locate byte ranges and inject highlight styles mid-sequence; character-level selection. line-granularity selection (whole lines only) is a viable medium-difficulty stepping stone.
 - [ ] `[inarid]` `[easy]` daemon: auto-shutdown after 30 mins idle
-- [ ] `[inarid]` `[easy]` **daemon lifecycle commands** — add `inarid start` and `inarid stop` subcommands; `start` forks inarid to the background and writes a PID file (e.g. `~/.local/share/inari/inarid.pid`); `stop` reads the PID file, sends `SIGTERM`, and removes the file. `inarid status` should report whether the daemon is running and its uptime.
+- [x] `[inarid]` `[easy]` **daemon lifecycle commands** — add `inarid start` and `inarid stop` subcommands; `start` forks inarid to the background and writes a PID file (e.g. `~/.local/share/inari/inarid.pid`); `stop` reads the PID file, sends `SIGTERM`, and removes the file. `inarid status` should report whether the daemon is running and its uptime.
 - [ ] `[inarid/kitsune]` `[medium]` **ollama context window detection and optimum setting** — on session creation (or model change), inarid queries the model's `num_ctx` parameter via the Ollama `/api/show` endpoint; the detected value is surfaced in the kitsune chat view alongside the token count. inarid also exposes a per-session override that sets `num_ctx` in each `/api/chat` request, defaulting to a sensible optimum (e.g. 8192 for worker-tier models, 4096 for sensor-tier) rather than Ollama's built-in default. the kitsune UI allows the user to view and adjust this value per session.
 - [ ] `[kitsune]` `[easy]` chat navigation shortcuts — implement `ctrl+t` for tools (focus hint bar), `ctrl+p` for command palette/prompt, `ctrl+m` for menu, and `ctrl+g` for help; use `esc` to exit entry fields and return to navigation mode.
-- [ ] `[kitsune]` `[easy]` slash commands — if chat input is empty, entering `/` opens a command selection menu (similar to google cli or slack).
 - [ ] `[kitsune]` `[easy]` chat input mode indicators — update the chat entry prefix to show the active mode (e.g., `[chat] >`, `[tool] >`, `[/] >`) for better visual feedback.
-- [ ] `[kitsune]` `[easy]` **input history navigation** — `↑`/`↓` in the chat input field should cycle through previously sent messages (shell-style history) rather than scrolling the chat buffer; history is per-session and stored in memory for the lifetime of the session.
-- [ ] `[kitsune]` `[easy]` **mouse scroll for chat buffer** — enable mouse wheel scroll on the chat viewport so users can scroll the message history without switching to keyboard navigation mode.
+- [x] `[kitsune]` `[easy]` **mouse scroll for chat buffer** — enable mouse wheel scroll on the chat viewport so users can scroll the message history without switching to keyboard navigation mode.
 - [ ] `[kitsune]` `[easy]` **cpu and memory in top bar** — poll system-wide cpu usage and memory consumption at ~2s intervals and display them in the top bar (e.g. `cpu 12%  mem 4.2 / 16.0 gb`) so the user can monitor resource pressure during inference without leaving the TUI.
-- [ ] `[kitsune]` `[easy]` show cwd in status bar — display the current working directory in the kitsune status bar so the user always knows which directory context was injected into the session.
 - [ ] `[inarid]` `[medium]` **local server endpoint profiles** — support named endpoint profiles in `config.json` (e.g. `ollama`, `lmstudio`, `llamacpp`) each specifying a `base_url`, optional `api_key`, and any provider-specific headers or path overrides; inarid selects the active profile via a top-level `provider` field and routes all model requests through it. this is a prerequisite for the provider abstraction idea below and allows users to switch between local inference backends without rebuilding or patching inarid.
 - [ ] `[inarid]` `[medium]` **ollama runtime env tuning** — investigate and expose three Ollama environment variables as first-class inarid config fields: `OLLAMA_MAX_LOADED_MODELS` (default `3`; caps how many models stay resident in VRAM/RAM simultaneously), `OLLAMA_NUM_PARALLEL` (default `1` for low-RAM setups, `4` for high-throughput; controls concurrent request slots per model), and `OLLAMA_KEEP_ALIVE` (default `5m`; how long an idle model stays loaded). inarid should read these from `config.json` under an `ollama` block and pass them as environment variables when spawning or communicating with the Ollama process, or document them as required host-level env vars if inarid does not manage the Ollama process lifecycle. the kitsune settings view (or a `--ollama-info` flag on inarid) should surface the active values so the user can tune memory vs. throughput trade-offs without needing to know the underlying env var names.
 - [ ] `[inarid]` `[medium]` **implement Ollama model curation and role-based assignments** — integrate model roles (coding, general) and curated model lists into session management, allowing users to assign roles and default to recommended models based on the definitions in the "Ollama Model Curation" section.
-- [ ] `[kitsune]` `[easy]` **display model tags** — in the model selector and herd view, show the full model tag (e.g. `gemma3:27b`, `qwen3:8b`) alongside any capability tags derived from `POST /api/show` (e.g. `tools`, `vision`) so the user can see at a glance what each model supports before selecting it.
 
 ### Ollama Model Curation
 
-Inarid will support explicit model roles to optimize for common use cases. Each role will have a curated list of recommended Ollama models. Users can assign these roles to sessions, and inarid will suggest or default to models best suited for the role.
+curated picks by hardware tier and role. pull via `ollama pull <tag>`. prefer `q4_k_m` quant unless the tier has headroom for `q8_0`.
 
-#### Coding Role
+#### general
 
-**Purpose:** Optimized for code generation, review, refactoring, and debugging. Models in this role are typically proficient in multiple programming languages, understand code structure, and can generate accurate and syntactically correct code snippets.
+| tier | model       | size   | notes                                          |
+| :--- | :---------- | :----- | :--------------------------------------------- |
+| 32gb | gemma4:27b  | ~15gb  | google moe; near-frontier chat and review      |
+| 16gb | phi-4:14b   | ~8gb   | microsoft; strong multi-file reasoning         |
+| 8gb  | gemma4:e4b  | ~2.7gb | 4.5b effective; fast routing and quick queries |
+| 4gb  | llama3.2:3b | ~2gb   | meta; best chat and reasoning within 4gb       |
 
-**Curated Models:**
-- `qwen:code` (e.g., qwen:7b-code)
-- `deepseek-coder` (various sizes)
-- `granite:code` (e.g., granite-7b-code)
+#### coding
 
-#### General Role
-
-**Purpose:** Versatile models suitable for a wide range of conversational and text generation tasks, including summarization, creative writing, question answering, and general knowledge queries. These models prioritize broad understanding and fluent language generation.
-
-**Curated Models:**
-- `gemma4` (various sizes)
-- `kimi` (e.g., kimi-8b)
-- `mistral` (various sizes)
-- `qwen:instruct` (e.g., qwen:7b-chat)
+| tier | model                    | size   | notes                                       |
+| :--- | :----------------------- | :----- | :------------------------------------------ |
+| 32gb | qwen3.6:27b-coding-nvfp4 | ~18gb  | alibaba; near-frontier generation and review |
+| 16gb | deepseek-r1:14b          | ~9gb   | r1-671b distil; strong coding and reasoning |
+| 8gb  | deepseek-r1:8b           | ~5gb   | r1-671b distil; fits 8gb; coding+reasoning  |
+| 4gb  | llama3.2:3b              | ~2gb   | meta; best within 4gb budget                |
 
 ### Ideas
 - [ ] `[inarid]` **MCP tool-call dispatch** — `internal/mcp/host.go` `Call()` is a TODO stub; audit logging exists but actual JSON-RPC dispatch over stdio is not implemented. complete to fulfil M4.
@@ -150,6 +146,16 @@ Inarid will support explicit model roles to optimize for common use cases. Each 
 - [x] `[kitsune]` `[easy]` export chat history to file — `[e]` in herd view fetches full message history via `session.history` RPC, formats as plain text (`role: content` per message, `---` separator), and writes to `~/.local/share/inari/exports/<session-name>-<timestamp>.txt` (XDG data dir); path is shown in the status bar on success
 - [x] `[kitsune]` `[easy]` show current token count in chat
 - [x] `[inarid]` **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
+- [x] `[inarid]` **extended layer-2 tools** — `grep_files` (regex search across files in cwd) and `file_stat` (size, mtime, type) added alongside `read_file`, `list_dir`, and `run_command`; all sandboxed to session `cwd`.
+- [x] `[inarid]` **`run_command` builtin** — allowlisted bash execution: `go`, `make`, `git`, `date`, `echo`, `pwd`, `whoami`, `uname`, `wc`, `curl`, `wget`, `find`, `ps`, `ls`, `cat`, `df`, `uptime`, `which`; `exec.Command` (no shell expansion); 30 s timeout; 64 KB output cap. caution-tier per §8.3.
+- [x] `[kitsune]` `[medium]` **tool approval gating** — when inarid needs to execute a tool during a stream, it sends a `tool.approval_request` message; the stream pauses and kitsune renders an approval prompt replacing the hint bar; the user presses `[y]`/`[n]` to approve or reject before execution resumes. all keys are absorbed while approval is pending.
+- [x] `[inarid]` `[easy]` **auto-create config** — if `~/.config/inari/config.json` does not exist at startup, inarid creates it with defaults (socket, memory budget, ollama url, default model tiers, theme); the user gets a ready-to-edit file rather than a startup error.
+- [x] `[kitsune]` `[easy]` **shared footer component** — `tui/views/footer.go` owns `RenderFoxLine`, `renderFooter`, and `renderCWDLine`; all views use it. the footer now shows `label | name | model | tokens | cwd` in one line, followed by a dedicated cwd sandbox line when a session directory is set.
+- [x] `[kitsune]` `[easy]` show cwd in status bar — cwd is displayed in the footer of both chat and herd views; rendered via `renderCWDLine` as `[cwd] <path>`.
+- [x] `[kitsune]` `[easy]` slash commands — `/` in the chat input opens a command suggestion list (`/clear`, `/compact`, `/model change`, `/tools`); selecting with tab or enter executes the command. `/clear` wipes session history; `/compact` summarises the conversation via the session's own model.
+- [x] `[kitsune]` `[easy]` **input history navigation** — `↑`/`↓` in the chat input field cycles through previously sent messages; history is per-session and in-memory for the session lifetime.
+- [x] `[kitsune]` `[easy]` **model capability tags in herd view** — after sessions load, inarid calls `ollama.show` (→ `POST /api/show`) per model; the response `capabilities` array is cached in the Herd. the model column renders `[tool]` and `[vis]` suffixes where applicable. fetches are lazy and per-model, so models without caps are unaffected.
+- [x] `[inarid]` **`ollama.show` RPC** — new `ollama.show` handler in the server; `ModelCaps(model)` added to the `Provider` interface and implemented in the Ollama client. the IPC client exposes `ModelCaps(model string) ([]string, error)`.
 
 ### Open Issues
 - [ ] `[inarid/kitsune]` track and manage known issues and bugs
@@ -233,14 +239,18 @@ never observe a partial file. The file is written on every state change:
 
 **Session RPCs:**
 
-| Method             | Params               | Returns         | Description                                      |
-|--------------------|----------------------|-----------------|--------------------------------------------------|
-| `session.list`     | —                    | `SessionInfo[]` | summary of all sessions (no history on wire)     |
-| `session.create`   | `{name, cwd?}`       | `SessionInfo`   | create a named session; optional `cwd` enables filesystem context |
-| `session.delete`   | `{id}`               | `"ok"`          | remove session and its history                   |
-| `session.assign`   | `{id, model}`        | `"ok"`          | attach a model to a session                      |
-| `session.chat`     | `{id, text}`         | `string`        | blocking: append message, return full reply      |
-| `session.stream`   | `{id, text}`         | *(see below)*   | streaming: append message, stream token chunks   |
+| Method              | Params               | Returns         | Description                                      |
+| :---                | :---                 | :---            | :---                                             |
+| `session.list`      | —                    | `SessionInfo[]` | summary of all sessions (no history on wire)     |
+| `session.create`    | `{name, cwd?}`       | `SessionInfo`   | create a named session; optional `cwd` enables filesystem context |
+| `session.delete`    | `{id}`               | `"ok"`          | remove session and its history                   |
+| `session.assign`    | `{id, model}`        | `"ok"`          | attach a model to a session                      |
+| `session.unassign`  | `{id}`               | `"ok"`          | detach the model from a session                  |
+| `session.chat`      | `{id, text}`         | `string`        | blocking: append message, return full reply      |
+| `session.stream`    | `{id, text}`         | *(see below)*   | streaming: append message, stream token chunks   |
+| `session.history`   | `{id}`               | `Message[]`     | full message history for a session               |
+| `session.compact`   | `{id}`               | `"ok"`          | summarise history via the session's own model and replace old turns |
+| `ollama.show`       | `{model}`            | `string[]`      | capability tags for a model (e.g. `["completion","tools"]`); empty array if unknown |
 
 **Streaming chat (`session.stream`):**
 
@@ -250,12 +260,15 @@ Protocol over the dedicated connection:
 
 1. client dials a new `unix` connection to `/tmp/inari.sock`
 2. client sends a normal JSON-RPC 2.0 request: `{"method":"session.stream","params":{"id":"...","text":"..."}}`
-3. inarid responds with a stream of newline-delimited JSON frames, one per token chunk:
+3. inarid responds with a stream of newline-delimited JSON frames:
    ```json
    {"token":"Hello"}
    {"token":" world"}
+   {"tool_approval_request":{"tool":"run_command","args":{"command":"go","args":["test","./..."]}}}
+   {"token":"Tests passed."}
    {"done":true}
    ```
+   when a `tool_approval_request` frame arrives, kitsune pauses rendering and waits for the user to press `[y]` or `[n]`. it then sends `{"tool_approved":true}` or `{"tool_approved":false}` back over the same connection. inarid blocks until it receives the response before executing or skipping the tool call.
 4. on `done`, inarid has persisted the full reply to the session store; client closes the connection
 5. on error, inarid sends `{"error":"<message>"}` and closes
 
@@ -293,14 +306,17 @@ the model can reason about the project layout and refer to files by path, but ca
 
 **layer 2 — read-only file access (agentic tool-call loop)**
 
-inarid declares two built-in tools in the ollama `/api/chat` request for sessions that have `cwd` set:
+inarid declares five built-in tools in the ollama `/api/chat` request for sessions that have `cwd` set:
 
-| Tool        | Input              | Output                          |
-|-------------|--------------------|---------------------------------|
-| `read_file` | `{path: string}`   | file contents (text only)       |
-| `list_dir`  | `{path: string}`   | directory listing (names only)  |
+| tool            | input                               | output                                   |
+| :---            | :---                                | :---                                     |
+| `read_file`     | `{path}`                            | file contents (text only)                |
+| `list_dir`      | `{path}`                            | directory listing (names only)           |
+| `grep_files`    | `{path, pattern}`                   | matching lines with filename and line no |
+| `file_stat`     | `{path}`                            | size, mtime, type                        |
+| `run_command`   | `{command, args[]}`                 | stdout+stderr, exit code as text         |
 
-both tools are sandboxed: paths are resolved relative to `cwd` and must not escape it (no `../` traversal). write operations are out of scope.
+all tools are sandboxed: paths are resolved relative to `cwd` and must not escape it (no `../` traversal). `run_command` is additionally gated by an allowlist (see §8.3). write operations are out of scope.
 
 when ollama returns a `tool_calls` response, inarid's `handleStream` loop:
 
@@ -379,12 +395,33 @@ once the tool-call loop exists, built-in tools can be replaced by `@modelcontext
 
 ### 5.2 `kitsune` — Client
 
-| View    | Key | Description                              |
-|---------|-----|------------------------------------------|
-| Herd    | —   | Default view; table of all workers/pods  |
-| Logs    | `l` | Tail output of selected session          |
-| Describe| `d` | Full session metadata and config         |
-| Chat    | `i` | Interactive chat with Head Inari (1GB)   |
+| view     | key | description                                                      |
+| :---     | :-- | :---                                                             |
+| Herd     | —   | default view; table of all agents (kitsune) with model and status |
+| Logs     | `l` | tail output of selected session                                  |
+| Describe | `d` | full session metadata and config                                 |
+| Chat     | `i` | interactive chat; slash commands, tool approval, input history   |
+
+**footer layout (all views):**
+
+```
+label | name | model | tokens | cwd
+[cwd] <path>              ← omitted when no cwd is set
+<status message>          ← transient; cleared on next keypress
+<input widget>
+<hint bar>
+```
+
+the footer is assembled by `renderFooter` in `tui/views/footer.go` and shared across all views.
+
+**chat slash commands:**
+
+| command        | effect                                                           |
+| :---           | :---                                                             |
+| `/clear`       | wipe session message history                                     |
+| `/compact`     | summarise history via the session's own model; replaces old turns |
+| `/model change`| open model selector for this session                            |
+| `/tools`       | list active built-in tools for this session                     |
 
 #### 5.2.1 Offline resilience
 
@@ -527,9 +564,9 @@ kitsune renders the preview and waits for `[y] approve` or `[n] reject`. only on
 
 **implemented constraints**
 
-| constraint        | detail                                                                 |
-| :---              | :---                                                                   |
-| allowlist         | `go`, `make`, `git`, `date`, `echo`, `pwd`, `whoami`, `uname`, `wc`, `curl`, `wget`, `find`, `ps`, `ls`, `cat`, `df`, `uptime`, `which` — binary name only; all others are hard-rejected |
+| constraint        | detail                                                                                                           |
+| :---              | :---                                                                                                             |
+| allowlist         | `go`, `make`, `git`, `date`, `echo`, `pwd`, `whoami`, `uname`, `wc`, `curl`, `wget`, `find`, `ps`, `ls`, `cat`, `df`, `uptime`, `which` — binary base name only; all others hard-rejected |
 | no shell expand   | `exec.Command(binary, args...)` — never `sh -c`; injection impossible |
 | cwd lock          | `cmd.Dir = sess.CWD`; process starts inside the session directory     |
 | timeout           | 30 s hard kill via `context.WithTimeout`                               |
@@ -555,10 +592,12 @@ edit `allowedCommands` in `internal/ipc/server.go`. the map key is the binary ba
 
 **what stays forbidden**
 
-- `curl`, `wget`, `ssh`, `scp` — network calls outside ollama/mcp.
+- `ssh`, `scp` — remote shell and file-copy; network calls outside ollama/mcp.
 - `rm`, `mv`, `chmod` — destructive filesystem ops.
 - `sh`, `bash`, `zsh`, `python` — shell interpreters that bypass the allowlist.
 - any binary not in `allowedCommands` — hard-rejected at dispatch.
+
+note: `curl` and `wget` are currently in the allowlist for read-only http queries (e.g. querying local endpoints). they should be revisited when per-call approval gating (§8.2) is in place, since they can reach the network.
 
 ---
 
@@ -593,17 +632,18 @@ make build
 
 > only update this table using a large/strong model after significant architectural changes.
 
-| dimension | score | notes |
-| :--- | :--- | :--- |
-| overall | 3 / 5 | moderate; dual-binary with custom streaming IPC and multi-view TUI |
-| `internal/ipc` | 4 / 5 | highest complexity — custom JSON-RPC over UDS, dedicated per-stream connections, concurrent goroutines |
-| `tui` (kitsune) | 3 / 5 | multi-view Bubble Tea app with message routing, offline resilience, and live token rendering |
-| `internal/session` | 2 / 5 | session lifecycle and atomic disk persistence; well-bounded |
-| `internal/ollama` | 2 / 5 | HTTP streaming client; straightforward |
-| `internal/provider` | 2 / 5 | filesystem tool-call loop (layer 2) with sandbox path validation |
-| `internal/mcp` | 1 / 5 | stub only — `Call()` is a TODO; will rise to 3+ when JSON-RPC dispatch is implemented |
-| `internal/scheduler` | 1 / 5 | semaphore wrapper; minimal |
-| `internal/audit` | 1 / 5 | append-only log; minimal |
+| dimension           | score  | notes                                                                                              |
+| :---                | :---   | :---                                                                                               |
+| overall             | 3 / 5  | moderate; dual-binary with streaming IPC, tool-call loop, approval gating, and multi-view TUI     |
+| `internal/ipc`      | 4 / 5  | custom JSON-RPC over UDS, per-stream connections, tool approval protocol, concurrent goroutines    |
+| `tui` (kitsune)     | 3 / 5  | multi-view Bubble Tea; message routing, offline resilience, tool approval prompt, slash commands   |
+| `internal/session`  | 2 / 5  | session lifecycle and atomic disk persistence; well-bounded                                        |
+| `internal/ollama`   | 2 / 5  | HTTP streaming client; straightforward                                                             |
+| `internal/provider` | 2 / 5  | five sandboxed built-in tools (layer 2) with path validation and run_command allowlist             |
+| `internal/config`   | 1 / 5  | load/save with auto-create; minimal                                                                |
+| `internal/mcp`      | 1 / 5  | stub only — `Call()` is a TODO; will rise to 3+ when JSON-RPC dispatch is implemented             |
+| `internal/scheduler`| 1 / 5  | semaphore wrapper; minimal                                                                         |
+| `internal/audit`    | 1 / 5  | append-only log; minimal                                                                           |
 
 ---
 
