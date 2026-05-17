@@ -23,14 +23,25 @@ func RenderFoxLine(label, name, model, tokens, cwd string) string {
 		metaStyle.Render(cwd)
 }
 
-// renderFooter assembles the four-line footer stack shared by all views:
+// renderFooter assembles the five-line footer stack shared by all views:
 //
 //	foxLine
+//	cwdLine    (empty string renders as a blank line)
 //	statusMsg  (empty string renders as a blank line)
 //	inputView
 //	hint
-func renderFooter(foxLine, statusMsg, inputView, hint string) string {
-	return foxLine + "\n" + statusMsg + "\n" + inputView + "\n" + hint
+func renderFooter(foxLine, cwdLine, statusMsg, inputView, hint string) string {
+	return foxLine + "\n" + cwdLine + "\n" + statusMsg + "\n" + inputView + "\n" + hint
+}
+
+// renderCWDLine formats the sandboxed working directory line shown in the footer.
+func renderCWDLine(cwd string) string {
+	if cwd == "" || cwd == "—" {
+		return ""
+	}
+	labelStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	pathStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
+	return labelStyle.Render("cwd [dir]") + " " + pathStyle.Render(cwd)
 }
 
 // fmtTokens converts a raw character count to a human-readable token estimate (~4 chars/token).

@@ -362,8 +362,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		// topbar(1) + border-top(1) + viewport(h) + border-bottom(1) +
-		// textarea(1) + statusLine(1) + statusMsg(1) + hint(1) = h+7 total.
-		height := msg.Height - 7
+		// textarea(1) + foxLine(1) + cwdLine(1) + statusMsg(1) + hint(1) = h+8 total.
+		height := msg.Height - 8
 		if height < 1 {
 			height = 1
 		}
@@ -649,10 +649,11 @@ func (c Chat) View() string {
 		cwd = "—"
 	}
 	foxLine := RenderFoxLine("chat", c.sessionName, model, tokens, cwd)
+	cwdLine := renderCWDLine(c.cwd)
 
 	var statusMsg string
 	if c.status != "" {
 		statusMsg = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
 	}
-	return body + "\n" + renderFooter(foxLine, statusMsg, c.input.View(), hint)
+	return body + "\n" + renderFooter(foxLine, cwdLine, statusMsg, c.input.View(), hint)
 }
