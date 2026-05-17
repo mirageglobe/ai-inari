@@ -105,8 +105,8 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// and pushes the root header off the top of the display.
 		hintStr := RenderHint(herdHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
-		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + statusMsg(1) + input(1) + hint(hintHeight)
-		tableHeight := msg.Height - 7 - h.hintHeight
+		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + cwdLine(1) + statusMsg(1) + input(1) + hint(hintHeight)
+		tableHeight := msg.Height - 8 - h.hintHeight
 		if tableHeight < 1 {
 			tableHeight = 1
 		}
@@ -523,6 +523,7 @@ func (h Herd) View() string {
 	}
 
 	foxLine := RenderFoxLine("herd", sessionName, model, tokens, cwd)
+	cwdLine := renderCWDLine(cwd)
 
 	var statusMsg string
 	switch {
@@ -551,11 +552,11 @@ func (h Herd) View() string {
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
 		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune…"))
-		return body + "\n" + renderFooter(foxLine, "", "", hint)
+		return body + "\n" + renderFooter(foxLine, cwdLine, "", "", hint)
 	}
 
 	body := herdStyle.Render(h.table.View())
-	return body + "\n" + renderFooter(foxLine, statusMsg, h.input.View(), hint)
+	return body + "\n" + renderFooter(foxLine, cwdLine, statusMsg, h.input.View(), hint)
 }
 
 func (h *Herd) rebuildTable() {
