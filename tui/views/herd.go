@@ -47,13 +47,16 @@ type Herd struct {
 	hintHeight    int // actual rendered hint line count; varies with terminal width
 	offline       bool
 	autoCreated   bool // guards against duplicate default-session creation on concurrent fetches
-	foxInfo       string // transient message shown in the fox status line; cleared on next keypress
-	modelCaps     map[string][]string // capability tags per model name, fetched lazily
+	autoOpen         bool // true on first load; fires SelectModelMsg to open chat if a ready session exists
+	foxInfo          string // transient message shown in the fox status line; cleared on next keypress
+	modelCaps        map[string][]string // capability tags per model name, fetched lazily
+	activeSessionID  string // session currently open in chat view; marked in the table
 }
 
 func NewHerd(client *ipc.Client) Herd {
 	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
+		{Title: "", Width: 2},
 		{Title: "agents (kitsune)", Width: 20},
 		{Title: "model", Width: 28},
 		{Title: "vram", Width: 12},
@@ -82,6 +85,7 @@ func NewHerd(client *ipc.Client) Herd {
 		spinner:     s,
 		input:       ti,
 		loading:     true,
+		autoOpen:    true,
 		runningInfo: make(map[string]runningMeta),
 	}
 }
@@ -113,13 +117,14 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		h.table.SetHeight(tableHeight)
 		// resize model column to fill available width.
-		// fixed cols: kitsune(20) + vram(12) + status(16) + context(12) = 60
-		// overhead: 5 cols × 2 cell padding + 2 border = 12; total fixed overhead = 72.
-		modelColW := h.width - 72
+		// fixed cols: indicator(2) + kitsune(20) + vram(12) + status(16) + context(12) = 62
+		// overhead: 6 cols × 2 cell padding + 2 border = 14; total fixed overhead = 76.
+		modelColW := h.width - 76
 		if modelColW < 10 {
 			modelColW = 10
 		}
 		h.table.SetColumns([]table.Column{
+			{Title: "", Width: 2},
 			{Title: "agents (kitsune)", Width: 20},
 			{Title: "model", Width: modelColW},
 			{Title: "vram", Width: 12},
@@ -146,6 +151,19 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(msg.sessions) == 0 && !h.autoCreated {
 				h.autoCreated = true
 				return h, createSessionCmd(h.client, "default kitsune")
+			}
+			// on first successful load, auto-open the first session that has a model.
+			if h.autoOpen && len(msg.sessions) > 0 {
+				h.autoOpen = false
+				for _, s := range msg.sessions {
+					if s.Model != "" {
+						sess := s
+						return h, func() tea.Msg {
+							return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
+						}
+					}
+				}
+				h.autoOpen = false
 			}
 		}
 		h.rebuildTable()
@@ -341,6 +359,13 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	h.table, cmd = h.table.Update(msg)
 	return h, cmd
+}
+
+// WithActiveSession returns a copy of the Herd with the active chat session marked.
+func (h Herd) WithActiveSession(id string) Herd {
+	h.activeSessionID = id
+	h.rebuildTable()
+	return h
 }
 
 // WithOffline returns a copy of the Herd view with the offline flag set.
@@ -619,7 +644,11 @@ func (h *Herd) rebuildTable() {
 		if s.ContextChars > 0 {
 			ctx = fmtTokens(s.ContextChars)
 		}
-		rows[i] = table.Row{s.Name, model, vram, status, ctx}
+		indicator := " "
+		if s.ID == h.activeSessionID {
+			indicator = "▶"
+		}
+		rows[i] = table.Row{indicator, s.Name, model, vram, status, ctx}
 	}
 	h.table.SetRows(rows)
 }

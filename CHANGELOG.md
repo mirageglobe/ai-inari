@@ -5,6 +5,17 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [v0.2.0] — unreleased
+
+### added
+- herd view: active chat session marked with `▶` indicator column
+- chat view: `/describe` command opens session context editor without leaving chat
+- chat view: `[copied] N lines` status after clipboard yank shows line count
+- tool approval tiering: safe read-only builtins (`read_file`, `list_dir`, `grep_file`, `stat_file`) auto-execute; `run` always requires confirmation
+- default system prompt instructs models to respond in plain text with no markdown formatting
+
+---
+
 ## [v0.1.0] — unreleased
 
 ### added
@@ -28,6 +39,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - export chat history to file (`/agent export`)
 
 ### changed
+- consolidated kitsune + inarid into a single `inari` binary
 - config moved to `~/.config/inari/config.json`
 - `run_command` system prompt lists permitted commands dynamically
 

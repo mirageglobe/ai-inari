@@ -58,7 +58,7 @@ type Session struct {
 
 // defaultSystemPrompt is injected into every new session so responses stay concise out of the box.
 // users can override it per-session from the describe view.
-const defaultSystemPrompt = "keep all responses concise and short."
+const defaultSystemPrompt = "keep all responses concise and short. respond in plain text only — no markdown, no bullet points, no bold or italic formatting."
 
 // New returns a new session with a random ID, the given display name, and the default system prompt.
 func New(name string) *Session {

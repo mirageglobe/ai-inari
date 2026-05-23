@@ -9,12 +9,38 @@ PROJECT  := ai-inari
 BIN_DIR  := bin
 BINARY   := $(BIN_DIR)/inari
 
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "dev")
+
+NEXT_VERSION = \
+	tag=$$(git describe --tags --abbrev=0 2>/dev/null); \
+	if [ -z "$$tag" ]; then echo "v0.1.0"; \
+	else \
+		major=$$(echo $$tag | sed 's/^v//' | cut -d. -f1); \
+		minor=$$(echo $$tag | sed 's/^v//' | cut -d. -f2); \
+		patch=$$(echo $$tag | sed 's/^v//' | cut -d. -f3); \
+		echo "v$$major.$$minor.$$((patch+1))"; fi
+
+NEXT_MINOR_VERSION = \
+	tag=$$(git describe --tags --abbrev=0 2>/dev/null); \
+	if [ -z "$$tag" ]; then echo "v0.1.0"; \
+	else \
+		major=$$(echo $$tag | sed 's/^v//' | cut -d. -f1); \
+		minor=$$(echo $$tag | sed 's/^v//' | cut -d. -f2); \
+		echo "v$$major.$$((minor+1)).0"; fi
+
+NEXT_MAJOR_VERSION = \
+	tag=$$(git describe --tags --abbrev=0 2>/dev/null); \
+	if [ -z "$$tag" ]; then echo "v1.0.0"; \
+	else \
+		major=$$(echo $$tag | sed 's/^v//' | cut -d. -f1); \
+		echo "v$$((major+1)).0.0"; fi
+
 .DEFAULT_GOAL := help
 
 .SHELLFLAGS := -eu -o pipefail -c
 .ONESHELL:
 
-.PHONY: help all build clean fmt lint test run-daemon run-tui start stop demo
+.PHONY: help all build clean fmt lint test run-daemon run-tui start stop demo bump-patch bump-minor bump-major push-tags release release-reset release-dry
 
 # ============================================================== targets ===== #
 
@@ -63,6 +89,32 @@ lint: ## run vet and staticcheck
 test: ## run all tests
 	go vet ./...
 	go test ./...
+
+##@ release
+
+bump-patch: ## tag next patch version (e.g. v0.1.2 -> v0.1.3)
+	@read -p "tag $$($(NEXT_VERSION))? [y/N] " ans && [ "$$ans" = "y" ] && \
+		git tag $$($(NEXT_VERSION)) && echo "tagged $$($(NEXT_VERSION))" || echo "aborted"
+
+bump-minor: ## tag next minor version (e.g. v0.1.3 -> v0.2.0)
+	@read -p "tag $$($(NEXT_MINOR_VERSION))? [y/N] " ans && [ "$$ans" = "y" ] && \
+		git tag $$($(NEXT_MINOR_VERSION)) && echo "tagged $$($(NEXT_MINOR_VERSION))" || echo "aborted"
+
+bump-major: ## tag next major version (e.g. v0.2.0 -> v1.0.0)
+	@read -p "tag $$($(NEXT_MAJOR_VERSION))? [y/N] " ans && [ "$$ans" = "y" ] && \
+		git tag $$($(NEXT_MAJOR_VERSION)) && echo "tagged $$($(NEXT_MAJOR_VERSION))" || echo "aborted"
+
+push-tags: ## push local tags to origin (triggers CI goreleaser)
+	git push origin --tags
+
+release: ## publish via goreleaser (requires GITHUB_TOKEN)
+	goreleaser release --clean
+
+release-reset: ## delete GitHub release for current tag (use before retrying a failed release)
+	gh release delete v$(VERSION) --yes 2>/dev/null || true
+
+release-dry: ## dry-run goreleaser without publishing
+	goreleaser release --snapshot --clean
 
 ##@ demo
 
