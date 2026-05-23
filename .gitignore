@@ -26,5 +26,8 @@ bin/
 *.test
 coverage.out
 
+# goreleaser
+dist/
+
 # user-local config (lives at ~/.config/inari/config.json)
 config.json
