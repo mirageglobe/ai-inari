@@ -59,6 +59,12 @@ brew tap mirageglobe/tap
 brew install mirageglobe/tap/inari
 ```
 
+## upgrade
+
+```sh
+brew upgrade mirageglobe/tap/inari
+```
+
 ## quick start
 
 ```sh
