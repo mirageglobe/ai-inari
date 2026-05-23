@@ -662,8 +662,9 @@ two release methods are available. **CI goreleaser is the default and preferred 
 # 4. commit the version + changelog update
 git add internal/version/version.go CHANGELOG.md
 git commit -m "chore: release vX.Y.Z"
-# 5. merge to main
-# 6. tag the release (choose one):
+# 5. open a PR and merge to main
+gh pr create --title "chore: release vX.Y.Z"
+# 6. tag the release on main after merge (choose one):
 make bump-patch   # vX.Y.Z -> vX.Y.(Z+1)
 make bump-minor   # vX.Y.Z -> vX.(Y+1).0
 make bump-major   # vX.Y.Z -> v(X+1).0.0
