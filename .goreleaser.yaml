@@ -1,0 +1,46 @@
+version: 2
+
+project_name: inari
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: inari
+    main: ./cmd/inari/main.go
+    binary: inari
+    ldflags:
+      - -s -w -X github.com/mirageglobe/ai-inari/internal/version.Version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+
+archives:
+  - id: inari
+    formats:
+      - tar.gz
+    name_template: "inari_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE.md
+
+checksum:
+  name_template: "inari_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: mirageglobe
+    name: ai-inari
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }}"

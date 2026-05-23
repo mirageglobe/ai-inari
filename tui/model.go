@@ -270,6 +270,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// open a session's chat.
 	if sel, ok := msg.(views.SelectModelMsg); ok {
 		m.activeSession = sel.SessionID
+		m.herd = m.herd.WithActiveSession(sel.SessionID)
 		if _, exists := m.chats[sel.SessionID]; !exists {
 			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.CWD, sel.ContextChars)
 			// size the viewport immediately with the known terminal dimensions so the
@@ -333,9 +334,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.current {
 		case viewChat:
 			switch key.String() {
-			case "esc":
-				m.current = viewHerd
-				return m, m.herd.Init()
 			case "ctrl+o":
 				m.returnView = viewChat
 				if chat, ok := m.chats[m.activeSession]; ok {

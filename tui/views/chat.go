@@ -59,7 +59,7 @@ type chatHistoryMsg struct {
 // TUI shows an approval prompt and the stream is paused until the user responds.
 // offline mirrors the root model's connectivity state; when true, sends are blocked
 // and the send command is visually disabled in the hint bar.
-// cwd is non-empty when builtin tools (read_file, list_dir, grep_files, file_stat, run_command) are active for this session.
+// cwd is non-empty when builtin tools (read_file, list_dir, grep_file, stat_file, run) are active for this session.
 // showBuiltin toggles a builtin panel in the hint area listing available builtin tools.
 type Chat struct {
 	client        *ipc.Client
@@ -573,7 +573,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				c.selEndLine = cl
 				if text := c.selectedText(); text != "" {
 					_ = copyToClipboard(text)
-					c.status = "[copied]"
+					n := strings.Count(text, "\n") + 1
+					c.status = fmt.Sprintf("[copied] %d lines", n)
 				}
 				c.selActive = false
 				setViewportContent(&c.viewport, c.viewportContent())
@@ -593,7 +594,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // chatCommands is the ordered list of slash commands available in the chat view.
-var chatCommands = []string{"/clear", "/compact", "/model change", "/tools"}
+var chatCommands = []string{"/clear", "/compact", "/model change", "/describe", "/tools", "/herd", "/quit"}
 
 // renderChatSuggestions replaces the hint bar when the user is typing a slash command.
 // commands that match the current prefix are shown active; others are dimmed.
@@ -658,6 +659,12 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			c.status = "[warn] tools not available (no cwd set)"
 		}
 		return c, nil
+	case "/describe":
+		return c, func() tea.Msg { return OpenDescribeMsg{} }
+	case "/herd":
+		return c, func() tea.Msg { return BackToHerdMsg{} }
+	case "/quit":
+		return c, tea.Quit
 	default:
 		c.status = "[warn] unknown command: " + cmd
 		return c, nil
@@ -688,18 +695,11 @@ func (c Chat) View() string {
 		hintLine = builtinStyle.Render("tools") + "  " +
 			dimStyle.Render("read_file") + "  " +
 			dimStyle.Render("list_dir") + "  " +
-			dimStyle.Render("grep_files") + "  " +
-			dimStyle.Render("file_stat") + "  " +
-			dimStyle.Render("run_command") + "  " +
+			dimStyle.Render("grep_file") + "  " +
+			dimStyle.Render("stat_file") + "  " +
+			dimStyle.Render("run") + "  " +
 			dimStyle.Render("(sandboxed to cwd)")
 	} else {
-		var builtinHint HintCmd
-		if c.cwd != "" {
-			builtinHint = H("/tools")
-		} else {
-			builtinHint = HD("/tools")
-		}
-
 		sendHint := H("[enter] send")
 		if c.offline {
 			sendHint = HD("[enter] send")
@@ -710,8 +710,7 @@ func (c Chat) View() string {
 			H("[↑↓] history"),
 			HS(),
 			H("/model change"),
-			builtinHint,
-			H("[esc] back"),
+			H("/herd"),
 		}, c.viewport.Width+1)
 	}
 	chatBoxStyle := herdStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)

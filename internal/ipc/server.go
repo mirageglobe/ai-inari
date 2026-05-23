@@ -239,22 +239,25 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		// tool-call round: append assistant message with calls, execute each, append results.
 		sess.AppendMessage(provider.Message{Role: "assistant", ToolCalls: toolCalls})
 		for _, tc := range toolCalls {
-			// ask kitsune for approval before executing the tool.
-			enc.Encode(map[string]any{
-				"tool_request": map[string]any{
-					"name": tc.Function.Name,
-					"args": tc.Function.Arguments,
-				},
-			})
-			var approval struct {
-				Approved bool `json:"tool_approved"`
-			}
-			if decErr := dec.Decode(&approval); decErr != nil || !approval.Approved {
-				sess.AppendMessage(provider.Message{Role: "tool", Content: "user denied tool execution"})
-				if s.verbose {
-					log.Printf("[inarid→builtin] %s denied by user", tc.Function.Name)
+			// safe (read-only) tools execute immediately — no round-trip to kitsune.
+			// all other tools (currently only "run") require explicit user approval.
+			if !safeTools[tc.Function.Name] {
+				enc.Encode(map[string]any{
+					"tool_request": map[string]any{
+						"name": tc.Function.Name,
+						"args": tc.Function.Arguments,
+					},
+				})
+				var approval struct {
+					Approved bool `json:"tool_approved"`
 				}
-				continue
+				if decErr := dec.Decode(&approval); decErr != nil || !approval.Approved {
+					sess.AppendMessage(provider.Message{Role: "tool", Content: "user denied tool execution"})
+					if s.verbose {
+						log.Printf("[inarid→builtin] %s denied by user", tc.Function.Name)
+					}
+					continue
+				}
 			}
 
 			result, err := execTool(tc.Function.Name, tc.Function.Arguments, sess.CWD)
@@ -324,9 +327,9 @@ func (s *Server) dispatch(req Request) Response {
 				"\n\nyou have access to the following tools to explore the working directory:\n" +
 				"- read_file(path): read the full text of a file\n" +
 				"- list_dir(path): list files and directories inside a path\n" +
-				"- grep_files(path, pattern): search for a regex pattern across files, returns matching lines\n" +
-				"- file_stat(path): return size, modification time, and type for a file or directory\n" +
-				"- run_command(command, args): run an allowlisted command in the working directory; permitted commands: "+sortedAllowedCommands()+"\n" +
+				"- grep_file(path, pattern): search for a regex pattern across files, returns matching lines\n" +
+				"- stat_file(path): return size, modification time, and type for a file or directory\n" +
+				"- run(command, args): run an allowlisted command in the working directory; permitted commands: "+sortedAllowedCommands()+"\n" +
 				"use these tools whenever the user asks about files, code, or the project structure."
 			sess.SetSystemPrompt(combined)
 		}
@@ -616,7 +619,7 @@ func filesystemTools() []provider.Tool {
 		{
 			Type: "function",
 			Function: provider.ToolFunction{
-				Name:        "grep_files",
+				Name:        "grep_file",
 				Description: "search for a regex pattern in files under a directory. returns matching lines with file path and line number. path must be relative to the session working directory.",
 				Parameters: provider.ToolParameters{
 					Type: "object",
@@ -631,7 +634,7 @@ func filesystemTools() []provider.Tool {
 		{
 			Type: "function",
 			Function: provider.ToolFunction{
-				Name:        "file_stat",
+				Name:        "stat_file",
 				Description: "return metadata for a file or directory: size in bytes, modification time, and whether it is a directory. path must be relative to the session working directory.",
 				Parameters: provider.ToolParameters{
 					Type: "object",
@@ -645,7 +648,7 @@ func filesystemTools() []provider.Tool {
 		{
 			Type: "function",
 			Function: provider.ToolFunction{
-				Name:        "run_command",
+				Name:        "run",
 				Description: "run an allowlisted shell command inside the session working directory and return its stdout and stderr. only specific commands are permitted; others are rejected.",
 				Parameters: provider.ToolParameters{
 					Type: "object",
@@ -660,7 +663,17 @@ func filesystemTools() []provider.Tool {
 	}
 }
 
-// allowedCommands is the set of binaries that run_command may invoke.
+// safeTools are executed immediately without an approval round-trip.
+// read-only filesystem tools pose no write/exec risk, so interrupting the user for every call would be noise.
+// any tool not in this set — currently only "run" — always requires kitsune approval.
+var safeTools = map[string]bool{
+	"read_file": true,
+	"list_dir":  true,
+	"grep_file": true,
+	"stat_file": true,
+}
+
+// allowedCommands is the set of binaries that run may invoke.
 // each entry is the base command name only — arguments are passed separately and never shell-expanded.
 var allowedCommands = map[string]bool{
 	"go":      true,
@@ -735,7 +748,7 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 			}
 		}
 		return sb.String(), nil
-	case "grep_files":
+	case "grep_file":
 		safePath, err := sandboxed()
 		if err != nil {
 			return "", err
@@ -773,7 +786,7 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 			return "", walkErr
 		}
 		return sb.String(), nil
-	case "file_stat":
+	case "stat_file":
 		rawPath, _ := args["path"].(string)
 		safePath, err := sandboxed()
 		if err != nil {
@@ -785,7 +798,7 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 		}
 		return fmt.Sprintf("path: %s\nsize: %d bytes\nmodified: %s\nis_dir: %v\n",
 			rawPath, info.Size(), info.ModTime().Format(time.RFC3339), info.IsDir()), nil
-	case "run_command":
+	case "run":
 		command, _ := args["command"].(string)
 		argsStr, _ := args["args"].(string)
 		if !allowedCommands[command] {
