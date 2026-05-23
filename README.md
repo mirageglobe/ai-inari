@@ -52,6 +52,13 @@ The thinker is the "Head Inari" — the one you talk to directly.
 
 ---
 
+## install
+
+```sh
+brew tap mirageglobe/tap
+brew install mirageglobe/tap/inari
+```
+
 ## quick start
 
 ```sh
