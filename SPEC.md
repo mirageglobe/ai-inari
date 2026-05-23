@@ -690,7 +690,9 @@ shared by both methods. the tap lives at `../homebrew-tap`. run manually — do 
 
 ```sh
 cd ../homebrew-tap
-make update FORMULA=inari VERSION=X.Y.Z   # VERSION without the v prefix, e.g. 0.2.0
+gmake update FORMULA=inari VERSION=X.Y.Z REPO=ai-inari   # VERSION without the v prefix, e.g. 0.2.0
+# note: gmake required — macOS ships with GNU make 3.81 which lacks .ONESHELL support
+# note: REPO=ai-inari because the GitHub repo name differs from the formula name
 ```
 
 this target:
