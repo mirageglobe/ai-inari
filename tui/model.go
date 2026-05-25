@@ -417,7 +417,19 @@ func (m Model) View() string {
 		}
 	}
 
-	full := topBar + body
+	// emit cursor shape once here; views no longer emit escape sequences themselves.
+	cursorEsc := views.ResetCursor
+	switch m.current {
+	case viewChat:
+		if chat, ok := m.chats[m.activeSession]; ok && chat.InputFocused() {
+			cursorEsc = views.BlinkBarCursor
+		}
+	case viewHerd:
+		if m.herd.InputFocused() {
+			cursorEsc = views.BlinkBarCursor
+		}
+	}
+	full := cursorEsc + topBar + body
 	// pad every render to termHeight lines so Bubble Tea's cursor tracking stays
 	// consistent when switching between views of different heights. Without this,
 	// switching from a short view (models, describe) back to a tall one (herd)

@@ -322,7 +322,10 @@ func (s *Server) dispatch(req Request) Response {
 		if params.CWD != "" {
 			sess.CWD = params.CWD
 			tree := buildFileTree(params.CWD, 3)
-			combined := sess.SystemPrompt +
+			// omit the "respond in plain text only" clause from the default prompt — it
+			// conflicts with structured function calling and causes the model to output
+			// tool invocations as text rather than structured tool_calls.
+			combined := "keep all responses concise and short." +
 				"\n\nworking directory: " + params.CWD + "\n" + tree +
 				"\n\nyou have access to the following tools to explore the working directory:\n" +
 				"- read_file(path): read the full text of a file\n" +
@@ -692,6 +695,7 @@ var allowedCommands = map[string]bool{
 	"ls":      true,
 	"cat":     true,
 	"df":      true,
+	"du":      true,
 	"uptime":  true,
 	"which":   true,
 }

@@ -45,6 +45,7 @@ type Herd struct {
 	width         int
 	height        int
 	hintHeight    int // actual rendered hint line count; varies with terminal width
+	tableHeight   int // stored so mouse handler can compute footer Y boundary
 	offline       bool
 	autoCreated   bool // guards against duplicate default-session creation on concurrent fetches
 	autoOpen         bool // true on first load; fires SelectModelMsg to open chat if a ready session exists
@@ -115,6 +116,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if tableHeight < 1 {
 			tableHeight = 1
 		}
+		h.tableHeight = tableHeight
 		h.table.SetHeight(tableHeight)
 		// resize model column to fill available width.
 		// fixed cols: indicator(2) + kitsune(20) + vram(12) + status(16) + context(12) = 62
@@ -293,15 +295,28 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				h.table.MoveDown(3)
 			case tea.MouseButtonLeft:
 				// topbar(1) + box border-top(1) + col-header(1) = first data row at Y=3.
-				// cursorVisRow is the cursor's visual row within the visible window.
+				// table body occupies Y=[3, 3+tableHeight-1]; border-bottom at 3+tableHeight;
+				// footer (sessionLine, cwdLine, statusLine, input, hint) follows after.
 				const tableBodyY = 3
-				tableH := h.table.Height()
-				cursor := h.table.Cursor()
-				cursorVisRow := min(cursor, tableH)
-				clickedVisIdx := msg.Y - tableBodyY
-				newCursor := cursor + clickedVisIdx - cursorVisRow
-				if newCursor >= 0 && newCursor < len(h.sessions) {
-					h.table.SetCursor(newCursor)
+				tableBodyEndY := tableBodyY + h.tableHeight - 1
+				if msg.Y >= tableBodyY && msg.Y <= tableBodyEndY {
+					// click in table body → update cursor, blur command input
+					tableH := h.table.Height()
+					cursor := h.table.Cursor()
+					cursorVisRow := min(cursor, tableH)
+					clickedVisIdx := msg.Y - tableBodyY
+					newCursor := cursor + clickedVisIdx - cursorVisRow
+					if newCursor >= 0 && newCursor < len(h.sessions) {
+						h.table.SetCursor(newCursor)
+					}
+					if h.inputFocused {
+						h.inputFocused = false
+						h.input.Blur()
+					}
+				} else if msg.Y > tableBodyEndY && !h.inputFocused {
+					// click in footer → focus command input
+					h.inputFocused = true
+					return h, h.input.Focus()
 				}
 			}
 		}
@@ -362,6 +377,8 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // WithActiveSession returns a copy of the Herd with the active chat session marked.
+func (h Herd) InputFocused() bool { return h.inputFocused }
+
 func (h Herd) WithActiveSession(id string) Herd {
 	h.activeSessionID = id
 	h.rebuildTable()
@@ -409,7 +426,7 @@ func (h Herd) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 				return h, unassignModelCmd(h.client, sess.ID, sess.Name, sess.Model)
 			}
 		}
-	case "/default chat":
+	case "/chat":
 		if h.offline {
 			h.foxInfo = modelsStyle.Render("[warn] offline")
 			return h, nil
@@ -488,7 +505,7 @@ func (h Herd) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 
 // herdCommands is the ordered list of valid slash commands used for autocomplete suggestions.
 var herdCommands = []string{
-	"/default chat",
+	"/chat",
 	"/agent add",
 	"/model select",
 	"/model unload",
@@ -508,7 +525,7 @@ var herdCommands = []string{
 func herdHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("/default", !offline),
+		hc("/chat", !offline),
 		hc("/agent", !offline),
 		hc("/model", hasSession && !offline),
 		HS(),
@@ -523,7 +540,7 @@ func herdHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 func defaultHints(hasDefault, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("/default chat", hasDefault && !offline),
+		hc("/chat", hasDefault && !offline),
 	}
 }
 
@@ -592,7 +609,7 @@ func (h Herd) View() string {
 	hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
 	var hints []HintCmd
 	switch {
-	case strings.HasPrefix(h.input.Value(), "/default"):
+	case strings.HasPrefix(h.input.Value(), "/chat"):
 		hints = defaultHints(hasDefault, h.offline)
 	case strings.HasPrefix(h.input.Value(), "/agent"):
 		hints = agentHints(hasSession, hasModel, h.offline)

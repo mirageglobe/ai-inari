@@ -24,6 +24,7 @@ var (
 	thinkingStyle  = lipgloss.NewStyle().Faint(true)
 )
 
+
 // ChatTokenMsg is sent for each streamed token from inarid.
 // SessionID routes it to the correct Chat view regardless of which view is active.
 type ChatTokenMsg struct {
@@ -82,6 +83,7 @@ type Chat struct {
 	inputHistory  []string // sent user messages, oldest first
 	historyIdx    int      // index into inputHistory during navigation; -1 = not navigating
 	historyDraft  string   // saves the in-progress input when history navigation starts
+	inputFocused  bool
 	streamBuf     string
 	streamTokens  <-chan string
 	streamErrc    <-chan error
@@ -112,8 +114,9 @@ func (c Chat) Init() tea.Cmd {
 	return tea.Batch(c.input.Focus(), fetchChatHistory(c.client, c.sessionID))
 }
 
-func (c Chat) SessionID() string   { return c.sessionID }
-func (c Chat) SessionName() string { return c.sessionName }
+func (c Chat) SessionID() string    { return c.sessionID }
+func (c Chat) SessionName() string  { return c.sessionName }
+func (c Chat) InputFocused() bool   { return c.inputFocused }
 
 func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars int) Chat {
 	ta := textarea.New()
@@ -129,15 +132,16 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 	sp.Style = thinkingStyle
 
 	return Chat{
-		client:      client,
-		sessionID:   sessionID,
-		sessionName: sessionName,
-		model:       model,
-		cwd:         cwd,
-		input:       ta,
-		spinner:     sp,
-		ctxChars:    ctxChars,
-		historyIdx:  -1,
+		client:       client,
+		sessionID:    sessionID,
+		sessionName:  sessionName,
+		model:        model,
+		cwd:          cwd,
+		input:        ta,
+		spinner:      sp,
+		ctxChars:     ctxChars,
+		historyIdx:   -1,
+		inputFocused: true,
 	}
 }
 
@@ -441,6 +445,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "y", "Y":
 				c.runningTool = c.pendingTool.Name
+				toolLine := thinkingStyle.Render("[ tool ] "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
+				c.display = append(c.display, toolLine)
 				c.toolApprovals <- true
 				c.pendingTool = nil
 				c.waiting = true
@@ -457,6 +463,11 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return c, nil // absorb other keys while approval is pending
 		}
+		// mark input as focused on any keypress; actual Focus() cmd is issued below after the switch.
+		if !c.inputFocused {
+			c.inputFocused = true
+		}
+
 		if msg.String() == "ctrl+f" && c.cwd != "" {
 			c.showBuiltin = !c.showBuiltin
 			return c, nil
@@ -553,11 +564,23 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Action {
 		case tea.MouseActionPress:
 			if msg.Button == tea.MouseButtonLeft {
-				cl := c.viewport.YOffset + (msg.Y - viewportTopY)
-				c.selActive = true
-				c.selStartLine = cl
-				c.selEndLine = cl
-				setViewportContentWithSel(&c.viewport, c.viewportContent(), c.selStartLine, c.selEndLine)
+				viewportLastY := viewportTopY + c.viewport.Height - 1
+				if msg.Y >= viewportTopY && msg.Y <= viewportLastY {
+					// click inside viewport: start selection, blur input
+					cl := c.viewport.YOffset + (msg.Y - viewportTopY)
+					c.selActive = true
+					c.selStartLine = cl
+					c.selEndLine = cl
+					setViewportContentWithSel(&c.viewport, c.viewportContent(), c.selStartLine, c.selEndLine)
+					if c.inputFocused {
+						c.inputFocused = false
+						c.input.Blur()
+					}
+				} else if msg.Y > viewportLastY && !c.inputFocused {
+					// click in footer: focus input
+					c.inputFocused = true
+					return c, c.input.Focus()
+				}
 				return c, nil
 			}
 		case tea.MouseActionMotion:
@@ -585,12 +608,18 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var (
-		vpCmd tea.Cmd
-		taCmd tea.Cmd
+		vpCmd    tea.Cmd
+		taCmd    tea.Cmd
+		focusCmd tea.Cmd
 	)
+	// apply input focus here so it covers both the fall-through key path and any other path
+	// that set inputFocused without being able to return a cmd (e.g. early-return key cases).
+	if c.inputFocused && !c.input.Focused() {
+		focusCmd = c.input.Focus()
+	}
 	c.viewport, vpCmd = c.viewport.Update(msg)
 	c.input, taCmd = c.input.Update(msg)
-	return c, tea.Batch(vpCmd, taCmd)
+	return c, tea.Batch(vpCmd, taCmd, focusCmd)
 }
 
 // chatCommands is the ordered list of slash commands available in the chat view.
@@ -671,23 +700,11 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	}
 }
 
-// renderToolApprovalHint renders the hint bar shown when a tool call awaits user approval.
-func renderToolApprovalHint(req *toolApprovalRequestMsg) string {
-	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	return warnStyle.Render("approve tool:") + "  " +
-		activeStyle.Render(req.Name) + dimStyle.Render("("+formatToolArgs(req.Args)+")") +
-		"  " + activeStyle.Render("[y]") + " approve" +
-		"  " + activeStyle.Render("[n]") + " deny"
-}
 
 func (c Chat) View() string {
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	var hintLine string
-	if c.pendingTool != nil {
-		hintLine = renderToolApprovalHint(c.pendingTool)
-	} else if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin {
+	if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin && c.pendingTool == nil {
 		hintLine = renderChatSuggestions(inputVal, c.viewport.Width+2)
 	} else if c.showBuiltin {
 		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
@@ -731,7 +748,14 @@ func (c Chat) View() string {
 	var statusContent string
 	if c.pendingTool != nil {
 		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-		statusContent = warnStyle.Render("tool: "+c.pendingTool.Name) + "  " + thinkingStyle.Render(formatToolArgs(c.pendingTool.Args))
+		activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+		statusContent = warnStyle.Render("tool: "+c.pendingTool.Name) + "  " +
+			thinkingStyle.Render(formatToolArgs(c.pendingTool.Args)) + "  " +
+			activeStyle.Render("[y]") + " approve  " +
+			activeStyle.Render("[n]") + " deny"
+	} else if c.runningTool != "" {
+		toolStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+		statusContent = toolStyle.Render("[ tool ] " + c.runningTool)
 	} else if c.status != "" {
 		statusContent = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
 	}

@@ -23,6 +23,12 @@ func RenderSessionLine(label, name, model, tokens string) string {
 		metaStyle.Render(tokens)
 }
 
+// ANSI cursor shape sequences (DECSCUSR).
+const (
+	BlinkBarCursor = "\033[5 q" // blinking vertical bar (like Slack / VS Code)
+	ResetCursor    = "\033[0 q" // restores the terminal's default shape
+)
+
 // renderFooter assembles the five-line footer stack shared by all views:
 //
 //	sessionLine
