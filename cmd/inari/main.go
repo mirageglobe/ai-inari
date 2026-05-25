@@ -191,10 +191,24 @@ func runTUI(cfgPath string) {
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("tui: %v", err)
 	}
+	// restore terminal cursor shape; the TUI emits DECSCUSR sequences and Bubble Tea
+	// does not reset the cursor on alt-screen exit, so bash inherits the last shape set.
+	fmt.Print(views.ResetCursor)
 	client.Close()
 }
 
 func cmdStart(cfgPath string, verbose bool) {
+	// refuse to start a second daemon; two daemons sharing the same socket causes
+	// the TUI's shared Call connection and fresh ChatStream connections to hit
+	// different processes with different in-memory session state.
+	if pid, err := readPID(); err == nil {
+		if proc, err := os.FindProcess(pid); err == nil && proc.Signal(syscall.Signal(0)) == nil {
+			log.Fatalf("inari daemon already running (pid %d) — run 'inari stop' first", pid)
+		}
+		// stale pid file from a previous crash; remove it so the fresh daemon can write its own.
+		os.Remove(pidFile())
+	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		log.Fatalf("executable: %v", err)
