@@ -334,6 +334,11 @@ func (s *Server) dispatch(req Request) Response {
 				"- stat_file(path): return size, modification time, and type for a file or directory\n" +
 				"- run(command, args): run an allowlisted command in the working directory; permitted commands: "+sortedAllowedCommands()+"\n" +
 				"use these tools whenever the user asks about files, code, or the project structure."
+			// inject a project-level context file (AGENTS.md / .inari/context.md) so the
+			// model picks up local conventions without manual copy-paste; absent file is fine.
+			if ctx := readAgentContext(params.CWD); ctx != "" {
+				combined += "\n\nproject context:\n" + ctx
+			}
 			sess.SetSystemPrompt(combined)
 		}
 		s.store.Add(sess)
@@ -852,6 +857,38 @@ var skipDirs = map[string]bool{
 	".git": true, "node_modules": true, "vendor": true,
 	".venv": true, "__pycache__": true, "dist": true, "build": true,
 	"bin": true, ".idea": true, ".vscode": true,
+}
+
+// agentContextFiles are the project-level context files probed at session creation,
+// in priority order. the first one that exists and is non-empty wins.
+var agentContextFiles = []string{"AGENTS.md", ".inari/context.md"}
+
+// agentContextCap bounds injected context so a large file cannot blow the prompt budget.
+const agentContextCap = 8 * 1024
+
+// readAgentContext returns the contents of the first existing project context file
+// under cwd, truncated to agentContextCap. returns "" when none is found or readable,
+// so the caller can inject unconditionally.
+func readAgentContext(cwd string) string {
+	for _, name := range agentContextFiles {
+		path, err := sandboxPath(cwd, name)
+		if err != nil {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		content := strings.TrimSpace(string(data))
+		if content == "" {
+			continue
+		}
+		if len(content) > agentContextCap {
+			content = content[:agentContextCap]
+		}
+		return content
+	}
+	return ""
 }
 
 // buildFileTree returns a compact file tree of dir up to maxDepth levels deep.

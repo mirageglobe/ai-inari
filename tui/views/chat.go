@@ -468,9 +468,38 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.inputFocused = true
 		}
 
-		if msg.String() == "ctrl+f" && c.cwd != "" {
-			c.showBuiltin = !c.showBuiltin
+		// ctrl-prefixed shortcuts never collide with typed text, so they stay active
+		// while the input is focused (unlike bare keys like `t`/`?`; see open issue).
+		// ctrl+m is deliberately omitted: terminals deliver it as carriage-return, which
+		// would shadow [enter] send.
+		switch msg.String() {
+		case "ctrl+f", "ctrl+t":
+			// toggle the builtin tools panel; only meaningful when tools are active.
+			if c.cwd != "" {
+				c.showBuiltin = !c.showBuiltin
+			} else {
+				c.status = "[warn] tools not available (no cwd set)"
+			}
 			return c, nil
+		case "ctrl+g":
+			// open the help overlay; the root model owns overlay visibility.
+			return c, func() tea.Msg { return ToggleHelpMsg{} }
+		case "ctrl+p":
+			// open the slash command palette by seeding the input with "/".
+			c.input.SetValue("/")
+			c.input.CursorEnd()
+			return c, nil
+		case "esc":
+			// esc exits the active entry mode: dismiss the tools panel or clear an
+			// in-progress slash command, returning to plain chat entry.
+			if c.showBuiltin {
+				c.showBuiltin = false
+				return c, nil
+			}
+			if strings.HasPrefix(c.input.Value(), "/") {
+				c.input.Reset()
+				return c, nil
+			}
 		}
 		// up/down navigate input history instead of scrolling the viewport.
 		if msg.String() == "up" && !c.waiting {
@@ -701,8 +730,23 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 }
 
 
+// inputPrompt returns the entry prefix reflecting the active mode:
+// `[/]` while composing a slash command, `[tool]` while the builtin panel is open,
+// otherwise plain `[chat]`. gives the user visual feedback on what the input does.
+func (c Chat) inputPrompt() string {
+	switch {
+	case strings.HasPrefix(c.input.Value(), "/"):
+		return "[/] ❯ "
+	case c.showBuiltin:
+		return "[tool] ❯ "
+	default:
+		return "[chat] ❯ "
+	}
+}
+
 func (c Chat) View() string {
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
+	c.input.Prompt = c.inputPrompt()
 	var hintLine string
 	if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin && c.pendingTool == nil {
 		hintLine = renderChatSuggestions(inputVal, c.viewport.Width+2)
@@ -722,11 +766,16 @@ func (c Chat) View() string {
 			sendHint = HD("[enter] send")
 		}
 
+		toolsHint := H("[ctrl+t] tools")
+		if c.cwd == "" {
+			toolsHint = HD("[ctrl+t] tools")
+		}
 		hintLine = RenderHint([]HintCmd{
 			sendHint,
 			H("[↑↓] history"),
 			HS(),
-			H("/model change"),
+			toolsHint,
+			H("[ctrl+g] help"),
 			H("/herd"),
 		}, c.viewport.Width+1)
 	}

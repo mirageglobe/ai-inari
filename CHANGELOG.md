@@ -13,6 +13,9 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - chat view: `[copied] N lines` status after clipboard yank shows line count
 - tool approval tiering: safe read-only builtins (`read_file`, `list_dir`, `grep_file`, `stat_file`) auto-execute; `run` always requires confirmation
 - default system prompt instructs models to respond in plain text with no markdown formatting
+- chat view: `ctrl+t` toggles tools panel, `ctrl+p` opens command palette, `ctrl+g` toggles help; `esc` exits tools panel or clears slash input
+- chat view: input prefix shows the active mode (`[chat]`, `[tool]`, `[/]`)
+- session context: `AGENTS.md` or `.inari/context.md` in a session's `cwd` is injected into the system prompt
 
 ---
 
