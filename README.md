@@ -30,6 +30,8 @@ doing useful work in the background, waiting for your next word.
 - **sessions first.** Create a named session, assign a model, start chatting.
   Conversation history lives in `inarid` (background daemon).
 - **behavior context.** Each session has an editable system prompt (behavior).
+- **project context.** A session opened in a directory picks up its `AGENTS.md`
+  (or `.inari/context.md`) automatically, so the herd knows your conventions.
 - **context tracking.** Estimated token count visible in the chat header.
 - **no cloud.** Every model runs locally through Ollama.
 - **no noise.** One keyboard-driven screen (`kitsune` TUI), nothing you didn't ask for.
@@ -111,7 +113,8 @@ The TUI is inspired by `k9s` and is entirely keyboard-driven.
 
 **chat**
 - `enter`: send message | `ctrl+o`: change model
-- `↑` / `↓`: scroll | `esc`: back to herd
+- `ctrl+t`: tools panel | `ctrl+p`: command palette | `ctrl+g`: help
+- `↑` / `↓`: input history | `esc`: exit tools panel / clear slash input
 
 ---
 

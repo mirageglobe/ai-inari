@@ -36,12 +36,14 @@ var helpByView = map[string][]helpEntry{
 	},
 	"chat": {
 		{"[enter]", "send message"},
+		{"[ctrl+t]", "toggle builtin tools panel"},
+		{"[ctrl+p]", "open slash command palette"},
+		{"[ctrl+g]", "toggle this help overlay"},
+		{"[ctrl+o]", "change model"},
 		{"/clear", "clear message context"},
 		{"/compact", "summarise and compress context"},
-		{"/model change", "change model"},
-		{"/tools", "toggle builtin panel"},
 		{"[↑] / [↓]", "navigate input history"},
-		{"[esc]", "back to sessions"},
+		{"[esc]", "exit tools panel / clear slash input"},
 	},
 	"describe": {
 		{"[e]", "edit system prompt"},
