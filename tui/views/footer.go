@@ -1,5 +1,6 @@
-// Package views — footer.go owns the shared session-line and footer rendering used by all views.
+// footer.go owns the shared session-line and footer rendering used by all views.
 // it does NOT own per-view hint lists or status logic — those stay in their respective view files.
+
 package views
 
 import (

@@ -1,6 +1,7 @@
-// Package views — top bar rendering: title animation and connection/system status.
+// top bar rendering: title animation and connection/system status.
 // this file owns the wave title sweep, connection health commands, and RenderTopBar.
 // hint bar primitives (HintCmd, RenderHint) live in hints.go.
+
 package views
 
 import (

@@ -1,6 +1,7 @@
-// Package views — hint bar rendering shared across all views.
+// hint bar rendering shared across all views.
 // this file owns the HintCmd type, constructor helpers, RenderHint, and RenderScrollbar.
 // it does NOT own view-specific hint lists — those live in their respective view files.
+
 package views
 
 import (

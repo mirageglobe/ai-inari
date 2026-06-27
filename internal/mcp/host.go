@@ -1,5 +1,3 @@
-// Package mcp manages Model Context Protocol connector child processes.
-// Each connector (filesystem, search, SQL) is spawned via stdio and routed tool-calls through the audit log.
 package mcp
 
 import (

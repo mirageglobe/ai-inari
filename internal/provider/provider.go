@@ -1,15 +1,3 @@
-// Package provider defines the inference backend abstraction for inarid.
-// it owns the Provider interface and the shared message/model types that cross
-// the boundary between the daemon core and any concrete backend.
-//
-// what it owns:
-//   - Provider interface (Chat, ChatStream, LoadModel, UnloadModel, ListModels, ListRunning, Ping)
-//   - shared wire types: Message, Tool, ChatRequest, ChatResponse, Model, RunningModel
-//
-// what it does NOT own:
-//   - backend-specific HTTP / protocol logic (lives in internal/ollama, future packages)
-//   - session state or persistence (internal/session)
-//   - IPC dispatch (internal/ipc)
 package provider
 
 // Message is a single chat turn.
