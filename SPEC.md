@@ -91,6 +91,8 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` `[medium]` **implement Ollama model curation and role-based assignments** — integrate model roles (coding, general) and curated model lists into session management, allowing users to assign roles and default to recommended models based on the definitions in §6.1.
 - [ ] `[inarid/kitsune]` `[medium]` **split oversized files** - six files exceed the ~150-line limit: `internal/ipc/server.go` (922), `tui/views/chat.go` (812), `tui/views/herd.go` (691), `tui/model.go` (444), `internal/ipc/client.go` (433), `cmd/inari/main.go` (303). split by responsibility, starting with `server.go` (the RPC seam).
 - [ ] `[inarid/kitsune]` `[medium]` **test coverage for untested packages** - 7 of 12 packages have zero tests: `mcp`, `ollama`, `provider`, `version`, `tui`, `tui/views`, `cmd/inari`. add unit coverage, prioritising `provider`/`ollama` (request shaping) and the `tui/views` render seams.
+- [ ] `[inarid]` `[medium]` **global context configuration** - load global system prompts, default model settings, and context parameters from `~/.config/inari/config.json` for any Inari launch.
+- [ ] `[inarid]` `[medium]` **local project-scoped configuration** - read project-scoped settings (e.g. custom prompts, file exclusions) from a local `.inari/config.json` in the session's working directory, overriding global settings where fields overlap.
 
 - [ ] `[kitsune]` `[medium]` **unified command vocabulary** — footer hints and slash commands are currently view-specific (e.g. `/agent describe` in herd, `/describe` in chat) with no shared naming convention. standardise to a single command set where commands are contextually enabled/disabled across all views rather than defined per-view; the footer hint bar already dims unavailable commands, so the rendering model supports this. prerequisite: audit all slash commands across herd and chat views and agree on canonical names.
 
@@ -372,6 +374,15 @@ once the tool-call loop exists, built-in tools can be replaced by `@modelcontext
 ```
 
 `cwd` is optional. when absent, the session behaves as today — no filesystem context, no tools declared.
+
+### 4.7 Configuration Hierarchy
+
+when inarid loads, it merges configuration files using the following precedence (highest to lowest):
+1. local project-scoped configuration (`.inari/config.json` in the session's working directory)
+2. global configuration (`~/.config/inari/config.json`)
+3. built-in defaults
+
+only configuration fields explicitly defined in the local file override the global settings; other fields are inherited.
 
 ---
 
