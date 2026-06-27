@@ -1,5 +1,3 @@
-// Package tui is the root Bubble Tea model for fox (Terminal User Interface).
-// it owns view routing — herd, models, logs, describe, and chat — and delegates input and rendering to each.
 package tui
 
 import (
@@ -296,6 +294,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// route a theme-save failure to the active view so it shows in the status bar.
+	if saveErr, ok := msg.(views.ThemeSaveErrMsg); ok {
+		if m.current == viewChat {
+			if chat, exists := m.chats[m.activeSession]; exists {
+				updated, cmd := chat.Update(saveErr)
+				m.chats[m.activeSession] = updated.(views.Chat)
+				return m, cmd
+			}
+		}
+		updated, cmd := m.herd.Update(saveErr)
+		m.herd = updated.(views.Herd)
+		return m, cmd
+	}
+
 	if key, ok := msg.(tea.KeyMsg); ok {
 		if m.showThemePicker {
 			switch key.String() {
@@ -379,16 +391,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) applyTheme(idx int) (tea.Model, tea.Cmd) {
 	views.ApplyTheme(views.Themes[idx])
+	// persist synchronously so a save failure can be surfaced; the write is a small
+	// local file and the goroutine it replaces also raced on the shared config.
+	var saveErr error
 	if m.configPath != "" {
-		go func() {
-			cfg, err := config.Load(m.configPath)
-			if err == nil {
-				cfg.Theme = views.Themes[idx].Name
-				_ = cfg.Save(m.configPath)
-			}
-		}()
+		cfg, err := config.Load(m.configPath)
+		if err != nil {
+			saveErr = err
+		} else {
+			cfg.Theme = views.Themes[idx].Name
+			saveErr = cfg.Save(m.configPath)
+		}
 	}
-	return m, func() tea.Msg { return views.ThemeChangedMsg{} }
+	cmds := []tea.Cmd{func() tea.Msg { return views.ThemeChangedMsg{} }}
+	if saveErr != nil {
+		cmds = append(cmds, func() tea.Msg { return views.ThemeSaveErrMsg{Err: saveErr} })
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() string {

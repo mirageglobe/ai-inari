@@ -1,6 +1,7 @@
-// Package views — help overlay for the kitsune TUI.
+// help overlay for the kitsune TUI.
 // this file owns the per-view key reference shown when [?] is pressed.
 // it does NOT own key dispatch — the root model intercepts [?] and [esc].
+
 package views
 
 import (
@@ -42,6 +43,8 @@ var helpByView = map[string][]helpEntry{
 		{"[ctrl+o]", "change model"},
 		{"/clear", "clear message context"},
 		{"/compact", "summarise and compress context"},
+		{"/copy", "copy last response to clipboard"},
+		{"/save", "save full context to a file"},
 		{"[↑] / [↓]", "navigate input history"},
 		{"[esc]", "exit tools panel / clear slash input"},
 	},

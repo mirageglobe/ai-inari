@@ -86,6 +86,7 @@ make stop     # stop inarid (also runs automatically when kitsune exits)
   "memory_budget_mb": 8192,
   "ollama_base_url": "http://localhost:11434",
   "data_dir": "~/.local/share/inari/sessions",
+  "idle_shutdown_mins": 30,
   "mcp_connectors": [
     { "name": "filesystem", "command": "mcp-filesystem", "args": [] },
     { "name": "search",     "command": "mcp-search",     "args": [] }
@@ -97,6 +98,8 @@ make stop     # stop inarid (also runs automatically when kitsune exits)
   }
 }
 ```
+
+`idle_shutdown_mins` is how long the daemon may sit with no client activity before it shuts itself down (default `30`). set it to `0` to use the default, or a negative value to keep the daemon running indefinitely.
 
 ---
 

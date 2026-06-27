@@ -1,7 +1,8 @@
-// Package views — theme definitions and active-theme management.
+// theme definitions and active-theme management.
 // this file owns the Theme type, the built-in palette list, and ApplyTheme which
 // reassigns all package-level style vars so subsequent renders pick up the new colours.
 // it does NOT own config persistence — the root model calls Save after cycling.
+
 package views
 
 import (
@@ -13,6 +14,10 @@ import (
 
 // ThemeChangedMsg is emitted when the active theme is updated.
 type ThemeChangedMsg struct{}
+
+// ThemeSaveErrMsg is emitted when persisting the new theme to config fails;
+// views surface it so a failed save is not mistaken for a successful one.
+type ThemeSaveErrMsg struct{ Err error }
 
 // ApplyTableStyles applies the current theme's selection style to the given table.
 // call this when initialising a table and when the theme changes.
