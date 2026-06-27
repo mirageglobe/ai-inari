@@ -1,7 +1,6 @@
-// Package views contains the individual screen views rendered by the fox TUI:
-// Herd (session table), Logs (token stream), Describe (session metadata), and Chat (head-inari conversation).
 // this file owns the Herd type, its Init/Update/View methods, and the hint list.
 // message types, commands, and helpers live in herd_cmds.go.
+
 package views
 
 import (
@@ -100,6 +99,10 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ThemeChangedMsg:
 		ApplyTableStyles(&h.table)
 		h.spinner.Style = spinnerStyle
+		return h, nil
+
+	case ThemeSaveErrMsg:
+		h.status = connErrStyle.Render("theme save failed: " + msg.Err.Error())
 		return h, nil
 
 	case tea.WindowSizeMsg:

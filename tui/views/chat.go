@@ -24,7 +24,6 @@ var (
 	thinkingStyle  = lipgloss.NewStyle().Faint(true)
 )
 
-
 // ChatTokenMsg is sent for each streamed token from inarid.
 // SessionID routes it to the correct Chat view regardless of which view is active.
 type ChatTokenMsg struct {
@@ -114,9 +113,9 @@ func (c Chat) Init() tea.Cmd {
 	return tea.Batch(c.input.Focus(), fetchChatHistory(c.client, c.sessionID))
 }
 
-func (c Chat) SessionID() string    { return c.sessionID }
-func (c Chat) SessionName() string  { return c.sessionName }
-func (c Chat) InputFocused() bool   { return c.inputFocused }
+func (c Chat) SessionID() string   { return c.sessionID }
+func (c Chat) SessionName() string { return c.sessionName }
+func (c Chat) InputFocused() bool  { return c.inputFocused }
 
 func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars int) Chat {
 	ta := textarea.New()
@@ -315,6 +314,18 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ThemeChangedMsg:
 		c.spinner.Style = spinnerStyle
 		c.rebuildDisplay()
+		return c, nil
+
+	case ThemeSaveErrMsg:
+		c.status = "[warn] theme save failed: " + msg.Err.Error()
+		return c, nil
+
+	case exportChatResultMsg:
+		if msg.err != nil {
+			c.status = "[warn] save failed: " + msg.err.Error()
+		} else {
+			c.status = "[saved] " + msg.path
+		}
 		return c, nil
 
 	case clearHistoryResultMsg:
@@ -624,9 +635,14 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cl := c.viewport.YOffset + (msg.Y - viewportTopY)
 				c.selEndLine = cl
 				if text := c.selectedText(); text != "" {
-					_ = copyToClipboard(text)
-					n := strings.Count(text, "\n") + 1
-					c.status = fmt.Sprintf("[copied] %d lines", n)
+					// surface clipboard failures (e.g. pbcopy/xclip absent) rather than
+					// reporting a copy that silently did nothing.
+					if err := copyToClipboard(text); err != nil {
+						c.status = "[warn] copy failed: " + err.Error()
+					} else {
+						n := strings.Count(text, "\n") + 1
+						c.status = fmt.Sprintf("[copied] %d lines", n)
+					}
 				}
 				c.selActive = false
 				setViewportContent(&c.viewport, c.viewportContent())
@@ -652,7 +668,7 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // chatCommands is the ordered list of slash commands available in the chat view.
-var chatCommands = []string{"/clear", "/compact", "/model change", "/describe", "/tools", "/herd", "/quit"}
+var chatCommands = []string{"/clear", "/compact", "/copy", "/save", "/model change", "/describe", "/tools", "/herd", "/quit"}
 
 // renderChatSuggestions replaces the hint bar when the user is typing a slash command.
 // commands that match the current prefix are shown active; others are dimmed.
@@ -691,6 +707,17 @@ type compactHistoryResultMsg struct {
 	err     error
 }
 
+// lastAssistantText returns the content of the most recent assistant message,
+// or "" if the conversation has no assistant reply yet.
+func (c Chat) lastAssistantText() string {
+	for i := len(c.messages) - 1; i >= 0; i-- {
+		if c.messages[i].Role == "assistant" {
+			return c.messages[i].Content
+		}
+	}
+	return ""
+}
+
 func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
 	case "/clear":
@@ -706,6 +733,23 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			summary, err := c.client.CompactHistory(id)
 			return compactHistoryResultMsg{summary: summary, err: err}
 		})
+	case "/copy":
+		// copy the most recent assistant response to the system clipboard.
+		text := c.lastAssistantText()
+		if text == "" {
+			c.status = "[warn] no response to copy"
+			return c, nil
+		}
+		if err := copyToClipboard(text); err != nil {
+			c.status = "[warn] copy failed: " + err.Error()
+		} else {
+			c.status = "[copied] response"
+		}
+		return c, nil
+	case "/save":
+		// download the full session context (history) to a text file; reuses the
+		// herd export path so both entry points write to the same location.
+		return c, exportChatCmd(c.client, c.sessionID, c.sessionName)
 	case "/model change":
 		return c, func() tea.Msg {
 			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}
@@ -728,7 +772,6 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, nil
 	}
 }
-
 
 // inputPrompt returns the entry prefix reflecting the active mode:
 // `[/]` while composing a slash command, `[tool]` while the builtin panel is open,
