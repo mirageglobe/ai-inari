@@ -1,5 +1,3 @@
-// Package ipc implements the JSON-RPC 2.0 transport between fox and inarid over a Unix Domain Socket.
-// Client is used by fox; Server is used by inarid. Both live here to keep the protocol in one place.
 package ipc
 
 import (

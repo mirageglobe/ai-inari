@@ -1,5 +1,3 @@
-// Package session tracks the lifecycle of every model session owned by inarid.
-// Sessions survive fox detaching and can be reconnected by ID.
 package session
 
 import (

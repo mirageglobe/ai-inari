@@ -1,5 +1,6 @@
-// Package views — model selector view: lists available Ollama models and assigns one to a session.
+// model selector view: lists available Ollama models and assigns one to a session.
 // this file also owns modelsMsg and fetchModels since the selector is their sole consumer.
+
 package views
 
 import (

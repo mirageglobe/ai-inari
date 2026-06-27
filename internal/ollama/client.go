@@ -1,10 +1,3 @@
-// Package ollama is the Ollama HTTP backend implementation of provider.Provider.
-// it translates the provider interface into HTTP calls against the Ollama REST API
-// (/api/chat, /api/tags, /api/ps, /api/generate).
-//
-// what it owns: HTTP transport, Ollama-specific request/response encoding.
-// what it does NOT own: type definitions for messages or models (internal/provider),
-// session state (internal/session), or IPC dispatch (internal/ipc).
 package ollama
 
 import (

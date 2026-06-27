@@ -1,6 +1,7 @@
-// Package views — herd data plumbing: internal message types, tea.Cmd constructors,
+// herd data plumbing: internal message types, tea.Cmd constructors,
 // session naming, and shared formatting helpers.
 // it does NOT own the Herd view struct or its rendering — those live in herd.go.
+
 package views
 
 import (
