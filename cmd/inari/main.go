@@ -1,14 +1,3 @@
-// Package main is the inari unified entry point.
-//
-// Responsibilities:
-//   - Parse the subcommand and dispatch to the correct mode.
-//   - start:   fork daemon in background then launch TUI.
-//   - daemon:  run the IPC server in the foreground (--background for internal use).
-//   - tui:     run the terminal UI only (assumes daemon is already running).
-//   - stop:    send SIGTERM to the running daemon.
-//   - status:  report whether the daemon is running.
-//   - version: print version string and exit.
-//   - (no args): print help menu.
 package main
 
 import (
@@ -22,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -140,7 +130,20 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	}
 	defer mcpHost.Stop()
 
-	srv, err := ipc.NewServer(cfg.Socket, store, sched, mcpHost, auditor, ollamaClient, verbose)
+	// idle auto-shutdown: 0 falls back to the 30 min default (covers configs
+	// predating the field); a negative value disables the watchdog.
+	idleTimeout := time.Duration(cfg.IdleShutdownMins) * time.Minute
+	switch {
+	case cfg.IdleShutdownMins == 0:
+		idleTimeout = 30 * time.Minute
+	case cfg.IdleShutdownMins < 0:
+		idleTimeout = 0
+	}
+	if idleTimeout > 0 {
+		log.Printf("idle auto-shutdown: %s", idleTimeout)
+	}
+
+	srv, err := ipc.NewServer(cfg.Socket, store, sched, mcpHost, auditor, ollamaClient, verbose, idleTimeout)
 	if err != nil {
 		log.Fatalf("ipc: %v", err)
 	}

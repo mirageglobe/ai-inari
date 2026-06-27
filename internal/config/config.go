@@ -1,5 +1,3 @@
-// Package config loads and holds the daemon configuration from config.json.
-// It defines the socket path, memory budget, Ollama URL, MCP connectors, and model assignments.
 package config
 
 import (
@@ -29,6 +27,10 @@ type Config struct {
 	MCPConnectors  []MCPConnector `json:"mcp_connectors"`
 	Models         Models         `json:"models"`
 	Theme          string         `json:"theme,omitempty"`
+	// idle_shutdown_mins: minutes of no client activity after which the daemon
+	// exits on its own. 0 falls back to the 30 min default; a negative value
+	// disables auto-shutdown entirely.
+	IdleShutdownMins int `json:"idle_shutdown_mins"`
 }
 
 var defaults = &Config{
@@ -41,7 +43,8 @@ var defaults = &Config{
 		Worker:  "bonsai:4b",
 		Sensor:  "qwen3-nano",
 	},
-	Theme: "slate",
+	Theme:            "slate",
+	IdleShutdownMins: 30,
 }
 
 // Load reads config from path. if the file does not exist it is created with

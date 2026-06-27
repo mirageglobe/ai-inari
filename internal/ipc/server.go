@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
@@ -54,10 +56,17 @@ type Server struct {
 	auditor  *audit.Auditor
 	provider provider.Provider
 	quit     chan struct{}
+	quitOnce sync.Once
 	verbose  bool
+
+	// idleTimeout is how long the daemon may sit with no client activity before
+	// shutting itself down; zero disables the watchdog. lastActive holds the unix
+	// nano of the most recent RPC and is read by monitorIdle.
+	idleTimeout time.Duration
+	lastActive  atomic.Int64
 }
 
-func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool) (*Server, error) {
+func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool, idleTimeout time.Duration) (*Server, error) {
 	// Remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
 	os.Remove(socket)
 
@@ -80,9 +89,56 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		provider: p,
 		quit:     make(chan struct{}),
 		verbose:  verbose,
+
+		idleTimeout: idleTimeout,
 	}
+	s.touch()     // seed the idle clock so the daemon does not shut down before its first call
 	go s.accept() // accept loop runs in background; NewServer returns immediately
+	if idleTimeout > 0 {
+		go s.monitorIdle()
+	}
 	return s, nil
+}
+
+// touch records the time of the latest client activity for the idle watchdog.
+func (s *Server) touch() {
+	s.lastActive.Store(time.Now().UnixNano())
+}
+
+// closeQuit signals main to shut down. it is safe to call from multiple goroutines;
+// the daemon.quit RPC and the idle watchdog both use it.
+func (s *Server) closeQuit() {
+	s.quitOnce.Do(func() { close(s.quit) })
+}
+
+// monitorIdle shuts the daemon down once no client activity has been seen for
+// idleTimeout. it checks on a coarse ticker rather than a precise timer because the
+// shutdown deadline does not need second-level accuracy.
+func (s *Server) monitorIdle() {
+	// check at a fraction of the timeout so the actual shutdown lands within ~1/4
+	// of the configured window, capped at one minute for short timeouts.
+	interval := s.idleTimeout / 4
+	if interval > time.Minute {
+		interval = time.Minute
+	}
+	if interval <= 0 {
+		interval = time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.quit:
+			return
+		case <-ticker.C:
+			last := time.Unix(0, s.lastActive.Load())
+			if time.Since(last) >= s.idleTimeout {
+				log.Printf("idle for %s; auto-shutting down", s.idleTimeout)
+				s.closeQuit()
+				return
+			}
+		}
+	}
 }
 
 // Quit returns a channel that is closed when a daemon.quit RPC is received.
@@ -125,6 +181,7 @@ func (s *Server) handle(conn net.Conn) {
 		if err := dec.Decode(&req); err != nil {
 			return
 		}
+		s.touch() // any RPC (including ping heartbeats) resets the idle watchdog
 		s.auditor.Log(req.Method, req.Params)
 
 		if req.Method == "session.stream" {
@@ -332,7 +389,7 @@ func (s *Server) dispatch(req Request) Response {
 				"- list_dir(path): list files and directories inside a path\n" +
 				"- grep_file(path, pattern): search for a regex pattern across files, returns matching lines\n" +
 				"- stat_file(path): return size, modification time, and type for a file or directory\n" +
-				"- run(command, args): run an allowlisted command in the working directory; permitted commands: "+sortedAllowedCommands()+"\n" +
+				"- run(command, args): run an allowlisted command in the working directory; permitted commands: " + sortedAllowedCommands() + "\n" +
 				"use these tools whenever the user asks about files, code, or the project structure."
 			// inject a project-level context file (AGENTS.md / .inari/context.md) so the
 			// model picks up local conventions without manual copy-paste; absent file is fine.
@@ -576,12 +633,7 @@ func (s *Server) dispatch(req Request) Response {
 		}
 		return Response{JSONRPC: "2.0", Result: caps, ID: req.ID}
 	case "daemon.quit":
-		// Signal main to shut down; close is idempotent via sync.Once pattern.
-		select {
-		case <-s.quit:
-		default:
-			close(s.quit)
-		}
+		s.closeQuit() // idempotent; also used by the idle watchdog
 		return Response{JSONRPC: "2.0", Result: "shutting down", ID: req.ID}
 	default:
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32601, Message: "method not found"}, ID: req.ID}
@@ -684,25 +736,25 @@ var safeTools = map[string]bool{
 // allowedCommands is the set of binaries that run may invoke.
 // each entry is the base command name only — arguments are passed separately and never shell-expanded.
 var allowedCommands = map[string]bool{
-	"go":      true,
-	"make":    true,
-	"git":     true,
-	"date":    true,
-	"echo":    true,
-	"pwd":     true,
-	"whoami":  true,
-	"uname":   true,
-	"wc":      true,
-	"curl":    true,
-	"wget":    true,
-	"find":    true,
-	"ps":      true,
-	"ls":      true,
-	"cat":     true,
-	"df":      true,
-	"du":      true,
-	"uptime":  true,
-	"which":   true,
+	"go":     true,
+	"make":   true,
+	"git":    true,
+	"date":   true,
+	"echo":   true,
+	"pwd":    true,
+	"whoami": true,
+	"uname":  true,
+	"wc":     true,
+	"curl":   true,
+	"wget":   true,
+	"find":   true,
+	"ps":     true,
+	"ls":     true,
+	"cat":    true,
+	"df":     true,
+	"du":     true,
+	"uptime": true,
+	"which":  true,
 }
 
 // sortedAllowedCommands returns the allowed command names as a sorted, comma-separated string.
