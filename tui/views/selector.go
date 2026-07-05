@@ -4,6 +4,7 @@
 package views
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -61,6 +62,9 @@ type loadModelMsg struct {
 }
 
 // ModelSelector lists available Ollama models and lets the user assign one to a session.
+// recommended holds curated models (SPEC.md §6.1) for the detected hardware tier that
+// are not already pulled; it is informational only - selecting one is not supported,
+// the user runs the shown `ollama pull` command themselves.
 type ModelSelector struct {
 	client            *ipc.Client
 	table             table.Model
@@ -70,6 +74,8 @@ type ModelSelector struct {
 	targetSessionID   string
 	targetSessionName string
 	width             int
+	tierGB            int
+	recommended       []CuratedModel
 }
 
 func NewModelSelector(client *ipc.Client) ModelSelector {
@@ -88,7 +94,7 @@ func NewModelSelector(client *ipc.Client) ModelSelector {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
-	return ModelSelector{client: client, table: t, spinner: s}
+	return ModelSelector{client: client, table: t, spinner: s, tierGB: DetectTier(TotalMemBytes())}
 }
 
 // ForSession returns a copy of the selector targeting the given session.
@@ -143,10 +149,13 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return msg.models[i].Name < msg.models[j].Name
 			})
 			rows := make([]table.Row, len(msg.models))
+			names := make([]string, len(msg.models))
 			for i, model := range msg.models {
 				rows[i] = table.Row{model.Name, formatBytes(model.Size)}
+				names[i] = model.Name
 			}
 			m.table.SetRows(rows)
+			m.recommended = RecommendedFor(m.tierGB, names)
 		}
 		return m, nil
 
@@ -235,6 +244,29 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
+// renderRecommended lists curated models (SPEC.md §6.1) for the detected hardware
+// tier that are not already pulled, each with the exact command to pull it.
+// returns "" when there is nothing left to recommend.
+func (m ModelSelector) renderRecommended() string {
+	if len(m.recommended) == 0 {
+		return ""
+	}
+	headerStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	roleStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
+	modelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+	cmdStyle := lipgloss.NewStyle().Faint(true)
+
+	lines := []string{headerStyle.Render(fmt.Sprintf("recommended for your system (%dgb tier):", m.tierGB))}
+	for _, c := range m.recommended {
+		lines = append(lines, fmt.Sprintf("  %s  %s  %s  %s",
+			roleStyle.Render(fmt.Sprintf("%-7s", c.Role)),
+			modelStyle.Render(c.Model),
+			c.Size,
+			cmdStyle.Render("ollama pull "+c.Model)))
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (m ModelSelector) View() string {
 	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("models")
 	if m.targetSessionName != "" {
@@ -242,6 +274,9 @@ func (m ModelSelector) View() string {
 	}
 	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign to agent"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
 	body := agentsStyle.Render(m.table.View())
+	if rec := m.renderRecommended(); rec != "" {
+		body += "\n" + rec
+	}
 	if m.status != "" {
 		line := m.status
 		if m.loading {
