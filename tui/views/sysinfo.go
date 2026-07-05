@@ -31,6 +31,15 @@ func FetchSysStatsNow() tea.Cmd {
 	return func() tea.Msg { return fetchSysStats() }
 }
 
+// TotalMemBytes returns total system RAM, or 0 if it cannot be read.
+func TotalMemBytes() uint64 {
+	vm, err := gomem.VirtualMemory()
+	if err != nil || vm == nil {
+		return 0
+	}
+	return vm.Total
+}
+
 func fetchSysStats() SysStatsMsg {
 	pcts, _ := gocpu.Percent(0, false)
 	vm, _ := gomem.VirtualMemory()
@@ -46,4 +55,3 @@ func fetchSysStats() SysStatsMsg {
 	}
 	return SysStatsMsg{CPUPercent: cpu, MemUsed: used, MemTotal: total}
 }
-
