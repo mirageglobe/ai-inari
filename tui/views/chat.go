@@ -40,8 +40,8 @@ type chatHistoryMsg struct {
 }
 
 // Chat is the interactive conversation view for a session.
-// display holds the rendered lines shown in the viewport — local to this kitsune instance.
-// all message history lives in inarid; kitsune sends only the new user text each turn.
+// display holds the rendered lines shown in the viewport — local to this inari instance.
+// all message history lives in inarid; inari sends only the new user text each turn.
 // the waiting spinner is rendered separately and is never written into display.
 // historyLoaded prevents duplicate appends when Init() is called more than once
 // (e.g. returning to this chat after a model-selector round-trip).
@@ -105,7 +105,7 @@ func (c Chat) WithModel(model string) Chat {
 }
 
 // Init focuses the textarea and fetches the session's message history from inarid
-// so prior conversations are restored when kitsune reconnects to an existing session.
+// so prior conversations are restored when inari reconnects to an existing session.
 func (c Chat) Init() tea.Cmd {
 	return tea.Batch(c.input.Focus(), fetchChatHistory(c.client, c.sessionID))
 }

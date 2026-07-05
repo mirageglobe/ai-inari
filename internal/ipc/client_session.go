@@ -88,7 +88,7 @@ func (c *Client) AssignModel(sessionID, model string) error {
 }
 
 // History fetches the full message history for a session.
-// fox calls this on chat open to restore the conversation display.
+// inari calls this on chat open to restore the conversation display.
 func (c *Client) History(sessionID string) ([]provider.Message, error) {
 	resp, err := c.Call("session.history", map[string]string{"id": sessionID})
 	if err != nil {

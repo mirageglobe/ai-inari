@@ -61,7 +61,7 @@ func (h Agents) View() string {
 	hasSession := idx >= 0 && idx < len(h.sessions)
 	hasModel := hasSession && h.sessions[idx].Model != ""
 
-	sessionName := "kitsune"
+	sessionName := "agent"
 	if hasSession {
 		sessionName = h.sessions[idx].Name
 	}
@@ -87,12 +87,12 @@ func (h Agents) View() string {
 
 	var statusContent string
 	switch {
-	case h.status != "" && h.foxInfo != "":
-		statusContent = h.status + "  " + h.foxInfo
+	case h.status != "" && h.infoMsg != "":
+		statusContent = h.status + "  " + h.infoMsg
 	case h.status != "":
 		statusContent = h.status
-	case h.foxInfo != "":
-		statusContent = h.foxInfo
+	case h.infoMsg != "":
+		statusContent = h.infoMsg
 	}
 	statusLine := renderStatusLine(statusContent)
 
@@ -112,7 +112,7 @@ func (h Agents) View() string {
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
-		body := agentsStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune..."))
+		body := agentsStyle.Render(pad.Render(h.spinner.View() + " fetching agents..."))
 		return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, "", hintLine)
 	}
 

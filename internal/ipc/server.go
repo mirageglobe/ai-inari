@@ -147,7 +147,7 @@ func (s *Server) providerErr(req Request) (Response, bool) {
 }
 
 // accept runs until the listener is closed (on shutdown). each connection gets its own goroutine
-// so a slow fox call (e.g. a long Ollama reply) doesn't block other clients.
+// so a slow inari call (e.g. a long Ollama reply) doesn't block other clients.
 func (s *Server) accept() {
 	for {
 		conn, err := s.listener.Accept()
@@ -159,7 +159,7 @@ func (s *Server) accept() {
 }
 
 // handle reads JSON-RPC requests from conn in a loop. the connection stays open across multiple
-// calls so kitsune can reuse it without re-dialing for every operation.
+// calls so inari can reuse it without re-dialing for every operation.
 // session.stream is handled specially: it takes over the connection for the duration of the
 // stream and closes it when done, so the loop exits after one streaming call.
 func (s *Server) handle(conn net.Conn) {

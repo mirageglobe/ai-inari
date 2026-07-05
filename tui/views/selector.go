@@ -60,7 +60,7 @@ type loadModelMsg struct {
 	err  error
 }
 
-// ModelSelector lists available Ollama models and lets the user assign one to a kitsune session.
+// ModelSelector lists available Ollama models and lets the user assign one to a session.
 type ModelSelector struct {
 	client            *ipc.Client
 	table             table.Model
@@ -91,7 +91,7 @@ func NewModelSelector(client *ipc.Client) ModelSelector {
 	return ModelSelector{client: client, table: t, spinner: s}
 }
 
-// ForSession returns a copy of the selector targeting the given kitsune session.
+// ForSession returns a copy of the selector targeting the given session.
 func (m ModelSelector) ForSession(sessionID, sessionName string) ModelSelector {
 	m.targetSessionID = sessionID
 	m.targetSessionName = sessionName
@@ -240,7 +240,7 @@ func (m ModelSelector) View() string {
 	if m.targetSessionName != "" {
 		viewLabel += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
 	}
-	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
+	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign to agent"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
 	body := agentsStyle.Render(m.table.View())
 	if m.status != "" {
 		line := m.status

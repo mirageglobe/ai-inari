@@ -72,30 +72,30 @@ type exportChatResultMsg struct {
 	err  error
 }
 
-// kitsunAdjectives are paired with "kitsune" to form session names like "jade kitsune".
-var kitsuneAdjectives = []string{
+// sessionAdjectives are paired with "agent" to form session names like "jade agent".
+var sessionAdjectives = []string{
 	"arctic", "amber", "ash", "blaze", "copper", "crimson", "dusk",
 	"ember", "fire", "frost", "ghost", "golden", "jade", "midnight",
 	"rusty", "scarlet", "shadow", "silver", "storm", "swift", "thunder",
 	"tundra", "violet", "wild",
 }
 
-// pickFoxName returns a kitsune-themed name not already in use.
-func pickFoxName(used []string) string {
+// pickAgentName returns an agent-themed name not already in use.
+func pickAgentName(used []string) string {
 	inUse := make(map[string]bool, len(used))
 	for _, v := range used {
 		inUse[v] = true
 	}
-	pool := make([]string, len(kitsuneAdjectives))
-	copy(pool, kitsuneAdjectives)
+	pool := make([]string, len(sessionAdjectives))
+	copy(pool, sessionAdjectives)
 	rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 	for _, adj := range pool {
-		name := adj + " kitsune"
+		name := adj + " agent"
 		if !inUse[name] {
 			return name
 		}
 	}
-	return fmt.Sprintf("kitsune #%d", len(used)+1)
+	return fmt.Sprintf("agent #%d", len(used)+1)
 }
 
 func fetchSessions(client *ipc.Client) tea.Cmd {

@@ -1,5 +1,5 @@
 // Package session tracks the lifecycle of every model session owned by inarid.
-// sessions survive fox detaching and can be reconnected by ID.
+// sessions survive inari detaching and can be reconnected by ID.
 //
 // it owns:
 //   - session creation, lookup, and removal.

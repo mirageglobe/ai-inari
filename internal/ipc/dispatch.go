@@ -8,8 +8,8 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
-// toInfo converts a session to the wire summary sent to fox.
-// ContextChars sums all message content (including system prompt) so fox can
+// toInfo converts a session to the wire summary sent to inari.
+// ContextChars sums all message content (including system prompt) so inari can
 // display an estimated token count without fetching the full history.
 func toInfo(sess *session.Session) SessionInfo {
 	history := sess.ChatHistory()
@@ -146,7 +146,7 @@ func (s *Server) dispatch(req Request) Response {
 		return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
 
 	// session.history returns the full message history for a session.
-	// fox calls this when opening a session to restore the display from inarid's store.
+	// inari calls this when opening a session to restore the display from inarid's store.
 	case "session.history":
 		var params struct {
 			ID string `json:"id"`
@@ -158,7 +158,7 @@ func (s *Server) dispatch(req Request) Response {
 		if !ok {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
 		}
-		// filter system messages; fox display shows only user/assistant turns.
+		// filter system messages; inari display shows only user/assistant turns.
 		all := sess.ChatHistory()
 		visible := all[:0:len(all)]
 		for _, m := range all {
