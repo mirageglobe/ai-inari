@@ -34,7 +34,7 @@ doing useful work in the background, waiting for your next word.
   (or `.inari/context.md`) automatically, so the herd knows your conventions.
 - **context tracking.** Estimated token count visible in the chat header.
 - **no cloud.** Every model runs locally through Ollama.
-- **no noise.** One keyboard-driven screen (`kitsune` TUI), nothing you didn't ask for.
+- **no noise.** One keyboard-driven screen (`inari` TUI), nothing you didn't ask for.
 - **no secrets leaked.** Every tool-call is audit-logged locally.
 
 ---
@@ -70,8 +70,8 @@ brew upgrade mirageglobe/tap/inari
 ## quick start
 
 ```sh
-make start    # builds, starts ollama + inarid in background, launches kitsune TUI
-make stop     # stop inarid (also runs automatically when kitsune exits)
+make start    # builds, starts ollama + inarid in background, launches inari TUI
+make stop     # stop inarid (also runs automatically when inari exits)
 ```
 
 ---
@@ -105,7 +105,7 @@ make stop     # stop inarid (also runs automatically when kitsune exits)
 
 ## usage
 
-### kitsune (TUI)
+### inari (TUI)
 
 The TUI is inspired by `k9s` and is entirely keyboard-driven.
 

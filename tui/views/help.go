@@ -1,4 +1,4 @@
-// help overlay for the kitsune TUI.
+// help overlay for the inari TUI.
 // this file owns the per-view key reference shown when [?] is pressed.
 // it does NOT own key dispatch — the root model intercepts [?] and [esc].
 
@@ -20,7 +20,7 @@ type helpEntry struct {
 // update this table whenever a new binding is added to a view.
 var helpByView = map[string][]helpEntry{
 	"agents": {
-		{"/chat", "open chat for default kitsune"},
+		{"/chat", "open chat for default agent"},
 		{"/agent add", "create session"},
 		{"/model select", "assign model (modal)"},
 		{"/model unload", "unload model"},

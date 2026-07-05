@@ -1,4 +1,4 @@
-// Package tui is the root Bubble Tea model for fox (the terminal user interface).
+// Package tui is the root Bubble Tea model for inari (the terminal user interface).
 //
 // it owns:
 //   - view routing across agents, models, logs, describe, and chat.

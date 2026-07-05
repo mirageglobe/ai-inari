@@ -9,14 +9,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// logFile is the kitsune TUI log written by cmd/kitsune/main.go.
-const logFile = "kitsune.log"
+// logFile is the inari TUI log written by cmd/inari/main.go.
+const logFile = "inari.log"
 
 type logContentMsg struct {
 	content string
 }
 
-// Logs reads and displays kitsune.log in a scrollable viewport.
+// Logs reads and displays inari.log in a scrollable viewport.
 type Logs struct {
 	viewport viewport.Model
 	content  string

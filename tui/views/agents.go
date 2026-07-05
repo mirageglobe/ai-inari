@@ -27,7 +27,7 @@ var (
 )
 
 // Agents is the default session-list view.
-// sessions are owned by inarid; fox fetches them on init and after mutations.
+// sessions are owned by inarid; inari fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
 // input is the command entry field shown in the footer; activated when the user types "/".
 type Agents struct {
@@ -47,7 +47,7 @@ type Agents struct {
 	offline         bool
 	autoCreated     bool                // guards against duplicate default-session creation on concurrent fetches
 	autoOpen        bool                // true on first load; fires SelectModelMsg to open chat if a ready session exists
-	foxInfo         string              // transient message shown in the fox status line; cleared on next keypress
+	infoMsg         string              // transient message shown in the status line; cleared on next keypress
 	modelCaps       map[string][]string // capability tags per model name, fetched lazily
 	activeSessionID string              // session currently open in chat view; marked in the table
 }
@@ -56,7 +56,7 @@ func NewAgents(client *ipc.Client) Agents {
 	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
 		{Title: "", Width: 2},
-		{Title: "agents (kitsune)", Width: 20},
+		{Title: "name", Width: 20},
 		{Title: "model", Width: 28},
 		{Title: "vram", Width: 12},
 		{Title: "status", Width: 16},
@@ -113,7 +113,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// and pushes the root header off the top of the display.
 		hintStr := RenderHint(agentsHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
-		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + cwdLine(1) + statusLine(1) + input(1) + hint(hintHeight)
+		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + sessionLine(1) + cwdLine(1) + statusLine(1) + input(1) + hint(hintHeight)
 		tableHeight := msg.Height - 8 - h.hintHeight
 		if tableHeight < 1 {
 			tableHeight = 1
@@ -121,7 +121,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.tableHeight = tableHeight
 		h.table.SetHeight(tableHeight)
 		// resize model column to fill available width.
-		// fixed cols: indicator(2) + kitsune(20) + vram(12) + status(16) + context(12) = 62
+		// fixed cols: indicator(2) + name(20) + vram(12) + status(16) + context(12) = 62
 		// overhead: 6 cols × 2 cell padding + 2 border = 14; total fixed overhead = 76.
 		modelColW := h.width - 76
 		if modelColW < 10 {
@@ -129,7 +129,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		h.table.SetColumns([]table.Column{
 			{Title: "", Width: 2},
-			{Title: "agents (kitsune)", Width: 20},
+			{Title: "name", Width: 20},
 			{Title: "model", Width: modelColW},
 			{Title: "vram", Width: 12},
 			{Title: "status", Width: 16},
@@ -154,7 +154,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h.sessions = msg.sessions
 			if len(msg.sessions) == 0 && !h.autoCreated {
 				h.autoCreated = true
-				return h, createSessionCmd(h.client, "default kitsune")
+				return h, createSessionCmd(h.client, "default agent")
 			}
 			// on first successful load, auto-open the first session that has a model.
 			if h.autoOpen && len(msg.sessions) > 0 {
@@ -268,9 +268,9 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case exportChatResultMsg:
 		if msg.err != nil {
-			h.foxInfo = connErrStyle.Render("[error] " + msg.err.Error())
+			h.infoMsg = connErrStyle.Render("[error] " + msg.err.Error())
 		} else {
-			h.foxInfo = modelsStyle.Render("[info] exported → " + msg.path)
+			h.infoMsg = modelsStyle.Render("[info] exported → " + msg.path)
 		}
 		return h, nil
 
@@ -325,7 +325,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, nil
 
 	case tea.KeyMsg:
-		h.foxInfo = ""
+		h.infoMsg = ""
 
 		// "/" activates the command input when not already focused.
 		if !h.inputFocused && msg.String() == "/" {

@@ -25,14 +25,14 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
 	case "/agent add":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
-		name := pickFoxName(h.usedNames())
+		name := pickAgentName(h.usedNames())
 		return h, createSessionCmd(h.client, name)
 	case "/model select":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		idx := h.table.Cursor()
@@ -44,7 +44,7 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		}
 	case "/model unload":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		idx := h.table.Cursor()
@@ -58,7 +58,7 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		}
 	case "/chat":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		// open chat for the first session in the list regardless of cursor position.
@@ -69,11 +69,11 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
 				}
 			}
-			h.foxInfo = modelsStyle.Render("[warn] default kitsune has no model assigned")
+			h.infoMsg = modelsStyle.Render("[warn] default agent has no model assigned")
 		}
 	case "/agent chat":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		idx := h.table.Cursor()
@@ -87,7 +87,7 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		}
 	case "/agent delete":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		idx := h.table.Cursor()
@@ -103,7 +103,7 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		}
 	case "/refresh":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		h.status = ""
@@ -111,13 +111,13 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return h, tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
 	case "/agent logs":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		return h, func() tea.Msg { return OpenLogsMsg{} }
 	case "/agent describe":
 		if h.offline {
-			h.foxInfo = modelsStyle.Render("[warn] offline")
+			h.infoMsg = modelsStyle.Render("[warn] offline")
 			return h, nil
 		}
 		return h, func() tea.Msg { return OpenDescribeMsg{} }
@@ -128,7 +128,7 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	case "/quit":
 		return h, tea.Quit
 	default:
-		h.foxInfo = modelsStyle.Render("[warn] unknown command: " + cmd)
+		h.infoMsg = modelsStyle.Render("[warn] unknown command: " + cmd)
 	}
 	return h, nil
 }

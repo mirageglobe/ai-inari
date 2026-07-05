@@ -21,7 +21,7 @@ type describeSetContextMsg struct {
 	err    error
 }
 
-// Describe shows full metadata for the selected kitsune session and lets the user
+// Describe shows full metadata for the selected agent and lets the user
 // set a system prompt (context) that is prepended to every chat request for that session.
 type Describe struct {
 	client       *ipc.Client

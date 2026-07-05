@@ -1,5 +1,5 @@
-// Package ipc implements the JSON-RPC 2.0 transport between fox and inarid over a
-// Unix Domain Socket. Client is used by fox; Server is used by inarid. both live here
+// Package ipc implements the JSON-RPC 2.0 transport between inari and inarid over a
+// Unix Domain Socket. Client is used by inari; Server is used by inarid. both live here
 // to keep the wire protocol defined in one place.
 //
 // it owns:

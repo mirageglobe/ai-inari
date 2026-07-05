@@ -97,7 +97,7 @@ func filesystemTools() []provider.Tool {
 
 // safeTools are executed immediately without an approval round-trip.
 // read-only filesystem tools pose no write/exec risk, so interrupting the user for every call would be noise.
-// any tool not in this set, currently only "run", always requires kitsune approval.
+// any tool not in this set, currently only "run", always requires inari approval.
 var safeTools = map[string]bool{
 	"read_file": true,
 	"list_dir":  true,

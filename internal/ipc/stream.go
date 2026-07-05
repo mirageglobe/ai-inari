@@ -13,7 +13,7 @@ import (
 // if the session has a cwd set, filesystem tools are declared in the request.
 // when the model responds with tool_calls, inarid executes them (sandboxed to cwd),
 // appends the results, and re-sends, looping until the model returns a text reply.
-// only tokens from the final text reply are forwarded to kitsune.
+// only tokens from the final text reply are forwarded to inari.
 // the connection is closed by the caller (handle).
 func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	enc := json.NewEncoder(conn)
@@ -58,7 +58,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 			close(chunks)
 		}()
 
-		// stream tokens to kitsune as they arrive; collect tool_calls from the done chunk.
+		// stream tokens to inari as they arrive; collect tool_calls from the done chunk.
 		// tool-call rounds produce empty content so no tokens are forwarded during those rounds;
 		// only the final text round produces visible output.
 		var textBuf strings.Builder
@@ -97,7 +97,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		// tool-call round: append assistant message with calls, execute each, append results.
 		sess.AppendMessage(provider.Message{Role: "assistant", ToolCalls: toolCalls})
 		for _, tc := range toolCalls {
-			// safe (read-only) tools execute immediately, no round-trip to kitsune.
+			// safe (read-only) tools execute immediately, no round-trip to inari.
 			// all other tools (currently only "run") require explicit user approval.
 			if !safeTools[tc.Function.Name] {
 				enc.Encode(map[string]any{

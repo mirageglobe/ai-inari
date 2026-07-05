@@ -8,9 +8,9 @@ import (
 )
 
 // SessionInfo is the wire representation of a session returned by session.list and session.create.
-// it carries only the summary fields fox needs for display; full message history stays in inarid.
+// it carries only the summary fields inari needs for display; full message history stays in inarid.
 // ContextChars is the total character count of all messages (including system prompt),
-// used by fox to estimate token usage without re-fetching history.
+// used by inari to estimate token usage without re-fetching history.
 type SessionInfo struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
