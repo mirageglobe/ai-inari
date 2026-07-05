@@ -501,7 +501,6 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return c, tea.Batch(vpCmd, taCmd, focusCmd)
 }
 
-
 func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
 	case "/clear":
@@ -532,7 +531,7 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, nil
 	case "/save":
 		// download the full session context (history) to a text file; reuses the
-		// herd export path so both entry points write to the same location.
+		// agents export path so both entry points write to the same location.
 		return c, exportChatCmd(c.client, c.sessionID, c.sessionName)
 	case "/model change":
 		return c, func() tea.Msg {
@@ -547,8 +546,8 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, nil
 	case "/describe":
 		return c, func() tea.Msg { return OpenDescribeMsg{} }
-	case "/herd":
-		return c, func() tea.Msg { return BackToHerdMsg{} }
+	case "/agents":
+		return c, func() tea.Msg { return BackToAgentsMsg{} }
 	case "/quit":
 		return c, tea.Quit
 	default:
@@ -556,4 +555,3 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, nil
 	}
 }
-

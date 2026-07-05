@@ -1,5 +1,5 @@
-// this file owns the Herd type, its Init/Update/View methods, and the hint list.
-// message types, commands, and helpers live in herd_cmds.go.
+// this file owns the Agents type, its Init/Update/View methods, and the hint list.
+// message types, commands, and helpers live in agents_cmds.go.
 
 package views
 
@@ -16,7 +16,7 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-var herdStyle = lipgloss.NewStyle().
+var agentsStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
@@ -26,33 +26,33 @@ var (
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 )
 
-// Herd is the default session-list view.
+// Agents is the default session-list view.
 // sessions are owned by inarid; fox fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
 // input is the command entry field shown in the footer; activated when the user types "/".
-type Herd struct {
-	client        *ipc.Client
-	table         table.Model
-	spinner       spinner.Model
-	input         textinput.Model
-	inputFocused  bool
-	loading       bool
-	status        string
-	sessions      []ipc.SessionInfo
-	runningInfo   map[string]runningMeta
-	width         int
-	height        int
-	hintHeight    int // actual rendered hint line count; varies with terminal width
-	tableHeight   int // stored so mouse handler can compute footer Y boundary
-	offline       bool
-	autoCreated   bool // guards against duplicate default-session creation on concurrent fetches
-	autoOpen         bool // true on first load; fires SelectModelMsg to open chat if a ready session exists
-	foxInfo          string // transient message shown in the fox status line; cleared on next keypress
-	modelCaps        map[string][]string // capability tags per model name, fetched lazily
-	activeSessionID  string // session currently open in chat view; marked in the table
+type Agents struct {
+	client          *ipc.Client
+	table           table.Model
+	spinner         spinner.Model
+	input           textinput.Model
+	inputFocused    bool
+	loading         bool
+	status          string
+	sessions        []ipc.SessionInfo
+	runningInfo     map[string]runningMeta
+	width           int
+	height          int
+	hintHeight      int // actual rendered hint line count; varies with terminal width
+	tableHeight     int // stored so mouse handler can compute footer Y boundary
+	offline         bool
+	autoCreated     bool                // guards against duplicate default-session creation on concurrent fetches
+	autoOpen        bool                // true on first load; fires SelectModelMsg to open chat if a ready session exists
+	foxInfo         string              // transient message shown in the fox status line; cleared on next keypress
+	modelCaps       map[string][]string // capability tags per model name, fetched lazily
+	activeSessionID string              // session currently open in chat view; marked in the table
 }
 
-func NewHerd(client *ipc.Client) Herd {
+func NewAgents(client *ipc.Client) Agents {
 	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
 		{Title: "", Width: 2},
@@ -77,8 +77,8 @@ func NewHerd(client *ipc.Client) Herd {
 	ti.Prompt = "❯ "
 	ti.CharLimit = 64
 	ti.ShowSuggestions = true
-	ti.SetSuggestions(herdCommands)
-	return Herd{
+	ti.SetSuggestions(agentsCommands)
+	return Agents{
 		client:      client,
 		table:       t,
 		spinner:     s,
@@ -89,11 +89,11 @@ func NewHerd(client *ipc.Client) Herd {
 	}
 }
 
-func (h Herd) Init() tea.Cmd {
+func (h Agents) Init() tea.Cmd {
 	return tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
 }
 
-func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ThemeChangedMsg:
 		ApplyTableStyles(&h.table)
@@ -111,7 +111,7 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// on narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
 		// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
 		// and pushes the root header off the top of the display.
-		hintStr := RenderHint(herdHints(false, false, h.offline), h.width)
+		hintStr := RenderHint(agentsHints(false, false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
 		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + foxline(1) + cwdLine(1) + statusLine(1) + input(1) + hint(hintHeight)
 		tableHeight := msg.Height - 8 - h.hintHeight
@@ -378,18 +378,17 @@ func (h Herd) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
-// WithActiveSession returns a copy of the Herd with the active chat session marked.
-func (h Herd) InputFocused() bool { return h.inputFocused }
+// WithActiveSession returns a copy of the Agents with the active chat session marked.
+func (h Agents) InputFocused() bool { return h.inputFocused }
 
-func (h Herd) WithActiveSession(id string) Herd {
+func (h Agents) WithActiveSession(id string) Agents {
 	h.activeSessionID = id
 	h.rebuildTable()
 	return h
 }
 
-// WithOffline returns a copy of the Herd view with the offline flag set.
-func (h Herd) WithOffline(offline bool) Herd {
+// WithOffline returns a copy of the Agents view with the offline flag set.
+func (h Agents) WithOffline(offline bool) Agents {
 	h.offline = offline
 	return h
 }
-

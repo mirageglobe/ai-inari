@@ -73,14 +73,13 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune/inarid]` detach/reattach preserves session state.
 
 ### Near-term
-- [ ] `[kitsune]` `[easy]` change herd to agents
-- [ ] `[kitsune]` `[easy]` agent or herd view should be a popup or just another view with esc or return to go back to main chat
+- [ ] `[kitsune]` `[easy]` agent or agents view should be a popup or just another view with esc or return to go back to main chat
 - [ ] `[kitsune]` `[easy]` in chat view, list the pre context as the first line in the chat
 - [ ] `[inarid]` `[easy]` add `gemma4:e4b` as the default master local model always — set as the thinker-tier default in config and fallback when no model is assigned to a session
 - [ ] `[inarid]` `[medium]` consider adding vLLM as an alternative backend to Ollama — vLLM is OpenAI-compatible and may offer better throughput on CUDA hardware; evaluate alongside the local endpoint profiles item as a concrete second backend candidate
 - [ ] `[inarid]` `[medium]` consider exposing Ollama as an MCP server so other models — local or cloud — can be invoked as tools by the default master model (`gemma4:e4b`); this lets the thinker delegate sub-tasks to specialised models (e.g. a coding worker) via the existing MCP tool-call loop rather than requiring a separate session
 - [ ] `[kitsune]` `[medium]` consolidate all commands to be in chat view. chat view is the main view
-- [ ] `[kitsune]` `[medium]` session search and filter in herd view
+- [ ] `[kitsune]` `[medium]` session search and filter in agents view
 - [ ] `[kitsune/inarid]` `[hard]` long-term task planning from high-level prompts
 - [ ] `[kitsune/inarid]` `[medium]` interrupt in chat for messages
 - [ ] `[inarid]` `[medium]` recap/summary when a chat session has been idle for 10+ mins
@@ -89,12 +88,12 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` `[medium]` **local server endpoint profiles** — support named endpoint profiles in `config.json` (e.g. `ollama`, `lmstudio`, `llamacpp`) each specifying a `base_url`, optional `api_key`, and any provider-specific headers or path overrides; inarid selects the active profile via a top-level `provider` field and routes all model requests through it. this is a prerequisite for the provider abstraction idea below and allows users to switch between local inference backends without rebuilding or patching inarid.
 - [ ] `[inarid]` `[medium]` **ollama runtime env tuning** — investigate and expose three Ollama environment variables as first-class inarid config fields: `OLLAMA_MAX_LOADED_MODELS` (default `3`; caps how many models stay resident in VRAM/RAM simultaneously), `OLLAMA_NUM_PARALLEL` (default `1` for low-RAM setups, `4` for high-throughput; controls concurrent request slots per model), and `OLLAMA_KEEP_ALIVE` (default `5m`; how long an idle model stays loaded). inarid should read these from `config.json` under an `ollama` block and pass them as environment variables when spawning or communicating with the Ollama process, or document them as required host-level env vars if inarid does not manage the Ollama process lifecycle. the kitsune settings view (or a `--ollama-info` flag on inarid) should surface the active values so the user can tune memory vs. throughput trade-offs without needing to know the underlying env var names.
 - [ ] `[inarid]` `[medium]` **implement Ollama model curation and role-based assignments** — integrate model roles (coding, general) and curated model lists into session management, allowing users to assign roles and default to recommended models based on the definitions in §6.1.
-- [ ] `[inarid/kitsune]` `[medium]` **split oversized files** - six files exceed the ~150-line limit: `internal/ipc/server.go` (922), `tui/views/chat.go` (812), `tui/views/herd.go` (691), `tui/model.go` (444), `internal/ipc/client.go` (433), `cmd/inari/main.go` (303). split by responsibility, starting with `server.go` (the RPC seam).
+- [ ] `[inarid/kitsune]` `[medium]` **split oversized files** - six files exceed the ~150-line limit: `internal/ipc/server.go` (922), `tui/views/chat.go` (812), `tui/views/agents.go` (691), `tui/model.go` (444), `internal/ipc/client.go` (433), `cmd/inari/main.go` (303). split by responsibility, starting with `server.go` (the RPC seam).
 - [ ] `[inarid/kitsune]` `[medium]` **test coverage for untested packages** - 7 of 12 packages have zero tests: `mcp`, `ollama`, `provider`, `version`, `tui`, `tui/views`, `cmd/inari`. add unit coverage, prioritising `provider`/`ollama` (request shaping) and the `tui/views` render seams.
 - [ ] `[inarid]` `[medium]` **global context configuration** - load global system prompts, default model settings, and context parameters from `~/.config/inari/config.json` for any Inari launch.
 - [ ] `[inarid]` `[medium]` **local project-scoped configuration** - read project-scoped settings (e.g. custom prompts, file exclusions) from a local `.inari/config.json` in the session's working directory, overriding global settings where fields overlap.
 
-- [ ] `[kitsune]` `[medium]` **unified command vocabulary** — footer hints and slash commands are currently view-specific (e.g. `/agent describe` in herd, `/describe` in chat) with no shared naming convention. standardise to a single command set where commands are contextually enabled/disabled across all views rather than defined per-view; the footer hint bar already dims unavailable commands, so the rendering model supports this. prerequisite: audit all slash commands across herd and chat views and agree on canonical names.
+- [ ] `[kitsune]` `[medium]` **unified command vocabulary** — footer hints and slash commands are currently view-specific (e.g. `/agent describe` in agents, `/describe` in chat) with no shared naming convention. standardise to a single command set where commands are contextually enabled/disabled across all views rather than defined per-view; the footer hint bar already dims unavailable commands, so the rendering model supports this. prerequisite: audit all slash commands across herd and chat views and agree on canonical names.
 
 ### Ideas
 - [ ] `[inarid]` **MCP tool-call dispatch** — `internal/mcp/host.go` `Call()` is a TODO stub; audit logging exists but actual JSON-RPC dispatch over stdio is not implemented. complete to fulfil M4.
@@ -110,10 +109,11 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` **context caching / compression / optimisation** — investigate strategies to reduce prompt size and improve response speed: KV-cache reuse across turns, selective message eviction, rolling summary compression, and prefix caching at the provider level; goal is lower latency and higher effective context utilisation without degrading response quality
 - [ ] `[inarid]` `[hard]` **vector store / RAG context** — replace or augment flat JSON session storage with a semantic retrieval layer. progression: (1) sqlite as structured store; (2) sqlite-vec (sqlite vector extension) for local embeddings — single file, no external service, fits the Go daemon cleanly; (3) full RAG pipeline with chunking, a local embedding model (~100MB sensor-tier), and ranked context injection. at query time, the user message is embedded and the top-k semantically similar chunks are injected into the prompt rather than the full history dump. benefit: small models see only relevant context, reducing token pressure and improving response quality. a global "master context" store (outside any cwd) could be maintained alongside per-session history, giving all sessions access to persistent personal or cross-project knowledge.
 - [ ] `[inarid]` **task difficulty/effort classification** — investigate how to define and score task difficulty, complexity, and effort (e.g. token count, tool-call depth, reasoning hops) so inarid can automatically select the appropriate model tier (sensor → worker → thinker) rather than relying on manual session config
-- [ ] `[kitsune/inarid]` session tagging - apply labels to sessions for grouping and quick filtering; plain search is already covered by the near-term herd search/filter item
-- [ ] `[kitsune/inarid]` **rename session** — allow the user to rename an existing session from the herd view; kitsune sends a `session.rename` RPC to inarid which updates the stored session name and propagates the change back to all open views.
+- [ ] `[kitsune/inarid]` session tagging - apply labels to sessions for grouping and quick filtering; plain search is already covered by the near-term agents search/filter item
+- [ ] `[kitsune/inarid]` **rename session** — allow the user to rename an existing session from the agents view; kitsune sends a `session.rename` RPC to inarid which updates the stored session name and propagates the change back to all open views.
 
 ### Done
+- [x] `[kitsune]` `[easy]` **rename herd to agents** - the `Herd` view/type became `Agents` (files `herd.go`/`herd_view.go`/`herd_cmds.go`/`herd_slash.go` renamed to `agents*.go`); the `/herd` slash command used from chat to navigate back is now `/agents`; the `[herd]` session-line label is now `[agents]`. in-view sub-commands (`/agent add`, `/agent chat`, etc.) were already named `/agent` and are unchanged.
 - [x] `[inarid]` `[easy]` **daemon idle auto-shutdown** - inarid exits on its own after `idle_shutdown_mins` (default 30) with no client activity; any RPC including ping heartbeats resets the watchdog, so the daemon stays up while a kitsune is open and exits after the TUI closes. `0` falls back to the default, a negative value disables it.
 - [x] `[inarid/kitsune]` `[easy]` **package `doc.go` coverage** - every package now carries a `doc.go` with the canonical `it owns:` / `it does NOT own:` statement; pre-existing inline package comments were demoted to file-level notes so `go doc` shows one ownership block per package.
 - [x] `[kitsune]` `[easy]` **download context and copy response** - chat slash commands `/copy` (copies the latest assistant response to the clipboard) and `/save` (writes full session history to `~/.local/share/inari/exports/`, reusing the herd export path); both report success or failure in the status line.
@@ -271,7 +271,7 @@ kitsune opens one dedicated connection per active `session.stream` call. the sha
 
 **multiple concurrent streams:**
 
-within a single kitsune TUI, the user can spawn multiple named chat sessions (each displayed as a row in the herd view). each session is an independent kitsune — it can have a model assigned and an active generation in flight simultaneously. because each `session.stream` call uses its own dedicated UDS connection, all sessions can stream concurrently without blocking one another. inarid handles each stream in its own goroutine via the accept loop.
+within a single kitsune TUI, the user can spawn multiple named chat sessions (each displayed as a row in the agents view). each session is an independent kitsune — it can have a model assigned and an active generation in flight simultaneously. because each `session.stream` call uses its own dedicated UDS connection, all sessions can stream concurrently without blocking one another. inarid handles each stream in its own goroutine via the accept loop.
 
 **message routing in kitsune:**
 
@@ -403,7 +403,7 @@ only configuration fields explicitly defined in the local file override the glob
 
 | view     | key | description                                                      |
 | :---     | :-- | :---                                                             |
-| Herd     | —   | default view; table of all agents (kitsune) with model and status |
+| Agents   | —   | default view; table of all agents (kitsune) with model and status |
 | Logs     | `l` | tail output of selected session                                  |
 | Describe | `d` | full session metadata and config                                 |
 | Chat     | `i` | interactive chat; slash commands, tool approval, input history   |

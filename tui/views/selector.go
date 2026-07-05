@@ -40,8 +40,8 @@ type SelectModelMsg struct {
 	ContextChars int    // total message chars at open time, for token estimation
 }
 
-// BackToHerdMsg is emitted to return to the herd view.
-type BackToHerdMsg struct{}
+// BackToAgentsMsg is emitted to return to the agents view.
+type BackToAgentsMsg struct{}
 
 // AssignModelMsg is emitted when a loaded model is assigned to a session.
 type AssignModelMsg struct {
@@ -49,7 +49,7 @@ type AssignModelMsg struct {
 	ModelName string
 }
 
-// OpenModelSelectorMsg is emitted by herd to open the model selector for a session.
+// OpenModelSelectorMsg is emitted by agents to open the model selector for a session.
 type OpenModelSelectorMsg struct {
 	SessionID   string
 	SessionName string
@@ -74,7 +74,7 @@ type ModelSelector struct {
 
 func NewModelSelector(client *ipc.Client) ModelSelector {
 	// model column is resized dynamically in WindowSizeMsg; this default targets UIWidth.
-	// overhead = 2 (herdStyle border) + 2×2 (cell padding) + 12 (VRAM) = 18; model = UIWidth-18.
+	// overhead = 2 (agentsStyle border) + 2×2 (cell padding) + 12 (VRAM) = 18; model = UIWidth-18.
 	cols := []table.Column{
 		{Title: "model", Width: UIWidth - 18},
 		{Title: "est. vram", Width: 12},
@@ -157,7 +157,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.targetSessionID == "" {
-			return m, func() tea.Msg { return BackToHerdMsg{} }
+			return m, func() tea.Msg { return BackToAgentsMsg{} }
 		}
 		id, name := m.targetSessionID, msg.name
 		return m, func() tea.Msg { return AssignModelMsg{SessionID: id, ModelName: name} }
@@ -202,7 +202,7 @@ func (m ModelSelector) WithModalDimensions() ModelSelector {
 	return m
 }
 
-// RenderModal renders the selector as a centred overlay for use on top of the herd view.
+// RenderModal renders the selector as a centred overlay for use on top of the agents view.
 func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
 	secStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
@@ -241,7 +241,7 @@ func (m ModelSelector) View() string {
 		viewLabel += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
 	}
 	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign to kitsune"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
-	body := herdStyle.Render(m.table.View())
+	body := agentsStyle.Render(m.table.View())
 	if m.status != "" {
 		line := m.status
 		if m.loading {

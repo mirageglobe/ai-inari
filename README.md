@@ -109,7 +109,7 @@ make stop     # stop inarid (also runs automatically when kitsune exits)
 
 The TUI is inspired by `k9s` and is entirely keyboard-driven.
 
-**herd (main screen)**
+**agents (main screen)**
 - `s`: new session | `m`: assign model | `u`: unload model
 - `c` / `enter`: open chat | `x`: delete session | `d`: describe
 - `l`: view logs | `r`: refresh | `q`: quit

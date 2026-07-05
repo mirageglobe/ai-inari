@@ -4,8 +4,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// herdCommands is the ordered list of valid slash commands used for autocomplete suggestions.
-var herdCommands = []string{
+// agentsCommands is the ordered list of valid slash commands used for autocomplete suggestions.
+var agentsCommands = []string{
 	"/chat",
 	"/agent add",
 	"/model select",
@@ -21,7 +21,7 @@ var herdCommands = []string{
 	"/quit",
 }
 
-func (h Herd) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
+func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	switch cmd {
 	case "/agent add":
 		if h.offline {

@@ -176,7 +176,7 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if vpHeight < 1 {
 			vpHeight = 1
 		}
-		// subtract 2 for herdStyle NormalBorder so total width = UIWidth.
+		// subtract 2 for agentsStyle NormalBorder so total width = UIWidth.
 		if !d.ready {
 			d.viewport = viewport.New(d.width-2, vpHeight)
 			d.ready = true
@@ -278,9 +278,9 @@ func (d Describe) View() string {
 
 	var body string
 	if !d.ready {
-		body = herdStyle.Render(lipgloss.NewStyle().Faint(true).Render("loading…"))
+		body = agentsStyle.Render(lipgloss.NewStyle().Faint(true).Render("loading…"))
 	} else {
-		body = herdStyle.Render(d.viewport.View())
+		body = agentsStyle.Render(d.viewport.View())
 	}
 
 	return body + "\n" + hint

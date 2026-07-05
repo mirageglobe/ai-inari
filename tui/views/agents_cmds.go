@@ -1,6 +1,6 @@
-// herd data plumbing: internal message types, tea.Cmd constructors,
+// agents data plumbing: internal message types, tea.Cmd constructors,
 // session naming, and shared formatting helpers.
-// it does NOT own the Herd view struct or its rendering — those live in herd.go.
+// it does NOT own the Agents view struct or its rendering — those live in agents.go.
 
 package views
 
@@ -25,16 +25,16 @@ type runningMeta struct {
 	expiry string
 }
 
-// OpenLogsMsg is emitted by herd to navigate to the logs view.
+// OpenLogsMsg is emitted by agents to navigate to the logs view.
 type OpenLogsMsg struct{}
 
-// OpenDescribeMsg is emitted by herd to navigate to the describe view.
+// OpenDescribeMsg is emitted by agents to navigate to the describe view.
 type OpenDescribeMsg struct{}
 
-// CycleThemeMsg is emitted by herd to cycle to the next theme.
+// CycleThemeMsg is emitted by agents to cycle to the next theme.
 type CycleThemeMsg struct{}
 
-// ToggleHelpMsg is emitted by herd to open/close the help overlay.
+// ToggleHelpMsg is emitted by agents to open/close the help overlay.
 type ToggleHelpMsg struct{}
 
 type runningMsg struct {

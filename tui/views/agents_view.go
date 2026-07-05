@@ -10,9 +10,9 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-// herdHints returns the default command hint list for the herd view.
+// agentsHints returns the default command hint list for the agents view.
 // hasSession, hasModel, and offline control which items are enabled.
-func herdHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
+func agentsHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
 		hc("/chat", !offline),
@@ -56,7 +56,7 @@ func agentHints(hasSession, hasModel, offline bool) []HintCmd {
 	}
 }
 
-func (h Herd) View() string {
+func (h Agents) View() string {
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
 	hasModel := hasSession && h.sessions[idx].Model != ""
@@ -82,7 +82,7 @@ func (h Herd) View() string {
 		}
 	}
 
-	sessionLine := RenderSessionLine("herd", sessionName, model, tokens)
+	sessionLine := RenderSessionLine("agents", sessionName, model, tokens)
 	cwdLine := renderCWDLine(cwd)
 
 	var statusContent string
@@ -106,21 +106,21 @@ func (h Herd) View() string {
 	case strings.HasPrefix(h.input.Value(), "/model"):
 		hints = modelHints(hasSession, hasModel, h.offline)
 	default:
-		hints = herdHints(hasSession, hasModel, h.offline)
+		hints = agentsHints(hasSession, hasModel, h.offline)
 	}
 	hintLine := RenderHint(hints, h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
-		body := herdStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune..."))
+		body := agentsStyle.Render(pad.Render(h.spinner.View() + " fetching kitsune..."))
 		return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, "", hintLine)
 	}
 
-	body := herdStyle.Render(h.table.View())
+	body := agentsStyle.Render(h.table.View())
 	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, h.input.View(), hintLine)
 }
 
-func (h *Herd) rebuildTable() {
+func (h *Agents) rebuildTable() {
 	sort.Slice(h.sessions, func(i, j int) bool {
 		return h.sessions[i].Name < h.sessions[j].Name
 	})
@@ -162,7 +162,7 @@ func (h *Herd) rebuildTable() {
 
 // SelectedSession returns the session at the current cursor plus its vram.
 // returns false if no session is under the cursor.
-func (h Herd) SelectedSession() (ipc.SessionInfo, int64, bool) {
+func (h Agents) SelectedSession() (ipc.SessionInfo, int64, bool) {
 	idx := h.table.Cursor()
 	if idx < 0 || idx >= len(h.sessions) {
 		return ipc.SessionInfo{}, 0, false
@@ -171,7 +171,7 @@ func (h Herd) SelectedSession() (ipc.SessionInfo, int64, bool) {
 	return sess, h.runningInfo[sess.Model].vram, true
 }
 
-func (h Herd) usedNames() []string {
+func (h Agents) usedNames() []string {
 	names := make([]string, len(h.sessions))
 	for i, s := range h.sessions {
 		names[i] = s.Name

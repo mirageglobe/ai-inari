@@ -1,5 +1,5 @@
 // Package views contains the individual screen views rendered by the fox TUI:
-// Herd (session table), Models (model selector), Logs (token stream), Describe
+// Agents (session table), Models (model selector), Logs (token stream), Describe
 // (session metadata), and Chat (head-inari conversation), plus the shared top bar,
 // footer, hint bar, help overlay, and theme palette.
 //
