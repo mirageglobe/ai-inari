@@ -20,7 +20,7 @@ type helpEntry struct {
 // update this table whenever a new binding is added to a view.
 var helpByView = map[string][]helpEntry{
 	"agents": {
-		{"/default chat", "open chat for default kitsune"},
+		{"/chat", "open chat for default kitsune"},
 		{"/agent add", "create session"},
 		{"/model select", "assign model (modal)"},
 		{"/model unload", "unload model"},
@@ -44,7 +44,7 @@ var helpByView = map[string][]helpEntry{
 		{"/clear", "clear message context"},
 		{"/compact", "summarise and compress context"},
 		{"/copy", "copy last response to clipboard"},
-		{"/save", "save full context to a file"},
+		{"/export", "save full context to a file"},
 		{"[↑] / [↓]", "navigate input history"},
 		{"[esc]", "exit tools panel / clear slash input"},
 	},
