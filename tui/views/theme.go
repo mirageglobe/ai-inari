@@ -122,11 +122,11 @@ func ApplyTheme(t Theme) {
 	}
 
 	// chat
-	userStyle      = lipgloss.NewStyle().Foreground(t.User).Bold(true)
+	userStyle = lipgloss.NewStyle().Foreground(t.User).Bold(true)
 	assistantStyle = lipgloss.NewStyle().Foreground(t.Primary)
 
-	// herd / shared pane border (used by herd, chat, logs, describe, selector)
-	herdStyle    = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(t.Primary)
+	// agents / shared pane border (used by agents, chat, logs, describe, selector)
+	agentsStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(t.Primary)
 	spinnerStyle = lipgloss.NewStyle().Foreground(t.Secondary)
 
 	// hints — active labels use secondary so they're distinct from header primary
@@ -134,9 +134,9 @@ func ApplyTheme(t Theme) {
 
 	// help overlay
 	helpTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(t.Primary)
-	helpKeyStyle   = lipgloss.NewStyle().Foreground(t.Secondary).Bold(true)
-	helpBoxStyle   = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(t.Primary).
-			Padding(1, 3)
+	helpKeyStyle = lipgloss.NewStyle().Foreground(t.Secondary).Bold(true)
+	helpBoxStyle = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(t.Primary).
+		Padding(1, 3)
 }

@@ -19,7 +19,7 @@ type helpEntry struct {
 // helpByView maps view name strings to their ordered key reference entries.
 // update this table whenever a new binding is added to a view.
 var helpByView = map[string][]helpEntry{
-	"herd": {
+	"agents": {
 		{"/default chat", "open chat for default kitsune"},
 		{"/agent add", "create session"},
 		{"/model select", "assign model (modal)"},
@@ -76,7 +76,7 @@ var (
 )
 
 // RenderHelpOverlay returns a help modal centered in a termWidth × termHeight area.
-// viewName must match a key in helpByView (e.g. "herd", "chat").
+// viewName must match a key in helpByView (e.g. "agents", "chat").
 // termHeight should exclude the top bar row so the modal sits in the body area.
 func RenderHelpOverlay(viewName string, termWidth, termHeight int) string {
 	entries := helpByView[viewName]

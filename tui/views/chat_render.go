@@ -9,7 +9,7 @@ import (
 )
 
 // chatCommands is the ordered list of slash commands available in the chat view.
-var chatCommands = []string{"/clear", "/compact", "/copy", "/save", "/model change", "/describe", "/tools", "/herd", "/quit"}
+var chatCommands = []string{"/clear", "/compact", "/copy", "/save", "/model change", "/describe", "/tools", "/agents", "/quit"}
 
 // viewportContent returns the string to show in the viewport.
 // during streaming, streamBuf is rendered as a live in-progress assistant message.
@@ -187,10 +187,10 @@ func (c Chat) View() string {
 			HS(),
 			toolsHint,
 			H("[ctrl+g] help"),
-			H("/herd"),
+			H("/agents"),
 		}, c.viewport.Width+1)
 	}
-	chatBoxStyle := herdStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)
+	chatBoxStyle := agentsStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)
 	rightEdge := RenderRightEdge(c.viewport)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, chatBoxStyle.Render(c.viewport.View()), rightEdge)
 
@@ -221,4 +221,3 @@ func (c Chat) View() string {
 	}
 	return body + "\n" + renderFooter(sessionLine, cwdLine, renderStatusLine(statusContent), c.input.View(), hintLine)
 }
-

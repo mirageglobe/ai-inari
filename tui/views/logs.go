@@ -47,7 +47,7 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if height < 1 {
 			height = 1
 		}
-		// subtract 2 for herdStyle NormalBorder so total width = UIWidth.
+		// subtract 2 for agentsStyle NormalBorder so total width = UIWidth.
 		vpWidth := l.width - 2
 		if vpWidth < 1 {
 			vpWidth = 1
@@ -83,11 +83,11 @@ func (l Logs) View() string {
 
 	var body string
 	if !l.ready {
-		body = herdStyle.Render(lipgloss.NewStyle().Faint(true).Render("loading…"))
+		body = agentsStyle.Render(lipgloss.NewStyle().Faint(true).Render("loading…"))
 	} else if strings.TrimSpace(l.content) == "" {
-		body = herdStyle.Render(lipgloss.NewStyle().Faint(true).Render("(no log entries yet)"))
+		body = agentsStyle.Render(lipgloss.NewStyle().Faint(true).Render("(no log entries yet)"))
 	} else {
-		body = herdStyle.Render(l.viewport.View())
+		body = agentsStyle.Render(l.viewport.View())
 	}
 
 	return body + "\n" + hint

@@ -14,7 +14,7 @@ import (
 type view int
 
 const (
-	viewHerd view = iota
+	viewAgents view = iota
 	viewModels
 	viewLogs
 	viewDescribe
@@ -25,28 +25,28 @@ const (
 // activeSession holds the session ID (not name) of the currently open chat.
 // chats is keyed by session ID so each session retains its display history across view switches.
 type Model struct {
-	client        *ipc.Client
-	current       view
-	returnView    view   // view to restore after model selector closes
-	activeSession string // session ID of the currently open chat
-	herd          views.Herd
-	models        views.ModelSelector
-	logs          views.Logs
-	describe      views.Describe
-	chats         map[string]views.Chat // keyed by session ID
-	sysStats      views.SysStatsMsg
-	connErr             string
-	connOnline          bool // tracks last known connection state to detect offline→online transitions
-	termWidth           int
-	termHeight          int
-	titleColorIdx       int  // current ray position; -10 = off-screen (resting between sweeps)
-	titleDir            int  // +1 = left-to-right, -1 = right-to-left
-	showHelp            bool // true while the [?] help overlay is visible
-	showThemePicker     bool // true while the /theme modal is visible
-	showModelSelector   bool // true while the model selector modal is overlaid on herd
-	themePickerIdx      int  // cursor position in the theme picker
-	themeIdx            int  // index into views.Themes; current active theme
-	configPath          string
+	client            *ipc.Client
+	current           view
+	returnView        view   // view to restore after model selector closes
+	activeSession     string // session ID of the currently open chat
+	agents            views.Agents
+	models            views.ModelSelector
+	logs              views.Logs
+	describe          views.Describe
+	chats             map[string]views.Chat // keyed by session ID
+	sysStats          views.SysStatsMsg
+	connErr           string
+	connOnline        bool // tracks last known connection state to detect offline→online transitions
+	termWidth         int
+	termHeight        int
+	titleColorIdx     int  // current ray position; -10 = off-screen (resting between sweeps)
+	titleDir          int  // +1 = left-to-right, -1 = right-to-left
+	showHelp          bool // true while the [?] help overlay is visible
+	showThemePicker   bool // true while the /theme modal is visible
+	showModelSelector bool // true while the model selector modal is overlaid on agents
+	themePickerIdx    int  // cursor position in the theme picker
+	themeIdx          int  // index into views.Themes; current active theme
+	configPath        string
 }
 
 // currentViewName maps the active view enum to the string key used by RenderHelpOverlay.
@@ -61,7 +61,7 @@ func (m Model) currentViewName() string {
 	case viewDescribe:
 		return "describe"
 	default:
-		return "herd"
+		return "agents"
 	}
 }
 
@@ -69,8 +69,8 @@ func (m Model) currentViewName() string {
 func New(client *ipc.Client, configPath string, themeIdx int) Model {
 	return Model{
 		client:        client,
-		current:       viewHerd,
-		herd:          views.NewHerd(client),
+		current:       viewAgents,
+		agents:        views.NewAgents(client),
 		models:        views.NewModelSelector(client),
 		logs:          views.NewLogs(),
 		describe:      views.NewDescribe(),
@@ -84,7 +84,7 @@ func New(client *ipc.Client, configPath string, themeIdx int) Model {
 func (m Model) Init() tea.Cmd {
 	// fire TitleStartMsg immediately so the first sweep begins on launch.
 	firstSweep := func() tea.Msg { return views.TitleStartMsg{} }
-	return tea.Batch(m.herd.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep)
+	return tea.Batch(m.agents.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,8 +94,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.termWidth = ws.Width
 		m.termHeight = ws.Height
 		var cmds []tea.Cmd
-		updated, cmd := m.herd.Update(ws)
-		m.herd = updated.(views.Herd)
+		updated, cmd := m.agents.Update(ws)
+		m.agents = updated.(views.Agents)
 		cmds = append(cmds, cmd)
 		updated2, cmd2 := m.models.Update(ws)
 		m.models = updated2.(views.ModelSelector)
@@ -116,8 +116,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if themeMsg, ok := msg.(views.ThemeChangedMsg); ok {
 		var cmds []tea.Cmd
-		updated, cmd := m.herd.Update(themeMsg)
-		m.herd = updated.(views.Herd)
+		updated, cmd := m.agents.Update(themeMsg)
+		m.agents = updated.(views.Agents)
 		cmds = append(cmds, cmd)
 		updated2, cmd2 := m.models.Update(themeMsg)
 		m.models = updated2.(views.ModelSelector)
@@ -166,7 +166,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasOffline := !m.connOnline
 		m.connOnline = conn.OK
 		offline := !conn.OK
-		m.herd = m.herd.WithOffline(offline)
+		m.agents = m.agents.WithOffline(offline)
 		m.describe = m.describe.WithOffline(offline)
 		for id, chat := range m.chats {
 			m.chats[id] = chat.WithOffline(offline)
@@ -175,7 +175,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.connErr = ""
 			if wasOffline {
 				// daemon just came back online — refresh sessions and running models immediately.
-				return m, tea.Batch(views.ConnTick(m.client), m.herd.Init())
+				return m, tea.Batch(views.ConnTick(m.client), m.agents.Init())
 			}
 		} else {
 			m.connErr = "connection failed"
@@ -202,10 +202,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if _, ok := msg.(views.BackToHerdMsg); ok {
+	if _, ok := msg.(views.BackToAgentsMsg); ok {
 		m.showModelSelector = false
-		m.current = viewHerd
-		return m, m.herd.Init()
+		m.current = viewAgents
+		return m, m.agents.Init()
 	}
 
 	if _, ok := msg.(views.OpenLogsMsg); ok {
@@ -214,7 +214,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if _, ok := msg.(views.OpenDescribeMsg); ok {
-		if sess, vram, ok := m.herd.SelectedSession(); ok {
+		if sess, vram, ok := m.agents.SelectedSession(); ok {
 			m.describe = m.describe.ForSession(sess, vram, m.client)
 		}
 		m.current = viewDescribe
@@ -235,8 +235,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// open model selector targeting a specific session.
 	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
 		m.models = m.models.ForSession(openMs.SessionID, openMs.SessionName)
-		if m.current == viewHerd {
-			// modal overlay — stay on herd, resize table to fit the modal box.
+		if m.current == viewAgents {
+			// modal overlay — stay on agents, resize table to fit the modal box.
 			m.showModelSelector = true
 			m.models = m.models.WithModalDimensions()
 			return m, m.models.Init()
@@ -247,10 +247,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.models.Init()
 	}
 
-	// a model was assigned to a session — herd handles the optimistic update and the assign RPC.
+	// a model was assigned to a session — agents handles the optimistic update and the assign RPC.
 	if assign, ok := msg.(views.AssignModelMsg); ok {
-		updated, cmd := m.herd.Update(assign)
-		m.herd = updated.(views.Herd)
+		updated, cmd := m.agents.Update(assign)
+		m.agents = updated.(views.Agents)
 		if m.showModelSelector {
 			m.showModelSelector = false
 			return m, cmd
@@ -261,14 +261,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chats[m.activeSession] = chat
 			return m, tea.Batch(cmd, chat.Init())
 		}
-		m.current = viewHerd
+		m.current = viewAgents
 		return m, cmd
 	}
 
 	// open a session's chat.
 	if sel, ok := msg.(views.SelectModelMsg); ok {
 		m.activeSession = sel.SessionID
-		m.herd = m.herd.WithActiveSession(sel.SessionID)
+		m.agents = m.agents.WithActiveSession(sel.SessionID)
 		if _, exists := m.chats[sel.SessionID]; !exists {
 			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.CWD, sel.ContextChars)
 			// size the viewport immediately with the known terminal dimensions so the
@@ -303,8 +303,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 		}
-		updated, cmd := m.herd.Update(saveErr)
-		m.herd = updated.(views.Herd)
+		updated, cmd := m.agents.Update(saveErr)
+		m.agents = updated.(views.Agents)
 		return m, cmd
 	}
 
@@ -329,8 +329,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// [?] toggles help from non-herd, non-chat views; herd uses /help slash command.
-		if key.String() == "?" && m.current != viewChat && m.current != viewHerd {
+		// [?] toggles help from non-agents, non-chat views; agents uses /help slash command.
+		if key.String() == "?" && m.current != viewChat && m.current != viewAgents {
 			m.showHelp = !m.showHelp
 			return m, nil
 		}
@@ -355,18 +355,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.models.Init()
 			}
 		default:
-			// esc from secondary views returns to herd, except when describe is in edit mode
+			// esc from secondary views returns to agents, except when describe is in edit mode
 			if key.String() == "esc" && !(m.current == viewDescribe && m.describe.IsEditing()) {
-				m.current = viewHerd
-				return m, m.herd.Init()
+				m.current = viewAgents
+				return m, m.agents.Init()
 			}
 		}
 	}
 
 	switch m.current {
-	case viewHerd:
-		updated, cmd := m.herd.Update(msg)
-		m.herd = updated.(views.Herd)
+	case viewAgents:
+		updated, cmd := m.agents.Update(msg)
+		m.agents = updated.(views.Agents)
 		return m, cmd
 	case viewModels:
 		updated, cmd := m.models.Update(msg)
@@ -432,7 +432,7 @@ func (m Model) View() string {
 		case viewChat:
 			body = m.chats[m.activeSession].View()
 		default:
-			body = m.herd.View()
+			body = m.agents.View()
 		}
 	}
 
@@ -443,15 +443,15 @@ func (m Model) View() string {
 		if chat, ok := m.chats[m.activeSession]; ok && chat.InputFocused() {
 			cursorEsc = views.BlinkBarCursor
 		}
-	case viewHerd:
-		if m.herd.InputFocused() {
+	case viewAgents:
+		if m.agents.InputFocused() {
 			cursorEsc = views.BlinkBarCursor
 		}
 	}
 	full := cursorEsc + topBar + body
 	// pad every render to termHeight lines so Bubble Tea's cursor tracking stays
 	// consistent when switching between views of different heights. Without this,
-	// switching from a short view (models, describe) back to a tall one (herd)
+	// switching from a short view (models, describe) back to a tall one (agents)
 	// positions the cursor mid-screen, causing the top lines including the header
 	// to render into stale rows and appear invisible.
 	if m.termHeight > 0 {
