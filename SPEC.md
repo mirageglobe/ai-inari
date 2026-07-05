@@ -93,7 +93,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` `[medium]` **global context configuration** - load global system prompts, default model settings, and context parameters from `~/.config/inari/config.json` for any Inari launch.
 - [ ] `[inarid]` `[medium]` **local project-scoped configuration** - read project-scoped settings (e.g. custom prompts, file exclusions) from a local `.inari/config.json` in the session's working directory, overriding global settings where fields overlap.
 
-- [ ] `[kitsune]` `[medium]` **unified command vocabulary** — footer hints and slash commands are currently view-specific (e.g. `/agent describe` in agents, `/describe` in chat) with no shared naming convention. standardise to a single command set where commands are contextually enabled/disabled across all views rather than defined per-view; the footer hint bar already dims unavailable commands, so the rendering model supports this. prerequisite: audit all slash commands across herd and chat views and agree on canonical names.
+- [ ] `[kitsune]` `[medium]` **unified command vocabulary** — footer hints and slash commands are currently view-specific (e.g. `/agent describe` in agents, `/describe` in chat) with no shared naming convention. standardise to a single command set where commands are contextually enabled/disabled across all views rather than defined per-view; the footer hint bar already dims unavailable commands, so the rendering model supports this. prerequisite: audit all slash commands across agents and chat views and agree on canonical names.
 
 ### Ideas
 - [ ] `[inarid]` **MCP tool-call dispatch** — `internal/mcp/host.go` `Call()` is a TODO stub; audit logging exists but actual JSON-RPC dispatch over stdio is not implemented. complete to fulfil M4.
@@ -422,12 +422,12 @@ the footer is assembled by `renderFooter` in `tui/views/footer.go` and shared ac
 
 **chat slash commands:**
 
-| command        | effect                                                           |
-| :---           | :---                                                             |
-| `/clear`       | wipe session message history                                     |
-| `/compact`     | summarise history via the session's own model; replaces old turns |
-| `/model change`| open model selector for this session                            |
-| `/tools`       | list active built-in tools for this session                     |
+| command         | effect                                                            |
+| :-------------- | :---------------------------------------------------------------- |
+| `/clear`        | wipe session message history                                      |
+| `/compact`      | summarise history via the session's own model; replaces old turns |
+| `/model select` | open model selector for this session                              |
+| `/tools`        | list active built-in tools for this session                       |
 
 #### 5.2.1 Offline resilience
 

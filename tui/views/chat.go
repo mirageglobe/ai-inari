@@ -529,11 +529,11 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			c.status = "[copied] response"
 		}
 		return c, nil
-	case "/save":
+	case "/export":
 		// download the full session context (history) to a text file; reuses the
 		// agents export path so both entry points write to the same location.
 		return c, exportChatCmd(c.client, c.sessionID, c.sessionName)
-	case "/model change":
+	case "/model select":
 		return c, func() tea.Msg {
 			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}
 		}
