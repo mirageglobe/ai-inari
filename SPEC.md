@@ -655,9 +655,13 @@ make build
 ### 9.2 Signal Handling
 `inarid` handles `SIGINT` (Ctrl+C) and `SIGTERM` cleanly, flushing all session state to disk and closing the Unix socket before exit.
 
+### 9.3 Git Worktrees
+
+> **for AI agents:** development here normally happens inside a git worktree, one at a time. a worktree is a full working checkout, so `make start`/`make build`/`go run` behave identically from within it; live-test by `cd`-ing into the worktree's path (or telling the user that path so they can) rather than testing from the original checkout. keep only one worktree open per feature: close (`ExitWorktree` or `git worktree remove`) the current one before starting the next, so there is never ambiguity about which directory holds the live branch. note: `.claude/` is gitignored, so files under it (e.g. `.claude/settings.json`) are never present in a worktree; edit those directly in the main checkout, not inside a worktree.
+
 ---
 
-## 9.3 Release Process
+## 9.4 Release Process
 
 > **for AI agents:** always ask the user which release method to use before proceeding (default: CI). present every command as a manual step for the user to run — do NOT execute `make bump-*`, `make push-tags`, `make release`, or `make update` autonomously. these commands affect shared git history and remote state. guide one phase at a time and wait for confirmation before continuing.
 
