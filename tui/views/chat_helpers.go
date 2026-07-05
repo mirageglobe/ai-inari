@@ -1,0 +1,97 @@
+package views
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/mirageglobe/ai-inari/internal/ipc"
+)
+
+type clearHistoryResultMsg struct{ err error }
+type compactHistoryResultMsg struct {
+	summary string
+	err     error
+}
+
+// toolApprovalRequestMsg is emitted when the server wants to run a tool and needs user approval.
+type toolApprovalRequestMsg struct {
+	SessionID string
+	Name      string
+	Args      map[string]any
+}
+
+// arrowOnlyKeyMap restricts viewport scrolling to arrow keys only,
+// preventing vim bindings (k/j/g/G) from consuming keystrokes meant for the textarea.
+func arrowOnlyKeyMap() viewport.KeyMap {
+	return viewport.KeyMap{
+		PageDown:     key.NewBinding(key.WithKeys()),
+		PageUp:       key.NewBinding(key.WithKeys()),
+		HalfPageUp:   key.NewBinding(key.WithKeys()),
+		HalfPageDown: key.NewBinding(key.WithKeys()),
+		Up:           key.NewBinding(key.WithKeys()),
+		Down:         key.NewBinding(key.WithKeys()),
+	}
+}
+
+func fetchChatHistory(client *ipc.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		messages, err := client.History(sessionID)
+		return chatHistoryMsg{messages: messages, err: err}
+	}
+}
+
+// formatToolArgs renders a tool argument map as a compact key=value string for display.
+func formatToolArgs(args map[string]any) string {
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, args[k]))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// readNextToken returns a cmd that blocks until the next token or tool request arrives,
+// then emits ChatTokenMsg, ChatDoneMsg (channel closed), or toolApprovalRequestMsg.
+// selecting on a nil toolReqs channel blocks indefinitely, effectively ignoring it.
+func readNextToken(sessionID string, tokens <-chan string, errc <-chan error, toolReqs <-chan ipc.ToolRequestMsg) tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case token, ok := <-tokens:
+			if !ok {
+				return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
+			}
+			return ChatTokenMsg{SessionID: sessionID, Token: token}
+		case req, ok := <-toolReqs:
+			if !ok {
+				return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
+			}
+			return toolApprovalRequestMsg{SessionID: sessionID, Name: req.Name, Args: req.Args}
+		}
+	}
+}
+
+func (c *Chat) rebuildDisplay() {
+	c.display = nil
+	for _, m := range c.messages {
+		switch m.Role {
+		case "user":
+			c.display = append(c.display, userStyle.Render("you: ")+m.Content)
+		case "assistant":
+			c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+m.Content)
+		case "error":
+			c.display = append(c.display, errorStyle.Render("error: "+m.Content))
+		}
+	}
+	setViewportContent(&c.viewport, c.viewportContent())
+	c.viewport.GotoBottom()
+}
+
