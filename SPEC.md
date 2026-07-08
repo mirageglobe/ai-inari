@@ -467,12 +467,13 @@ curated picks by hardware tier and role. pull via `ollama pull <tag>`. prefer `q
 
 #### general
 
-| tier | model       | size   | notes                                          |
-| :--- | :---------- | :----- | :--------------------------------------------- |
-| 32gb | gemma4:27b  | ~15gb  | google moe; near-frontier chat and review      |
-| 16gb | phi-4:14b   | ~8gb   | microsoft; strong multi-file reasoning         |
-| 8gb  | gemma4:e4b  | ~2.7gb | 4.5b effective; fast routing and quick queries |
-| 4gb  | llama3.2:3b | ~2gb   | meta; best chat and reasoning within 4gb       |
+| tier | model       | size   | notes                                                   |
+| :--- | :---------- | :----- | :------------------------------------------------------ |
+| 32gb | gemma4:27b  | ~15gb  | google moe; near-frontier chat and review               |
+| 16gb | phi-4:14b   | ~8gb   | microsoft; strong multi-file reasoning                  |
+| 8gb  | gemma4:e4b  | ~2.7gb | 4.5b effective; fast routing and quick queries          |
+| 8gb  | gemma4:e2b  | ~1.5gb | 2b effective; leaner and faster than e4b, lower quality |
+| 4gb  | llama3.2:3b | ~2gb   | meta; best chat and reasoning within 4gb                |
 
 #### coding
 

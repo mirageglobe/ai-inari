@@ -1,8 +1,8 @@
 // curated model recommendations for the model selector.
 // this file owns the CuratedModel table (kept in sync with SPEC.md §6.1),
-// hardware-tier detection, and the filter that picks recommendations not
+// hardware-tier detection, and the filter that picks curated models not
 // already pulled locally. it does NOT own model listing/loading - that
-// stays in selector.go, which reads from CuratedModels via RecommendedFor.
+// stays in selector.go, which reads from CuratedModels via NotLocal.
 
 package views
 
@@ -20,6 +20,7 @@ var CuratedModels = []CuratedModel{
 	{32, "general", "gemma4:27b", "~15gb", "google moe; near-frontier chat and review"},
 	{16, "general", "phi-4:14b", "~8gb", "microsoft; strong multi-file reasoning"},
 	{8, "general", "gemma4:e4b", "~2.7gb", "4.5b effective; fast routing and quick queries"},
+	{8, "general", "gemma4:e2b", "~1.5gb", "2b effective; leaner and faster than e4b, lower quality"},
 	{4, "general", "llama3.2:3b", "~2gb", "meta; best chat and reasoning within 4gb"},
 
 	{32, "coding", "qwen3.6:27b-coding-nvfp4", "~18gb", "alibaba; near-frontier generation and review"},
@@ -43,16 +44,17 @@ func DetectTier(totalBytes uint64) int {
 	return curatedTiers[len(curatedTiers)-1]
 }
 
-// RecommendedFor returns the curated models for tierGB that are not already
-// present in available (matched by exact model name).
-func RecommendedFor(tierGB int, available []string) []CuratedModel {
+// NotLocal returns every curated model, across all hardware tiers, that is
+// not already present in available (matched by exact model name). order
+// follows CuratedModels: largest tier first.
+func NotLocal(available []string) []CuratedModel {
 	have := make(map[string]bool, len(available))
 	for _, a := range available {
 		have[a] = true
 	}
 	var out []CuratedModel
 	for _, c := range CuratedModels {
-		if c.TierGB == tierGB && !have[c.Model] {
+		if !have[c.Model] {
 			out = append(out, c)
 		}
 	}

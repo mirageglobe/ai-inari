@@ -62,11 +62,12 @@ type loadModelMsg struct {
 }
 
 // ModelSelector lists available Ollama models and lets the user assign one to a session.
-// recommended holds curated models (SPEC.md §6.1) for the detected hardware tier that
-// are not already pulled; they're appended to the table marked [pull] - selecting one
-// triggers `ollama pull` via inarid instead of requiring the user to run it themselves.
-// rowLocal mirrors the table rows 1:1: true for an already-available model, false for
-// a recommended-but-not-pulled entry.
+// recommended holds every curated model (SPEC.md §6.1, all hardware tiers) that is not
+// already pulled; they're appended to the table marked [pull], labelled with their tier
+// and role - selecting one triggers `ollama pull` via inarid instead of requiring the
+// user to run it themselves. rowLocal/rowModel mirror the table rows 1:1: rowLocal is
+// true for an already-available model, rowModel carries the real tag behind each row's
+// (possibly decorated) display label.
 type ModelSelector struct {
 	client            *ipc.Client
 	table             table.Model
@@ -79,6 +80,7 @@ type ModelSelector struct {
 	tierGB            int
 	recommended       []CuratedModel
 	rowLocal          []bool
+	rowModel          []string // actual model tag per row; row[0] may carry a display-only tier/role suffix
 	pullProgress      <-chan provider.PullProgress
 	pullErrc          <-chan error
 	pullTarget        string
@@ -158,20 +160,25 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i, model := range msg.models {
 				names[i] = model.Name
 			}
-			m.recommended = RecommendedFor(m.tierGB, names)
+			m.recommended = NotLocal(names)
 
 			rows := make([]table.Row, 0, len(msg.models)+len(m.recommended))
 			local := make([]bool, 0, cap(rows))
+			modelNames := make([]string, 0, cap(rows))
 			for _, model := range msg.models {
 				rows = append(rows, table.Row{model.Name, formatBytes(model.Size)})
 				local = append(local, true)
+				modelNames = append(modelNames, model.Name)
 			}
 			for _, c := range m.recommended {
-				rows = append(rows, table.Row{c.Model, c.Size + " [pull]"})
+				label := fmt.Sprintf("%s  (%dgb %s)", c.Model, c.TierGB, c.Role)
+				rows = append(rows, table.Row{label, c.Size + " [pull]"})
 				local = append(local, false)
+				modelNames = append(modelNames, c.Model)
 			}
 			m.table.SetRows(rows)
 			m.rowLocal = local
+			m.rowModel = modelNames
 		}
 		return m, nil
 
@@ -216,7 +223,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.loading {
 				idx := m.table.Cursor()
 				if row := m.table.SelectedRow(); len(row) > 0 && idx >= 0 && idx < len(m.rowLocal) {
-					name, size := row[0], row[1]
+					name, size := m.rowModel[idx], row[1]
 					m.loading = true
 					if m.rowLocal[idx] {
 						m.status = modelsStyle.Render("loading " + name + " (" + size + ") → " + m.targetSessionName + "...")
@@ -297,15 +304,16 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
-// renderRecommended returns a short note about curated recommendations (SPEC.md
-// §6.1) for the detected hardware tier; the models themselves are appended to
-// the table above, marked [pull]. returns "" when there is nothing to recommend.
+// renderRecommended returns a short note about the curated catalog (SPEC.md
+// §6.1, all hardware tiers); those models are appended to the table above,
+// marked [pull] with their tier and role. returns "" once every curated model
+// is already local.
 func (m ModelSelector) renderRecommended() string {
 	if len(m.recommended) == 0 {
 		return ""
 	}
 	headerStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	return headerStyle.Render(fmt.Sprintf("models marked [pull] are recommended for your system (%dgb tier); [enter] downloads and assigns", m.tierGB))
+	return headerStyle.Render(fmt.Sprintf("models marked [pull] are the curated catalog (your detected tier: %dgb); [enter] downloads and assigns", m.tierGB))
 }
 
 func (m ModelSelector) View() string {

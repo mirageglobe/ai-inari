@@ -27,23 +27,30 @@ func TestDetectTier(t *testing.T) {
 	}
 }
 
-func TestRecommendedFor(t *testing.T) {
-	got := RecommendedFor(8, nil)
-	if len(got) != 2 {
-		t.Fatalf("expected 2 curated entries at the 8gb tier, got %d", len(got))
+func TestNotLocal(t *testing.T) {
+	got := NotLocal(nil)
+	if len(got) != len(CuratedModels) {
+		t.Fatalf("expected all %d curated entries with nothing local, got %d", len(CuratedModels), len(got))
+	}
+	if got[0].TierGB != 32 {
+		t.Fatalf("expected largest tier first, got tier %d", got[0].TierGB)
 	}
 
-	got = RecommendedFor(8, []string{"gemma4:e4b"})
-	if len(got) != 1 || got[0].Model != "deepseek-r1:8b" {
-		t.Fatalf("expected only deepseek-r1:8b left after gemma4:e4b is available, got %+v", got)
+	got = NotLocal([]string{"gemma4:e4b"})
+	if len(got) != len(CuratedModels)-1 {
+		t.Fatalf("expected one fewer entry once gemma4:e4b is local, got %d", len(got))
+	}
+	for _, c := range got {
+		if c.Model == "gemma4:e4b" {
+			t.Fatalf("gemma4:e4b should be excluded once local, got %+v", got)
+		}
 	}
 
-	got = RecommendedFor(8, []string{"gemma4:e4b", "deepseek-r1:8b"})
-	if len(got) != 0 {
-		t.Fatalf("expected no recommendations once both 8gb-tier models are available, got %+v", got)
+	allNames := make([]string, len(CuratedModels))
+	for i, c := range CuratedModels {
+		allNames[i] = c.Model
 	}
-
-	if got := RecommendedFor(999, nil); len(got) != 0 {
-		t.Fatalf("expected no recommendations for an unknown tier, got %+v", got)
+	if got := NotLocal(allNames); len(got) != 0 {
+		t.Fatalf("expected no entries left once every curated model is local, got %+v", got)
 	}
 }
