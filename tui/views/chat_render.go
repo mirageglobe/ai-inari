@@ -9,7 +9,7 @@ import (
 )
 
 // chatCommands is the ordered list of slash commands available in the chat view.
-var chatCommands = []string{"/clear", "/compact", "/copy", "/export", "/model select", "/describe", "/tools", "/agents", "/quit"}
+var chatCommands = []string{"/clear", "/compact", "/copy", "/export", "/model select", "/describe", "/tools", "/agents", "/help", "/quit"}
 
 // viewportContent returns the string to show in the viewport.
 // during streaming, streamBuf is rendered as a live in-progress assistant message.
@@ -169,7 +169,7 @@ func (c Chat) View() string {
 			dimStyle.Render("list_dir") + "  " +
 			dimStyle.Render("grep_file") + "  " +
 			dimStyle.Render("stat_file") + "  " +
-			dimStyle.Render("run") + "  " +
+			dimStyle.Render("execute_shell_command") + "  " +
 			dimStyle.Render("(sandboxed to cwd)")
 	} else {
 		sendHint := H("[enter] send")
@@ -177,16 +177,16 @@ func (c Chat) View() string {
 			sendHint = HD("[enter] send")
 		}
 
-		toolsHint := H("[ctrl+t] tools")
+		toolsHint := H("/tools")
 		if c.cwd == "" {
-			toolsHint = HD("[ctrl+t] tools")
+			toolsHint = HD("/tools")
 		}
 		hintLine = RenderHint([]HintCmd{
 			sendHint,
 			H("[uparrow][downarrow] history"),
 			HS(),
 			toolsHint,
-			H("[ctrl+g] help"),
+			H("/help"),
 			H("/agents"),
 		}, c.viewport.Width+1)
 	}

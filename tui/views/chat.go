@@ -319,19 +319,9 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// ctrl-prefixed shortcuts never collide with typed text, so they stay active
 		// while the input is focused (unlike bare keys like `t`/`?`; see open issue).
 		// ctrl+m is deliberately omitted: terminals deliver it as carriage-return, which
-		// would shadow [enter] send.
+		// would shadow [enter] send. tools and help are reached via /tools and /help instead
+		// of ctrl-prefixed bindings, since both are slash commands anyway.
 		switch msg.String() {
-		case "ctrl+f", "ctrl+t":
-			// toggle the builtin tools panel; only meaningful when tools are active.
-			if c.cwd != "" {
-				c.showBuiltin = !c.showBuiltin
-			} else {
-				c.status = "[warn] tools not available (no cwd set)"
-			}
-			return c, nil
-		case "ctrl+g":
-			// open the help overlay; the root model owns overlay visibility.
-			return c, func() tea.Msg { return ToggleHelpMsg{} }
 		case "ctrl+p":
 			// open the slash command palette by seeding the input with "/".
 			c.input.SetValue("/")
@@ -547,6 +537,8 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			c.status = "[warn] tools not available (no cwd set)"
 		}
 		return c, nil
+	case "/help":
+		return c, func() tea.Msg { return ToggleHelpMsg{} }
 	case "/describe":
 		return c, func() tea.Msg { return OpenDescribeMsg{} }
 	case "/agents":
