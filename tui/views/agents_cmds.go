@@ -37,6 +37,14 @@ type CycleThemeMsg struct{}
 // ToggleHelpMsg is emitted by agents to open/close the help overlay.
 type ToggleHelpMsg struct{}
 
+// OpenAgentsMsg is emitted by chat's /agents command to open agents as a popup
+// modal over chat, rather than switching away from chat entirely.
+type OpenAgentsMsg struct{}
+
+// CloseAgentsModalMsg is emitted by agents when [q] is pressed while it is
+// rendered as a popup modal, returning the root model to chat.
+type CloseAgentsModalMsg struct{}
+
 type runningMsg struct {
 	models []provider.RunningModel
 	err    error

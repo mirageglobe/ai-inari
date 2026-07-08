@@ -542,7 +542,7 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 	case "/describe":
 		return c, func() tea.Msg { return OpenDescribeMsg{} }
 	case "/agents":
-		return c, func() tea.Msg { return BackToAgentsMsg{} }
+		return c, func() tea.Msg { return OpenAgentsMsg{} }
 	case "/quit":
 		return c, tea.Quit
 	default:

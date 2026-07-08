@@ -5,10 +5,18 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/config"
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/tui/views"
+)
+
+// agentsModalMarginW/H shrink the agents table so it renders as a popup, not a
+// full-screen view, when opened from chat via /agents.
+const (
+	agentsModalMarginW = 12
+	agentsModalMarginH = 6
 )
 
 type view int
@@ -44,6 +52,7 @@ type Model struct {
 	showHelp          bool // true while the [?] help overlay is visible
 	showThemePicker   bool // true while the /theme modal is visible
 	showModelSelector bool // true while the model selector modal is overlaid on agents
+	showAgents        bool // true while agents is overlaid on chat as a popup modal (opened via /agents)
 	themePickerIdx    int  // cursor position in the theme picker
 	themeIdx          int  // index into views.Themes; current active theme
 	configPath        string
@@ -208,6 +217,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.agents.Init()
 	}
 
+	// /agents from chat opens agents as a popup over chat rather than switching away.
+	if _, ok := msg.(views.OpenAgentsMsg); ok {
+		m.showAgents = true
+		m.agents = m.agents.WithModal(true)
+		if m.termWidth > 0 && m.termHeight > 0 {
+			updated, _ := m.agents.Update(tea.WindowSizeMsg{Width: m.termWidth - agentsModalMarginW, Height: m.termHeight - agentsModalMarginH})
+			m.agents = updated.(views.Agents)
+		}
+		return m, m.agents.Init()
+	}
+
+	// [q] inside the agents popup closes it and restores chat.
+	if _, ok := msg.(views.CloseAgentsModalMsg); ok {
+		m.showAgents = false
+		m.agents = m.agents.WithModal(false)
+		if m.termWidth > 0 && m.termHeight > 0 {
+			updated, _ := m.agents.Update(tea.WindowSizeMsg{Width: m.termWidth, Height: m.termHeight})
+			m.agents = updated.(views.Agents)
+		}
+		return m, nil
+	}
+
 	if _, ok := msg.(views.OpenLogsMsg); ok {
 		m.current = viewLogs
 		return m, m.logs.Init()
@@ -269,6 +300,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sel, ok := msg.(views.SelectModelMsg); ok {
 		m.activeSession = sel.SessionID
 		m.agents = m.agents.WithActiveSession(sel.SessionID)
+		if m.showAgents {
+			// selecting a session from the agents popup closes it back to chat.
+			m.showAgents = false
+			m.agents = m.agents.WithModal(false)
+			if m.termWidth > 0 && m.termHeight > 0 {
+				updated, _ := m.agents.Update(tea.WindowSizeMsg{Width: m.termWidth, Height: m.termHeight})
+				m.agents = updated.(views.Agents)
+			}
+		}
 		if _, exists := m.chats[sel.SessionID]; !exists {
 			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.CWD, sel.ContextChars, sel.SystemPrompt)
 			// size the viewport immediately with the known terminal dimensions so the
@@ -291,6 +331,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		updated, cmd := m.models.Update(msg)
 		m.models = updated.(views.ModelSelector)
+		return m, cmd
+	}
+
+	// route all remaining messages to agents when it is overlaid on chat as a popup.
+	if m.showAgents {
+		updated, cmd := m.agents.Update(msg)
+		m.agents = updated.(views.Agents)
 		return m, cmd
 	}
 
@@ -416,6 +463,12 @@ func (m Model) View() string {
 	var body string
 	if m.showModelSelector {
 		body = m.models.RenderModal(m.termWidth, m.termHeight-1)
+	} else if m.showAgents {
+		box := lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(views.ActiveTheme.Primary).
+			Render(m.agents.View())
+		body = lipgloss.Place(m.termWidth, m.termHeight-1, lipgloss.Center, lipgloss.Center, box)
 	} else if m.showThemePicker {
 		body = views.RenderThemeOverlay(m.themePickerIdx, m.termWidth, m.termHeight-1)
 	} else if m.showHelp {
@@ -438,12 +491,16 @@ func (m Model) View() string {
 
 	// emit cursor shape once here; views no longer emit escape sequences themselves.
 	cursorEsc := views.ResetCursor
-	switch m.current {
-	case viewChat:
+	switch {
+	case m.showAgents:
+		if m.agents.InputFocused() {
+			cursorEsc = views.BlinkBarCursor
+		}
+	case m.current == viewChat:
 		if chat, ok := m.chats[m.activeSession]; ok && chat.InputFocused() {
 			cursorEsc = views.BlinkBarCursor
 		}
-	case viewAgents:
+	case m.current == viewAgents:
 		if m.agents.InputFocused() {
 			cursorEsc = views.BlinkBarCursor
 		}

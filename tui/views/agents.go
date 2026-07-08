@@ -50,6 +50,7 @@ type Agents struct {
 	infoMsg         string              // transient message shown in the status line; cleared on next keypress
 	modelCaps       map[string][]string // capability tags per model name, fetched lazily
 	activeSessionID string              // session currently open in chat view; marked in the table
+	modal           bool                // true while rendered as a popup overlay on top of chat
 }
 
 func NewAgents(client *ipc.Client) Agents {
@@ -371,6 +372,10 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "q":
+			if h.modal {
+				return h, func() tea.Msg { return CloseAgentsModalMsg{} }
+			}
 		}
 	}
 	var cmd tea.Cmd
@@ -380,6 +385,13 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // WithActiveSession returns a copy of the Agents with the active chat session marked.
 func (h Agents) InputFocused() bool { return h.inputFocused }
+
+// WithModal returns a copy of the agents view with modal mode set, controlling
+// whether the [q] back-to-chat hint is shown in the footer.
+func (h Agents) WithModal(v bool) Agents {
+	h.modal = v
+	return h
+}
 
 func (h Agents) WithActiveSession(id string) Agents {
 	h.activeSessionID = id
