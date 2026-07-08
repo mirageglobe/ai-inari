@@ -282,7 +282,7 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 		title += "  " + secStyle.Render("→ "+m.targetSessionName)
 	}
 
-	hint := RenderHint([]HintCmd{H("[enter] assign/pull"), H("[esc] cancel")}, modalInnerW)
+	hint := RenderHint([]HintCmd{H("[enter] assign/pull"), H("[q/esc] cancel")}, modalInnerW)
 
 	var lines []string
 	lines = append(lines, title)
@@ -305,34 +305,8 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
-// renderRecommended returns a short note about the curated catalog (SPEC.md
-// §6.1, all hardware tiers); those models are appended to the table above,
-// marked [pull] with their tier and role. returns "" once every curated model
-// is already local.
-func (m ModelSelector) renderRecommended() string {
-	if len(m.recommended) == 0 {
-		return ""
-	}
-	headerStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	return headerStyle.Render(fmt.Sprintf("models marked [pull] are the curated catalog (your detected tier: %dgb); [enter] downloads and assigns", m.tierGB))
-}
-
+// View satisfies tea.Model; actual rendering always goes through RenderModal,
+// called directly by the root model with live terminal dimensions.
 func (m ModelSelector) View() string {
-	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("models")
-	if m.targetSessionName != "" {
-		viewLabel += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
-	}
-	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign/pull"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
-	body := agentsStyle.Render(m.table.View())
-	if rec := m.renderRecommended(); rec != "" {
-		body += "\n" + rec
-	}
-	if m.status != "" {
-		line := m.status
-		if m.loading {
-			line = m.spinner.View() + " " + line
-		}
-		body += "\n" + line
-	}
-	return body + "\n" + hint
+	return m.table.View()
 }

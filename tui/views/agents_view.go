@@ -56,7 +56,31 @@ func agentHints(hasSession, hasModel, offline bool) []HintCmd {
 	}
 }
 
+// viewModal renders the trimmed popup form: just the session table (or
+// loading spinner) and a single back-to-chat hint, with no session/cwd/status
+// footer. the command input still renders while the user is actively typing
+// a slash command, so /model select etc. remain usable from the popup.
+func (h Agents) viewModal() string {
+	hint := RenderHint([]HintCmd{H("[q/esc] back to chat")}, h.width)
+
+	if h.loading {
+		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
+		body := agentsStyle.Render(pad.Render(h.spinner.View() + " fetching agents..."))
+		return body + "\n" + hint
+	}
+
+	body := agentsStyle.Render(h.table.View())
+	if h.inputFocused {
+		return body + "\n" + h.input.View() + "\n" + hint
+	}
+	return body + "\n" + hint
+}
+
 func (h Agents) View() string {
+	if h.modal {
+		return h.viewModal()
+	}
+
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
 	hasModel := hasSession && h.sessions[idx].Model != ""
@@ -107,9 +131,6 @@ func (h Agents) View() string {
 		hints = modelHints(hasSession, hasModel, h.offline)
 	default:
 		hints = agentsHints(hasSession, hasModel, h.offline)
-	}
-	if h.modal {
-		hints = append([]HintCmd{H("[q] back to chat")}, hints...)
 	}
 	hintLine := RenderHint(hints, h.width)
 
