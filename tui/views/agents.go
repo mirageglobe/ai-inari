@@ -392,9 +392,9 @@ func (h Agents) InputFocused() bool { return h.inputFocused }
 // avoid painting the table for the single frame before that decision lands.
 func (h Agents) Booting() bool { return h.loading || h.autoOpen }
 
-// WithModal returns a copy of the agents view with modal mode set, switching
-// View() to the trimmed popup form (session table plus a back-to-chat hint,
-// no session/cwd/status footer) and enabling [q]/[esc] to close it.
+// WithModal marks whether the agents view is being rendered via RenderModal
+// (as a popup over chat) rather than full-screen; this only affects Update's
+// [q]/[esc] handling, which closes the popup instead of doing nothing.
 func (h Agents) WithModal(v bool) Agents {
 	h.modal = v
 	return h

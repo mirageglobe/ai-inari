@@ -56,11 +56,13 @@ func agentHints(hasSession, hasModel, offline bool) []HintCmd {
 	}
 }
 
-// viewModal renders the trimmed popup form: just the session table (or
-// loading spinner) and a single back-to-chat hint, with no session/cwd/status
-// footer. the command input still renders while the user is actively typing
-// a slash command, so /model select etc. remain usable from the popup.
-func (h Agents) viewModal() string {
+// RenderModal renders the agents popup as a centred overlay, matching the
+// model-selector modal's shape: a title, the table, and the hint line inside
+// a single rounded-border box (see ModelSelector.RenderModal in selector.go).
+func (h Agents) RenderModal(termWidth, termHeight int) string {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+	title := titleStyle.Render("agents")
+
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
 	hasModel := hasSession && h.sessions[idx].Model != ""
@@ -80,24 +82,29 @@ func (h Agents) viewModal() string {
 	hints = append(hints, HS(), H("[q/esc] back to chat"))
 	hint := RenderHint(hints, h.width)
 
+	var lines []string
+	lines = append(lines, title)
 	if h.loading {
-		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
-		body := agentsStyle.Render(pad.Render(h.spinner.View() + " fetching agents..."))
-		return body + "\n" + hint
+		pad := lipgloss.NewStyle().PaddingTop(1).PaddingLeft(1)
+		lines = append(lines, pad.Render(h.spinner.View()+" fetching agents..."))
+	} else {
+		lines = append(lines, h.table.View())
+		if h.inputFocused {
+			lines = append(lines, h.input.View())
+		}
 	}
+	lines = append(lines, hint)
 
-	body := agentsStyle.Render(h.table.View())
-	if h.inputFocused {
-		return body + "\n" + h.input.View() + "\n" + hint
-	}
-	return body + "\n" + hint
+	boxStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(ActiveTheme.Primary).
+		Padding(0, 1)
+
+	box := boxStyle.Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
 func (h Agents) View() string {
-	if h.modal {
-		return h.viewModal()
-	}
-
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
 	hasModel := hasSession && h.sessions[idx].Model != ""
