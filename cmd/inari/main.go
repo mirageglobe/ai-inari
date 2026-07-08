@@ -246,6 +246,16 @@ func cmdStop() {
 	if err := proc.Signal(syscall.SIGTERM); err != nil {
 		log.Fatalf("stop: %v", err)
 	}
+	// wait for the process to actually exit before returning: the daemon's deferred
+	// srv.Close() unlinks its socket file, so a caller that immediately starts a new
+	// daemon at the same path risks the old process deleting the new one's socket.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if proc.Signal(syscall.Signal(0)) != nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 	os.Remove(pidFile())
 	fmt.Printf("inari daemon stopped (pid %d)\n", pid)
 }
