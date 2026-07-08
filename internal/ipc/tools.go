@@ -80,7 +80,7 @@ func filesystemTools() []provider.Tool {
 		{
 			Type: "function",
 			Function: provider.ToolFunction{
-				Name:        "run",
+				Name:        "execute_shell_command",
 				Description: "run an allowlisted shell command inside the session working directory and return its stdout and stderr. only specific commands are permitted; others are rejected.",
 				Parameters: provider.ToolParameters{
 					Type: "object",
@@ -97,7 +97,7 @@ func filesystemTools() []provider.Tool {
 
 // safeTools are executed immediately without an approval round-trip.
 // read-only filesystem tools pose no write/exec risk, so interrupting the user for every call would be noise.
-// any tool not in this set, currently only "run", always requires inari approval.
+// any tool not in this set, currently only "execute_shell_command", always requires inari approval.
 var safeTools = map[string]bool{
 	"read_file": true,
 	"list_dir":  true,
@@ -105,7 +105,7 @@ var safeTools = map[string]bool{
 	"stat_file": true,
 }
 
-// allowedCommands is the set of binaries that run may invoke.
+// allowedCommands is the set of binaries that execute_shell_command may invoke.
 // each entry is the base command name only; arguments are passed separately and never shell-expanded.
 var allowedCommands = map[string]bool{
 	"go":     true,
@@ -231,7 +231,7 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 		}
 		return fmt.Sprintf("path: %s\nsize: %d bytes\nmodified: %s\nis_dir: %v\n",
 			rawPath, info.Size(), info.ModTime().Format(time.RFC3339), info.IsDir()), nil
-	case "run":
+	case "execute_shell_command":
 		command, _ := args["command"].(string)
 		argsStr, _ := args["args"].(string)
 		if !allowedCommands[command] {

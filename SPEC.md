@@ -98,7 +98,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarid]` **MCP tool-call dispatch** — `internal/mcp/host.go` `Call()` is a TODO stub; audit logging exists but actual JSON-RPC dispatch over stdio is not implemented. complete to fulfil M4.
 - [ ] `[inarid]` `[medium]` **model loop / EOF prevention** — some models enter repetitive generation loops (e.g. `for_for_for...`) that exhaust the context window and terminate the stream with an EOF error. three mitigations to investigate: (1) set `repeat_penalty` (1.3–1.5) and `num_predict` cap in the ollama request options to penalise and hard-limit runaway output; (2) add a stream-side n-gram detector in `handleStream` that buffers the last N tokens, identifies a repeating sequence appearing 3+ times consecutively, and cancels the stream with a graceful error before EOF is hit.
 - [ ] `[inarid]` **MCP filesystem connector (layer 3)** — once the tool-call loop exists, replace built-in tools with `@modelcontextprotocol/server-filesystem` spawned via mcp-go. this is a natural extension of the MCP integration work below.
-- [ ] `[inarid]` **destructive action prevention (§8.2)**: cwd enforcement (`sandboxPath` in `internal/ipc/tools.go`) and a tool-call loop cap (`maxToolRounds = 10` in `internal/ipc/stream.go`) are shipped, alongside per-call size caps; remaining scope is a true file-op-count cap and dry-run previews for caution-tier tool-calls. risk-tiered auto-approval is done (safe builtins auto-execute, `run` always confirms)
+- [ ] `[inarid]` **destructive action prevention (§8.2)**: cwd enforcement (`sandboxPath` in `internal/ipc/tools.go`) and a tool-call loop cap (`maxToolRounds = 10` in `internal/ipc/stream.go`) are shipped, alongside per-call size caps; remaining scope is a true file-op-count cap and dry-run previews for caution-tier tool-calls. risk-tiered auto-approval is done (safe builtins auto-execute, `execute_shell_command` always confirms)
 - [ ] `[inarid]` multiple models per session — allow attaching different models to a single session for collaborative discussions and task execution
 - [ ] `[inarid]` MCP integration — replace `internal/mcp` with `github.com/mark3labs/mcp-go`; connectors (Linear, Slack, Google Drive, etc.) configured via `config.json`
 - [ ] `[inarid]` **prompt-based tool calling** — for models without native function-calling support, inject tool definitions as plain text into the system prompt and set `format: "json"`; inarid parses the JSON response to detect tool calls. select mode via session config or auto-detect from model name. makes layer 2 work on any instruction-following model (hermes-3-pro, qwen3-coder, etc.)
@@ -142,8 +142,8 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune]` `[easy]` export chat history to file — `[e]` in herd view fetches full message history via `session.history` RPC, formats as plain text (`role: content` per message, `---` separator), and writes to `~/.local/share/inari/exports/<session-name>-<timestamp>.txt` (XDG data dir); path is shown in the status bar on success
 - [x] `[kitsune]` `[easy]` show current token count in chat
 - [x] `[inarid]` **filesystem tool-call loop (layer 2)** — inarid declares read-only tools (`read_file`, `list_dir`) in the Ollama API request for sessions that have a working directory set. when Ollama returns a tool-call instead of text, inarid executes the tool (sandboxed to the session's `cwd`), appends the result as a `tool` message, and re-sends to Ollama — looping until a final text response arrives. write operations are explicitly out of scope at this stage.
-- [x] `[inarid]` **extended layer-2 tools** — `grep_file` (regex search across files in cwd) and `stat_file` (size, mtime, type) added alongside `read_file`, `list_dir`, and `run`; all sandboxed to session `cwd`.
-- [x] `[inarid]` **`run` builtin** — allowlisted bash execution: `go`, `make`, `git`, `date`, `echo`, `pwd`, `whoami`, `uname`, `wc`, `curl`, `wget`, `find`, `ps`, `ls`, `cat`, `df`, `uptime`, `which`; `exec.Command` (no shell expansion); 30 s timeout; 64 KB output cap. caution-tier per §8.3.
+- [x] `[inarid]` **extended layer-2 tools** — `grep_file` (regex search across files in cwd) and `stat_file` (size, mtime, type) added alongside `read_file`, `list_dir`, and `execute_shell_command`; all sandboxed to session `cwd`.
+- [x] `[inarid]` **`execute_shell_command` builtin** — allowlisted bash execution: `go`, `make`, `git`, `date`, `echo`, `pwd`, `whoami`, `uname`, `wc`, `curl`, `wget`, `find`, `ps`, `ls`, `cat`, `df`, `uptime`, `which`; `exec.Command` (no shell expansion); 30 s timeout; 64 KB output cap. caution-tier per §8.3.
 - [x] `[kitsune]` `[medium]` **tool approval gating** — when inarid needs to execute a tool during a stream, it sends a `tool.approval_request` message; the stream pauses and kitsune renders an approval prompt replacing the hint bar; the user presses `[y]`/`[n]` to approve or reject before execution resumes. all keys are absorbed while approval is pending.
 - [x] `[inarid]` `[easy]` **auto-create config** — if `~/.config/inari/config.json` does not exist at startup, inarid creates it with defaults (socket, memory budget, ollama url, default model tiers, theme); the user gets a ready-to-edit file rather than a startup error.
 - [x] `[kitsune]` `[easy]` **shared footer component** — `tui/views/footer.go` owns `RenderFoxLine`, `renderFooter`, and `renderCWDLine`; all views use it. the footer now shows `label | name | model | tokens | cwd` in one line, followed by a dedicated cwd sandbox line when a session directory is set.
@@ -260,7 +260,7 @@ Protocol over the dedicated connection:
    ```json
    {"token":"Hello"}
    {"token":" world"}
-   {"tool_approval_request":{"tool":"run","args":{"command":"go","args":["test","./..."]}}}
+   {"tool_approval_request":{"tool":"execute_shell_command","args":{"command":"go","args":["test","./..."]}}}
    {"token":"Tests passed."}
    {"done":true}
    ```
@@ -304,17 +304,17 @@ the model can reason about the project layout and refer to files by path, but ca
 
 inarid declares five built-in tools in the ollama `/api/chat` request for sessions that have `cwd` set:
 
-| tool            | input                               | output                                   |
-| :---            | :---                                | :---                                     |
-| `read_file`     | `{path}`                            | file contents (text only)                |
-| `list_dir`      | `{path}`                            | directory listing (names only)           |
-| `grep_file`    | `{path, pattern}`                   | matching lines with filename and line no |
-| `stat_file`     | `{path}`                            | size, mtime, type                        |
-| `run`   | `{command, args[]}`                 | stdout+stderr, exit code as text         |
+| tool                   | input               | output                                    |
+| :--------------------- | :------------------ | :---------------------------------------- |
+| `read_file`            | `{path}`             | file contents (text only)                 |
+| `list_dir`             | `{path}`             | directory listing (names only)            |
+| `grep_file`            | `{path, pattern}`    | matching lines with filename and line no  |
+| `stat_file`            | `{path}`             | size, mtime, type                         |
+| `execute_shell_command` | `{command, args[]}`  | stdout+stderr, exit code as text          |
 
-**naming convention:** tool names follow `verb_noun` (e.g. `read_file`, `list_dir`) — reads as an instruction and aligns with common tool-calling schemas (MCP, OpenAI). exception: `run` stands alone as it takes a command argument rather than a path.
+**naming convention:** tool names follow `verb_noun` (e.g. `read_file`, `list_dir`, `execute_shell_command`); reads as an instruction and aligns with common tool-calling schemas (MCP, OpenAI).
 
-all tools are sandboxed: paths are resolved relative to `cwd` and must not escape it (no `../` traversal). `run` is additionally gated by an allowlist (see §8.3). write operations are out of scope.
+all tools are sandboxed: paths are resolved relative to `cwd` and must not escape it (no `../` traversal). `execute_shell_command` is additionally gated by an allowlist (see §8.3). write operations are out of scope.
 
 when ollama returns a `tool_calls` response, inarid's `handleStream` loop:
 
@@ -554,12 +554,12 @@ the goal is to make the worst-case outcome bounded regardless of user behaviour 
 
 every tool-call is classified at dispatch time by a static risk tier. the tier is defined per tool, not inferred from the model's intent or phrasing.
 
-| tier        | current tools                                          | inarid behaviour                                                |
-| :---        | :---                                                   | :---                                                            |
-| safe        | `read_file`, `list_dir`, `grep_file`, `stat_file`      | execute immediately, no approval round-trip, log result         |
-| caution     | `run`                                                  | send `tool_request` to inari; block until `tool_approved`; rejection logged |
-| destructive | (none yet — future write tools)                        | always require confirmation; shown in red in inari            |
-| forbidden   | process spawn, network outside ollama/mcp, shell exec  | hard-rejected; never routable                                   |
+| tier        | current tools                                         | inarid behaviour                                                            |
+| :---------- | :---------------------------------------------------- | :-------------------------------------------------------------------------- |
+| safe        | `read_file`, `list_dir`, `grep_file`, `stat_file`     | execute immediately, no approval round-trip, log result                     |
+| caution     | `execute_shell_command`                               | send `tool_request` to inari; block until `tool_approved`; rejection logged |
+| destructive | (none yet, future write tools)                        | always require confirmation; shown in red in inari                          |
+| forbidden   | process spawn, network outside ollama/mcp, shell exec | hard-rejected; never routable                                               |
 
 classification is conservative: if a tool's tier is ambiguous, it is assigned the higher-risk tier. adding a new tool requires an explicit tier assignment — unclassified tools are rejected.
 
@@ -588,9 +588,9 @@ inari renders the preview and waits for `[y] approve` or `[n] reject`. only on a
 
 **non-goal:** this design does not attempt to detect malicious intent from model outputs. it bounds damage structurally so that even a model producing harmful tool-calls cannot exceed the permitted blast radius.
 
-### 8.3 run — allowlisted bash execution
+### 8.3 execute_shell_command - allowlisted bash execution
 
-`run` lets the model invoke a fixed set of development commands inside the session's `cwd`. it is the boundary between read-only filesystem tools and write/execute capability.
+`execute_shell_command` lets the model invoke a fixed set of development commands inside the session's `cwd`. it is the boundary between read-only filesystem tools and write/execute capability.
 
 **implemented constraints**
 
@@ -609,15 +609,15 @@ edit `allowedCommands` in `internal/ipc/server.go`. the map key is the binary ba
 
 **risk tier**
 
-`run` is **caution-tier**. the allowlist keeps it out of the destructive tier, but:
+`execute_shell_command` is **caution-tier**. the allowlist keeps it out of the destructive tier, but:
 - `git reset --hard`, `make clean`, `go generate` can delete or regenerate files.
-- every `run` call sends a `tool_request` to inari and blocks until the user presses `[y]` or `[n]`. the call never executes unattended.
+- every `execute_shell_command` call sends a `tool_request` to inari and blocks until the user presses `[y]` or `[n]`. the call never executes unattended.
 - read-only builtins (`read_file`, `list_dir`, `grep_file`, `stat_file`) are safe-tier and execute without prompting.
 
 **rollout order for future expansion**
 
-1. *(done)* allowlist-only `run` — `go`, `make`, `git`.
-2. *(done)* per-call approval gating in inari (§8.2) for `run`; safe-tier builtins auto-execute.
+1. *(done)* allowlist-only `execute_shell_command` - `go`, `make`, `git`.
+2. *(done)* per-call approval gating in inari (§8.2) for `execute_shell_command`; safe-tier builtins auto-execute.
 3. arbitrary bash (destructive tier) only after write tools and blast-radius limits are in production.
 4. replace with MCP process connector once the tool-call loop supports it.
 
@@ -628,7 +628,7 @@ edit `allowedCommands` in `internal/ipc/server.go`. the map key is the binary ba
 - `sh`, `bash`, `zsh`, `python` — shell interpreters that bypass the allowlist.
 - any binary not in `allowedCommands` — hard-rejected at dispatch.
 
-note: `curl` and `wget` are in the allowlist for read-only http queries (e.g. querying local endpoints). they are caution-tier via `run`, so each call requires user confirmation. revisit whether they belong in the allowlist once write tools and blast-radius limits are in production.
+note: `curl` and `wget` are in the allowlist for read-only http queries (e.g. querying local endpoints). they are caution-tier via `execute_shell_command`, so each call requires user confirmation. revisit whether they belong in the allowlist once write tools and blast-radius limits are in production.
 
 ---
 
