@@ -50,6 +50,10 @@ type Server struct {
 	quitOnce sync.Once
 	verbose  bool
 
+	// defaultModel is the thinker-tier model (config.json's models.thinker) used
+	// for chat/stream/compact when a session has no model explicitly assigned.
+	defaultModel string
+
 	// idleTimeout is how long the daemon may sit with no client activity before
 	// shutting itself down; zero disables the watchdog. lastActive holds the unix
 	// nano of the most recent RPC and is read by monitorIdle.
@@ -57,7 +61,7 @@ type Server struct {
 	lastActive  atomic.Int64
 }
 
-func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool, idleTimeout time.Duration) (*Server, error) {
+func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool, idleTimeout time.Duration, defaultModel string) (*Server, error) {
 	// remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
 	os.Remove(socket)
 
@@ -81,7 +85,8 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		quit:     make(chan struct{}),
 		verbose:  verbose,
 
-		idleTimeout: idleTimeout,
+		defaultModel: defaultModel,
+		idleTimeout:  idleTimeout,
 	}
 	s.touch()     // seed the idle clock so the daemon does not shut down before its first call
 	go s.accept() // accept loop runs in background; NewServer returns immediately
@@ -89,6 +94,15 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		go s.monitorIdle()
 	}
 	return s, nil
+}
+
+// modelFor returns the model to use for a session: its own assignment if set,
+// otherwise the configured thinker-tier default (empty if none is configured).
+func (s *Server) modelFor(sess *session.Session) string {
+	if sess.Model != "" {
+		return sess.Model
+	}
+	return s.defaultModel
 }
 
 // touch records the time of the latest client activity for the idle watchdog.

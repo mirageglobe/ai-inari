@@ -92,7 +92,7 @@ make stop     # stop inarid (also runs automatically when inari exits)
     { "name": "search",     "command": "mcp-search",     "args": [] }
   ],
   "models": {
-    "thinker": "bonsai:8b",
+    "thinker": "gemma4:e4b",
     "worker":  "bonsai:4b",
     "sensor":  "qwen3-nano"
   }

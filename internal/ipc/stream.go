@@ -32,7 +32,8 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		enc.Encode(map[string]string{"error": "session not found"})
 		return
 	}
-	if sess.Model == "" {
+	model := s.modelFor(sess)
+	if model == "" {
 		enc.Encode(map[string]string{"error": "no model assigned to session"})
 		return
 	}
@@ -50,7 +51,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- s.provider.ChatStream(provider.ChatRequest{
-				Model:    sess.Model,
+				Model:    model,
 				Messages: sess.ChatHistory(),
 				Stream:   true,
 				Tools:    builtin,
