@@ -16,6 +16,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - chat view: `ctrl+t` toggles tools panel, `ctrl+p` opens command palette, `ctrl+g` toggles help; `esc` exits tools panel or clears slash input
 - chat view: input prefix shows the active mode (`[chat]`, `[tool]`, `[/]`)
 - session context: `AGENTS.md` or `.inari/context.md` in a session's `cwd` is injected into the system prompt
+- model selector: recommended-but-not-pulled models are shown inline marked `[pull]`; selecting one triggers `ollama pull` via inarid with live progress, then assigns it
 
 ---
 

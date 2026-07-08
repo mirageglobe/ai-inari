@@ -197,6 +197,14 @@ func (s *Server) handle(conn net.Conn) {
 			return
 		}
 
+		if req.Method == "model.pull" {
+			if s.verbose {
+				log.Printf("[inariui->inarid] model.pull %s", req.Params)
+			}
+			s.handlePull(conn, req)
+			return
+		}
+
 		// suppress ping; fires on every heartbeat and adds no signal.
 		if req.Method != "ping" && s.verbose {
 			log.Printf("[inariui->inarid] %s %s", req.Method, req.Params)
