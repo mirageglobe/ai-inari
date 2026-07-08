@@ -99,34 +99,32 @@ func (c Chat) selectedText() string {
 	return ansi.Strip(strings.Join(lines[lo:hi+1], "\n"))
 }
 
-// renderChatSuggestions replaces the hint bar when the user is typing a slash command.
-// commands that match the current prefix are shown active; others are dimmed.
+// renderChatSuggestions replaces the hint bar when the user is typing a slash command,
+// narrowing chatCommands down to only those matching the current prefix.
 func renderChatSuggestions(prefix string, width int) string {
 	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 
-	var cmds []HintCmd
+	var matches []string
 	for _, cmd := range chatCommands {
 		if strings.HasPrefix(cmd, prefix) {
-			cmds = append(cmds, HintCmd{Label: cmd, Enabled: true})
-		} else {
-			cmds = append(cmds, HintCmd{Label: cmd, Enabled: false})
+			matches = append(matches, cmd)
 		}
 	}
 
-	const gap = "  "
 	const prefixRaw = "cmd: "
 	label := labelStyle.Render(prefixRaw)
-	var parts []string
-	for _, c := range cmds {
-		style := activeStyle
-		if !c.Enabled {
-			style = dimStyle
-		}
-		parts = append(parts, style.Render(c.Label))
-	}
 	_ = width
+	if len(matches) == 0 {
+		return label + dimStyle.Render("no match")
+	}
+
+	const gap = "  "
+	parts := make([]string, len(matches))
+	for i, cmd := range matches {
+		parts[i] = activeStyle.Render(cmd)
+	}
 	return label + strings.Join(parts, gap)
 }
 
