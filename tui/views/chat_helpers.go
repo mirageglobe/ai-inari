@@ -79,8 +79,25 @@ func readNextToken(sessionID string, tokens <-chan string, errc <-chan error, to
 	}
 }
 
+// buildContextLine summarises the injected file-tree/project-context system prompt
+// as a single line, so the user can see what context inarid loaded for this session.
+// empty when cwd is unset, since no context is injected in that case.
+func buildContextLine(cwd, systemPrompt string) string {
+	if cwd == "" {
+		return ""
+	}
+	line := "cwd: " + cwd
+	if strings.Contains(systemPrompt, "\nproject context:\n") {
+		line += " (+ project context)"
+	}
+	return thinkingStyle.Render("[context] " + line)
+}
+
 func (c *Chat) rebuildDisplay() {
 	c.display = nil
+	if c.contextLine != "" {
+		c.display = append(c.display, c.contextLine)
+	}
 	for _, m := range c.messages {
 		switch m.Role {
 		case "user":
@@ -94,4 +111,3 @@ func (c *Chat) rebuildDisplay() {
 	setViewportContent(&c.viewport, c.viewportContent())
 	c.viewport.GotoBottom()
 }
-
