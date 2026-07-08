@@ -99,7 +99,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		sess.AppendMessage(provider.Message{Role: "assistant", ToolCalls: toolCalls})
 		for _, tc := range toolCalls {
 			// safe (read-only) tools execute immediately, no round-trip to inari.
-			// all other tools (currently only "run") require explicit user approval.
+			// all other tools (currently only "execute_shell_command") require explicit user approval.
 			if !safeTools[tc.Function.Name] {
 				enc.Encode(map[string]any{
 					"tool_request": map[string]any{
