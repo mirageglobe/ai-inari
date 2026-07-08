@@ -72,7 +72,8 @@ run-daemon: ## run daemon in foreground (no build)
 run-tui: ## run TUI only (no build, assumes daemon running)
 	go run ./cmd/inari tui
 
-start: build ## build and run inari start (daemon + TUI)
+start: build ## build and run inari start (daemon + TUI); stops any running daemon first
+	@-./$(BINARY) stop
 	@pgrep ollama > /dev/null || (printf "starting ollama...\n" && ollama serve > /dev/null 2>&1 &)
 	@sleep 1
 	./$(BINARY) start
