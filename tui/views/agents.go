@@ -372,7 +372,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
-		case "q":
+		case "q", "esc":
 			if h.modal {
 				return h, func() tea.Msg { return CloseAgentsModalMsg{} }
 			}
@@ -386,8 +386,9 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // WithActiveSession returns a copy of the Agents with the active chat session marked.
 func (h Agents) InputFocused() bool { return h.inputFocused }
 
-// WithModal returns a copy of the agents view with modal mode set, controlling
-// whether the [q] back-to-chat hint is shown in the footer.
+// WithModal returns a copy of the agents view with modal mode set, switching
+// View() to the trimmed popup form (session table plus a back-to-chat hint,
+// no session/cwd/status footer) and enabling [q]/[esc] to close it.
 func (h Agents) WithModal(v bool) Agents {
 	h.modal = v
 	return h

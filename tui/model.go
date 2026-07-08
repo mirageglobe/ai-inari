@@ -23,7 +23,6 @@ type view int
 
 const (
 	viewAgents view = iota
-	viewModels
 	viewLogs
 	viewDescribe
 	viewChat
@@ -35,7 +34,6 @@ const (
 type Model struct {
 	client            *ipc.Client
 	current           view
-	returnView        view   // view to restore after model selector closes
 	activeSession     string // session ID of the currently open chat
 	agents            views.Agents
 	models            views.ModelSelector
@@ -63,8 +61,6 @@ func (m Model) currentViewName() string {
 	switch m.current {
 	case viewChat:
 		return "chat"
-	case viewModels:
-		return "models"
 	case viewLogs:
 		return "logs"
 	case viewDescribe:
@@ -263,36 +259,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// open model selector targeting a specific session.
+	// open model selector targeting a specific session, always as a modal overlay on
+	// whatever view is current: agents, agents-over-chat, or chat directly.
 	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
 		m.models = m.models.ForSession(openMs.SessionID, openMs.SessionName)
-		if m.current == viewAgents {
-			// modal overlay — stay on agents, resize table to fit the modal box.
-			m.showModelSelector = true
-			m.models = m.models.WithModalDimensions()
-			return m, m.models.Init()
-		}
-		// from chat (ctrl+o) — keep full-view behaviour.
-		m.returnView = m.current
-		m.current = viewModels
+		m.showModelSelector = true
+		m.models = m.models.WithModalDimensions()
 		return m, m.models.Init()
 	}
 
-	// a model was assigned to a session — agents handles the optimistic update and the assign RPC.
+	// a model was assigned to a session; agents handles the optimistic update and the assign RPC.
 	if assign, ok := msg.(views.AssignModelMsg); ok {
 		updated, cmd := m.agents.Update(assign)
 		m.agents = updated.(views.Agents)
-		if m.showModelSelector {
-			m.showModelSelector = false
-			return m, cmd
-		}
-		if m.returnView == viewChat {
-			m.current = viewChat
+		m.showModelSelector = false
+		if m.current == viewChat && !m.showAgents {
+			// opened directly from chat, not via the agents popup, so apply to the active chat.
 			chat := m.chats[m.activeSession].WithModel(assign.ModelName)
 			m.chats[m.activeSession] = chat
 			return m, tea.Batch(cmd, chat.Init())
 		}
-		m.current = viewAgents
 		return m, cmd
 	}
 
@@ -325,7 +311,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// route all remaining messages to the model selector when the modal is active.
 	if m.showModelSelector {
-		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "esc" {
+		if key, ok := msg.(tea.KeyMsg); ok && (key.String() == "esc" || key.String() == "q") {
 			m.showModelSelector = false
 			return m, nil
 		}
@@ -394,11 +380,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case viewChat:
 			switch key.String() {
 			case "ctrl+o":
-				m.returnView = viewChat
 				if chat, ok := m.chats[m.activeSession]; ok {
 					m.models = m.models.ForSession(chat.SessionID(), chat.SessionName())
 				}
-				m.current = viewModels
+				m.showModelSelector = true
+				m.models = m.models.WithModalDimensions()
 				return m, m.models.Init()
 			}
 		default:
@@ -414,10 +400,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewAgents:
 		updated, cmd := m.agents.Update(msg)
 		m.agents = updated.(views.Agents)
-		return m, cmd
-	case viewModels:
-		updated, cmd := m.models.Update(msg)
-		m.models = updated.(views.ModelSelector)
 		return m, cmd
 	case viewLogs:
 		updated, cmd := m.logs.Update(msg)
@@ -476,8 +458,6 @@ func (m Model) View() string {
 		body = views.RenderHelpOverlay(m.currentViewName(), m.termWidth, m.termHeight-1)
 	} else {
 		switch m.current {
-		case viewModels:
-			body = m.models.View()
 		case viewLogs:
 			body = m.logs.View()
 		case viewDescribe:
