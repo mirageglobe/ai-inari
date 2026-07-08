@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/config"
 	"github.com/mirageglobe/ai-inari/internal/ipc"
@@ -446,11 +445,7 @@ func (m Model) View() string {
 	if m.showModelSelector {
 		body = m.models.RenderModal(m.termWidth, m.termHeight-1)
 	} else if m.showAgents {
-		box := lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(views.ActiveTheme.Primary).
-			Render(m.agents.View())
-		body = lipgloss.Place(m.termWidth, m.termHeight-1, lipgloss.Center, lipgloss.Center, box)
+		body = m.agents.RenderModal(m.termWidth, m.termHeight-1)
 	} else if m.showThemePicker {
 		body = views.RenderThemeOverlay(m.themePickerIdx, m.termWidth, m.termHeight-1)
 	} else if m.showHelp {
