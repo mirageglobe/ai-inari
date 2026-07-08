@@ -113,8 +113,7 @@ func renderChatSuggestions(prefix string, width int) string {
 		}
 	}
 
-	const prefixRaw = "cmd: "
-	label := labelStyle.Render(prefixRaw)
+	label := labelStyle.Render("[cmd]") + " "
 	_ = width
 	if len(matches) == 0 {
 		return label + dimStyle.Render("no match")
@@ -123,7 +122,7 @@ func renderChatSuggestions(prefix string, width int) string {
 	const gap = "  "
 	parts := make([]string, len(matches))
 	for i, cmd := range matches {
-		parts[i] = activeStyle.Render("[" + cmd + "]")
+		parts[i] = activeStyle.Render(cmd)
 	}
 	return label + strings.Join(parts, gap)
 }
