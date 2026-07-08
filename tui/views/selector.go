@@ -39,6 +39,7 @@ type SelectModelMsg struct {
 	ModelName    string
 	CWD          string // non-empty when builtin tools are active for this session
 	ContextChars int    // total message chars at open time, for token estimation
+	SystemPrompt string // injected file-tree/project-context text, for the chat pre-context line
 }
 
 // BackToAgentsMsg is emitted to return to the agents view.

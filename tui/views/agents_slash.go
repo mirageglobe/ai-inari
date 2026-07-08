@@ -66,7 +66,7 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			sess := h.sessions[0]
 			if sess.Model != "" {
 				return h, func() tea.Msg {
-					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
+					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, SystemPrompt: sess.SystemPrompt}
 				}
 			}
 			h.infoMsg = modelsStyle.Render("[warn] default agent has no model assigned")
@@ -81,7 +81,7 @@ func (h Agents) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			sess := h.sessions[idx]
 			if sess.Model != "" {
 				return h, func() tea.Msg {
-					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars}
+					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, SystemPrompt: sess.SystemPrompt}
 				}
 			}
 		}

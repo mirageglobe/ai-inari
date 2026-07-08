@@ -58,12 +58,15 @@ type chatHistoryMsg struct {
 // and the send command is visually disabled in the hint bar.
 // cwd is non-empty when builtin tools (read_file, list_dir, grep_file, stat_file, run) are active for this session.
 // showBuiltin toggles a builtin panel in the hint area listing available builtin tools.
+// contextLine is a one-line summary of the injected file-tree/project-context system
+// prompt, rendered as the first line of display so the user can see what was loaded.
 type Chat struct {
 	client        *ipc.Client
 	sessionID     string
 	sessionName   string
 	model         string // display only
 	cwd           string
+	contextLine   string
 	messages      []provider.Message
 	display       []string
 	viewport      viewport.Model
@@ -114,7 +117,7 @@ func (c Chat) SessionID() string   { return c.sessionID }
 func (c Chat) SessionName() string { return c.sessionName }
 func (c Chat) InputFocused() bool  { return c.inputFocused }
 
-func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars int) Chat {
+func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars int, systemPrompt string) Chat {
 	ta := textarea.New()
 	ta.Placeholder = "message " + sessionName + " (" + model + ")..."
 	ta.Focus()
@@ -133,6 +136,7 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 		sessionName:  sessionName,
 		model:        model,
 		cwd:          cwd,
+		contextLine:  buildContextLine(cwd, systemPrompt),
 		input:        ta,
 		spinner:      sp,
 		ctxChars:     ctxChars,
@@ -168,10 +172,9 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return c, nil
 		}
 		c.messages = nil
-		c.display = nil
 		c.ctxChars = 0
 		c.historyLoaded = true
-		setViewportContent(&c.viewport, c.viewportContent())
+		c.rebuildDisplay()
 		c.status = ""
 		return c, nil
 
@@ -198,10 +201,10 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// historyLoaded must be true so that a later Init() (e.g. after model change) does
 		// not re-append the now-populated history on top of what's already displayed.
 		c.historyLoaded = true
-		if len(msg.messages) == 0 {
-			return c, nil
+		if len(msg.messages) > 0 {
+			c.messages = append(c.messages, msg.messages...)
 		}
-		c.messages = append(c.messages, msg.messages...)
+		// rebuild unconditionally so the pre-context line still renders for a new session.
 		c.rebuildDisplay()
 		return c, nil
 
