@@ -73,7 +73,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune/inarid]` detach/reattach preserves session state.
 
 ### Near-term
-- [ ] `[inari]` `[easy]` agent or agents view should be a popup or just another view with esc or return to go back to main chat
+- [ ] `[inari]` `[medium]` **agents view and model selector as chat-hosted popups**: generalise the existing `show*` overlay pattern already in `tui/model.go` (`showModelSelector`/`showThemePicker`/`showHelp` flags gate `tea.KeyMsg` routing to the modal's own `Update`, intercepting `esc` to close before any base-view hotkey sees the key) so chat becomes the single persistent base view. replace the `viewAgents` full-screen switch with a `showAgents bool` plus `Agents.RenderModal()` overlay rendered over chat, and change chat's `ctrl+o` to set `showModelSelector` while staying on `viewChat`, instead of switching `m.current` to `viewModels`. no new key-suppression mechanism is needed; the routing block already returns early after forwarding to the active popup.
 - [ ] `[inari]` `[easy]` in chat view, list the pre context as the first line in the chat
 - [x] `[inarid]` `[easy]` add `gemma4:e4b` as the default master local model always — set as the thinker-tier default in config and fallback when no model is assigned to a session
 - [ ] `[inarid]` `[medium]` consider adding vLLM as an alternative backend to Ollama — vLLM is OpenAI-compatible and may offer better throughput on CUDA hardware; evaluate alongside the local endpoint profiles item as a concrete second backend candidate
