@@ -63,8 +63,10 @@ type loadModelMsg struct {
 
 // ModelSelector lists available Ollama models and lets the user assign one to a session.
 // recommended holds curated models (SPEC.md §6.1) for the detected hardware tier that
-// are not already pulled; it is informational only - selecting one is not supported,
-// the user runs the shown `ollama pull` command themselves.
+// are not already pulled; they're appended to the table marked [pull] - selecting one
+// triggers `ollama pull` via inarid instead of requiring the user to run it themselves.
+// rowLocal mirrors the table rows 1:1: true for an already-available model, false for
+// a recommended-but-not-pulled entry.
 type ModelSelector struct {
 	client            *ipc.Client
 	table             table.Model
@@ -76,6 +78,10 @@ type ModelSelector struct {
 	width             int
 	tierGB            int
 	recommended       []CuratedModel
+	rowLocal          []bool
+	pullProgress      <-chan provider.PullProgress
+	pullErrc          <-chan error
+	pullTarget        string
 }
 
 func NewModelSelector(client *ipc.Client) ModelSelector {
@@ -148,14 +154,24 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			sort.Slice(msg.models, func(i, j int) bool {
 				return msg.models[i].Name < msg.models[j].Name
 			})
-			rows := make([]table.Row, len(msg.models))
 			names := make([]string, len(msg.models))
 			for i, model := range msg.models {
-				rows[i] = table.Row{model.Name, formatBytes(model.Size)}
 				names[i] = model.Name
 			}
-			m.table.SetRows(rows)
 			m.recommended = RecommendedFor(m.tierGB, names)
+
+			rows := make([]table.Row, 0, len(msg.models)+len(m.recommended))
+			local := make([]bool, 0, cap(rows))
+			for _, model := range msg.models {
+				rows = append(rows, table.Row{model.Name, formatBytes(model.Size)})
+				local = append(local, true)
+			}
+			for _, c := range m.recommended {
+				rows = append(rows, table.Row{c.Model, c.Size + " [pull]"})
+				local = append(local, false)
+			}
+			m.table.SetRows(rows)
+			m.rowLocal = local
 		}
 		return m, nil
 
@@ -171,20 +187,57 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		id, name := m.targetSessionID, msg.name
 		return m, func() tea.Msg { return AssignModelMsg{SessionID: id, ModelName: name} }
 
+	case pullProgressMsg:
+		if msg.model != m.pullTarget {
+			return m, nil
+		}
+		m.status = modelsStyle.Render(pullStatusText(msg.model, msg.progress))
+		return m, readNextPullUpdate(m.pullTarget, m.pullProgress, m.pullErrc)
+
+	case pullDoneMsg:
+		m.pullProgress, m.pullErrc, m.pullTarget = nil, nil, ""
+		if msg.err != nil {
+			m.loading = false
+			m.status = connErrStyle.Render("pull failed: " + msg.err.Error())
+			return m, nil
+		}
+		// pulled successfully; refresh the list and continue into the normal
+		// load+assign flow, same as picking an already-available model.
+		name := msg.model
+		m.status = modelsStyle.Render("loading " + name + " → " + m.targetSessionName + "...")
+		return m, tea.Batch(
+			fetchModels(m.client),
+			func() tea.Msg { return loadModelMsg{name: name, err: m.client.LoadModel(name)} },
+		)
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter", "l":
 			if !m.loading {
-				if row := m.table.SelectedRow(); len(row) > 0 {
+				idx := m.table.Cursor()
+				if row := m.table.SelectedRow(); len(row) > 0 && idx >= 0 && idx < len(m.rowLocal) {
 					name, size := row[0], row[1]
 					m.loading = true
-					m.status = modelsStyle.Render("loading " + name + " (" + size + ") → " + m.targetSessionName + "...")
-					return m, tea.Batch(
-						m.spinner.Tick,
-						func() tea.Msg {
-							return loadModelMsg{name: name, err: m.client.LoadModel(name)}
-						},
-					)
+					if m.rowLocal[idx] {
+						m.status = modelsStyle.Render("loading " + name + " (" + size + ") → " + m.targetSessionName + "...")
+						return m, tea.Batch(
+							m.spinner.Tick,
+							func() tea.Msg {
+								return loadModelMsg{name: name, err: m.client.LoadModel(name)}
+							},
+						)
+					}
+
+					progress := make(chan provider.PullProgress, 8)
+					errc := make(chan error, 1)
+					go func() {
+						err := m.client.PullModel(name, progress)
+						errc <- err
+						close(progress)
+					}()
+					m.pullProgress, m.pullErrc, m.pullTarget = progress, errc, name
+					m.status = modelsStyle.Render("pulling " + name + "...")
+					return m, tea.Batch(m.spinner.Tick, readNextPullUpdate(name, progress, errc))
 				}
 			}
 		}
@@ -221,7 +274,7 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 		title += "  " + secStyle.Render("→ "+m.targetSessionName)
 	}
 
-	hint := RenderHint([]HintCmd{H("[enter] assign"), H("[esc] cancel")}, modalInnerW)
+	hint := RenderHint([]HintCmd{H("[enter] assign/pull"), H("[esc] cancel")}, modalInnerW)
 
 	var lines []string
 	lines = append(lines, title)
@@ -244,27 +297,15 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
-// renderRecommended lists curated models (SPEC.md §6.1) for the detected hardware
-// tier that are not already pulled, each with the exact command to pull it.
-// returns "" when there is nothing left to recommend.
+// renderRecommended returns a short note about curated recommendations (SPEC.md
+// §6.1) for the detected hardware tier; the models themselves are appended to
+// the table above, marked [pull]. returns "" when there is nothing to recommend.
 func (m ModelSelector) renderRecommended() string {
 	if len(m.recommended) == 0 {
 		return ""
 	}
 	headerStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-	roleStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
-	modelStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
-	cmdStyle := lipgloss.NewStyle().Faint(true)
-
-	lines := []string{headerStyle.Render(fmt.Sprintf("recommended for your system (%dgb tier):", m.tierGB))}
-	for _, c := range m.recommended {
-		lines = append(lines, fmt.Sprintf("  %s  %s  %s  %s",
-			roleStyle.Render(fmt.Sprintf("%-7s", c.Role)),
-			modelStyle.Render(c.Model),
-			c.Size,
-			cmdStyle.Render("ollama pull "+c.Model)))
-	}
-	return strings.Join(lines, "\n")
+	return headerStyle.Render(fmt.Sprintf("models marked [pull] are recommended for your system (%dgb tier); [enter] downloads and assigns", m.tierGB))
 }
 
 func (m ModelSelector) View() string {
@@ -272,7 +313,7 @@ func (m ModelSelector) View() string {
 	if m.targetSessionName != "" {
 		viewLabel += "  " + lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Bold(true).Render("→ "+m.targetSessionName)
 	}
-	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign to agent"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
+	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[enter] assign/pull"), H("[esc] back"), HS(), H("[?] help")}, m.width-10)
 	body := agentsStyle.Render(m.table.View())
 	if rec := m.renderRecommended(); rec != "" {
 		body += "\n" + rec

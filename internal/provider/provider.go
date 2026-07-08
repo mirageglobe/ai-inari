@@ -72,6 +72,14 @@ type RunningModel struct {
 	ExpiresAt string `json:"expires_at"`
 }
 
+// PullProgress is one status update from an in-progress model download.
+// Completed/Total are byte counts, populated only during the "downloading" status.
+type PullProgress struct {
+	Status    string `json:"status"`
+	Completed int64  `json:"completed,omitempty"`
+	Total     int64  `json:"total,omitempty"`
+}
+
 // Provider is the interface inarid's core uses to talk to any inference backend.
 // the concrete implementation is selected at startup via config.json "provider" field.
 type Provider interface {
@@ -92,4 +100,7 @@ type Provider interface {
 	// ModelCaps returns the capability tags for a model (e.g. "tools", "vision").
 	// returns an empty slice when the backend does not support capability introspection.
 	ModelCaps(model string) ([]string, error)
+	// PullModel downloads model, streaming progress updates via out until the
+	// final "success" status; out is not closed by the implementation.
+	PullModel(model string, out chan<- PullProgress) error
 }

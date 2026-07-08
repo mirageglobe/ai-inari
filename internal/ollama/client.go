@@ -164,6 +164,34 @@ func (c *Client) ModelCaps(model string) ([]string, error) {
 	return result.Capabilities, nil
 }
 
+// PullModel downloads model via Ollama's streaming pull endpoint, forwarding each
+// status update to out until "success" or the stream ends. mirrors ChatStream's
+// scan-and-forward shape since /api/pull streams newline-delimited JSON the same way.
+func (c *Client) PullModel(model string, out chan<- provider.PullProgress) error {
+	body, _ := json.Marshal(map[string]any{"model": model, "stream": true})
+	resp, err := c.http.Post(c.baseURL+"/api/pull", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return ollamaError(resp)
+	}
+	defer resp.Body.Close()
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		var p provider.PullProgress
+		if err := json.Unmarshal(scanner.Bytes(), &p); err != nil {
+			continue
+		}
+		out <- p
+		if p.Status == "success" {
+			break
+		}
+	}
+	return scanner.Err()
+}
+
 // ChatStream sends a chat request and yields response chunks via a channel.
 func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatResponse) error {
 	if c.verbose {
