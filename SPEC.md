@@ -75,7 +75,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 ### Near-term
 - [ ] `[inari]` `[easy]` agent or agents view should be a popup or just another view with esc or return to go back to main chat
 - [ ] `[inari]` `[easy]` in chat view, list the pre context as the first line in the chat
-- [ ] `[inarid]` `[easy]` add `gemma4:e4b` as the default master local model always — set as the thinker-tier default in config and fallback when no model is assigned to a session
+- [x] `[inarid]` `[easy]` add `gemma4:e4b` as the default master local model always — set as the thinker-tier default in config and fallback when no model is assigned to a session
 - [ ] `[inarid]` `[medium]` consider adding vLLM as an alternative backend to Ollama — vLLM is OpenAI-compatible and may offer better throughput on CUDA hardware; evaluate alongside the local endpoint profiles item as a concrete second backend candidate
 - [ ] `[inarid]` `[medium]` consider exposing Ollama as an MCP server so other models — local or cloud — can be invoked as tools by the default master model (`gemma4:e4b`); this lets the thinker delegate sub-tasks to specialised models (e.g. a coding worker) via the existing MCP tool-call loop rather than requiring a separate session
 - [ ] `[inari]` `[medium]` consolidate all commands to be in chat view. chat view is the main view
