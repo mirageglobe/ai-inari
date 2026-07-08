@@ -200,14 +200,15 @@ func (s *Server) dispatch(req Request) Response {
 		if !ok {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
 		}
-		if sess.Model == "" {
+		model := s.modelFor(sess)
+		if model == "" {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no model assigned to session"}, ID: req.ID}
 		}
 		compactPrompt := append(sess.ChatHistory(), provider.Message{
 			Role:    "user",
 			Content: "write a detailed summary of this conversation that preserves enough context for the conversation to continue naturally. include: the main topic and goal, all questions asked and answers given, any code or commands discussed, decisions made and their rationale, current state and what was left to do. use bullet points grouped by topic. do not omit technical details.",
 		})
-		summary, err := s.provider.Chat(sess.Model, compactPrompt)
+		summary, err := s.provider.Chat(model, compactPrompt)
 		if err != nil {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 		}
@@ -232,11 +233,12 @@ func (s *Server) dispatch(req Request) Response {
 		if !ok {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
 		}
-		if sess.Model == "" {
+		model := s.modelFor(sess)
+		if model == "" {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no model assigned to session"}, ID: req.ID}
 		}
 		sess.AppendMessage(provider.Message{Role: "user", Content: params.Text})
-		reply, err := s.provider.Chat(sess.Model, sess.ChatHistory())
+		reply, err := s.provider.Chat(model, sess.ChatHistory())
 		if err != nil {
 			// roll back the user message so the history stays consistent on retry.
 			sess.Messages = sess.Messages[:len(sess.Messages)-1]

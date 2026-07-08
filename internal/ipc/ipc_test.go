@@ -28,7 +28,7 @@ func TestPingPong(t *testing.T) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0)
+	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "")
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -39,6 +39,20 @@ func TestPingPong(t *testing.T) {
 
 	if err := client.Ping(); err != nil {
 		t.Fatalf("Ping: %v", err)
+	}
+}
+
+func TestModelFor(t *testing.T) {
+	s := &Server{defaultModel: "gemma4:e4b"}
+
+	assigned := &session.Session{Model: "bonsai:4b"}
+	if got := s.modelFor(assigned); got != "bonsai:4b" {
+		t.Errorf("modelFor(assigned) = %q, want bonsai:4b", got)
+	}
+
+	unassigned := &session.Session{}
+	if got := s.modelFor(unassigned); got != "gemma4:e4b" {
+		t.Errorf("modelFor(unassigned) = %q, want gemma4:e4b (default fallback)", got)
 	}
 }
 
@@ -60,7 +74,7 @@ func TestSessionList(t *testing.T) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0)
+	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "")
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
