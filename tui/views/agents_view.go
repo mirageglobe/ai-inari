@@ -15,14 +15,14 @@ import (
 func agentsHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("/chat", !offline),
-		hc("/agent", !offline),
-		hc("/model", hasSession && !offline),
+		hc("[/chat]", !offline),
+		hc("[/agent]", !offline),
+		hc("[/model]", hasSession && !offline),
 		HS(),
-		hc("/refresh", !offline),
-		H("/theme"),
-		H("/help"),
-		H("/quit"),
+		hc("[/refresh]", !offline),
+		H("[/theme]"),
+		H("[/help]"),
+		H("[/quit]"),
 	}
 }
 
@@ -30,7 +30,7 @@ func agentsHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
 func defaultHints(hasDefault, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("/chat", hasDefault && !offline),
+		hc("[/chat]", hasDefault && !offline),
 	}
 }
 
@@ -38,8 +38,8 @@ func defaultHints(hasDefault, offline bool) []HintCmd {
 func modelHints(hasSession, hasModel, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("/model select", hasSession && !offline),
-		hc("/model unload", hasModel && !offline),
+		hc("[/model select]", hasSession && !offline),
+		hc("[/model unload]", hasModel && !offline),
 	}
 }
 
@@ -47,12 +47,12 @@ func modelHints(hasSession, hasModel, offline bool) []HintCmd {
 func agentHints(hasSession, hasModel, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("/agent add", !offline),
-		hc("/agent chat", hasModel && !offline),
-		hc("/agent describe", hasSession && !offline),
-		hc("/agent export", hasSession),
-		hc("/agent logs", !offline),
-		hc("/agent delete", hasSession && !offline),
+		hc("[/agent add]", !offline),
+		hc("[/agent chat]", hasModel && !offline),
+		hc("[/agent describe]", hasSession && !offline),
+		hc("[/agent export]", hasSession),
+		hc("[/agent logs]", !offline),
+		hc("[/agent delete]", hasSession && !offline),
 	}
 }
 

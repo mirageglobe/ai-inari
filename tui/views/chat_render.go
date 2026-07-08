@@ -169,24 +169,6 @@ func (c Chat) View() string {
 			dimStyle.Render("stat_file") + "  " +
 			dimStyle.Render("execute_shell_command") + "  " +
 			dimStyle.Render("(sandboxed to cwd)")
-	} else {
-		sendHint := H("[enter] send")
-		if c.offline {
-			sendHint = HD("[enter] send")
-		}
-
-		toolsHint := H("/tools")
-		if c.cwd == "" {
-			toolsHint = HD("/tools")
-		}
-		hintLine = RenderHint([]HintCmd{
-			sendHint,
-			H("[uparrow][downarrow] history"),
-			HS(),
-			toolsHint,
-			H("/help"),
-			H("/agents"),
-		}, c.viewport.Width+1)
 	}
 	chatBoxStyle := agentsStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)
 	rightEdge := RenderRightEdge(c.viewport)
