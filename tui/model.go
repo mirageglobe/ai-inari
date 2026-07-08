@@ -465,7 +465,12 @@ func (m Model) View() string {
 		case viewChat:
 			body = m.chats[m.activeSession].View()
 		default:
-			body = m.agents.View()
+			// suppress the agents table for the single frame between launch and the
+			// initial session fetch resolving, so a session with a model already
+			// assigned lands straight in chat instead of flashing the table first.
+			if !m.agents.Booting() {
+				body = m.agents.View()
+			}
 		}
 	}
 

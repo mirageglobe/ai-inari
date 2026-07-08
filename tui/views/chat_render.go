@@ -123,7 +123,7 @@ func renderChatSuggestions(prefix string, width int) string {
 	const gap = "  "
 	parts := make([]string, len(matches))
 	for i, cmd := range matches {
-		parts[i] = activeStyle.Render(cmd)
+		parts[i] = activeStyle.Render("[" + cmd + "]")
 	}
 	return label + strings.Join(parts, gap)
 }
