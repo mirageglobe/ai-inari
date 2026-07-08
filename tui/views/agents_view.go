@@ -108,6 +108,9 @@ func (h Agents) View() string {
 	default:
 		hints = agentsHints(hasSession, hasModel, h.offline)
 	}
+	if h.modal {
+		hints = append([]HintCmd{H("[q] back to chat")}, hints...)
+	}
 	hintLine := RenderHint(hints, h.width)
 
 	if h.loading {
