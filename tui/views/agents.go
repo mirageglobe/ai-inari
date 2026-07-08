@@ -386,6 +386,12 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // WithActiveSession returns a copy of the Agents with the active chat session marked.
 func (h Agents) InputFocused() bool { return h.inputFocused }
 
+// Booting reports whether the agents view is still waiting on its initial
+// session fetch to decide between auto-opening a session into chat or
+// falling back to the agents table itself; the root model uses this to
+// avoid painting the table for the single frame before that decision lands.
+func (h Agents) Booting() bool { return h.loading || h.autoOpen }
+
 // WithModal returns a copy of the agents view with modal mode set, switching
 // View() to the trimmed popup form (session table plus a back-to-chat hint,
 // no session/cwd/status footer) and enabling [q]/[esc] to close it.
