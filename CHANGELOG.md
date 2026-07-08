@@ -17,6 +17,8 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - chat view: input prefix shows the active mode (`[chat]`, `[tool]`, `[/]`)
 - session context: `AGENTS.md` or `.inari/context.md` in a session's `cwd` is injected into the system prompt
 - model selector: recommended-but-not-pulled models are shown inline marked `[pull]`; selecting one triggers `ollama pull` via inarid with live progress, then assigns it
+- model selector: `[pull]` list now spans the full curated catalog (SPEC.md §6.1, all hardware tiers, tagged with tier/role), not just the detected tier
+- curated model table: add `gemma4:e2b` alongside `gemma4:e4b` at the 8gb general tier
 
 ---
 
