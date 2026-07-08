@@ -61,7 +61,24 @@ func agentHints(hasSession, hasModel, offline bool) []HintCmd {
 // footer. the command input still renders while the user is actively typing
 // a slash command, so /model select etc. remain usable from the popup.
 func (h Agents) viewModal() string {
-	hint := RenderHint([]HintCmd{H("[q/esc] back to chat")}, h.width)
+	idx := h.table.Cursor()
+	hasSession := idx >= 0 && idx < len(h.sessions)
+	hasModel := hasSession && h.sessions[idx].Model != ""
+
+	var hints []HintCmd
+	switch {
+	case strings.HasPrefix(h.input.Value(), "/chat"):
+		hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
+		hints = defaultHints(hasDefault, h.offline)
+	case strings.HasPrefix(h.input.Value(), "/agent"):
+		hints = agentHints(hasSession, hasModel, h.offline)
+	case strings.HasPrefix(h.input.Value(), "/model"):
+		hints = modelHints(hasSession, hasModel, h.offline)
+	default:
+		hints = agentsHints(hasSession, hasModel, h.offline)
+	}
+	hints = append(hints, HS(), H("[q/esc] back to chat"))
+	hint := RenderHint(hints, h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
