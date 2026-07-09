@@ -526,7 +526,7 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		// download the full session context (history) to a text file; reuses the
 		// agents export path so both entry points write to the same location.
 		return c, exportChatCmd(c.client, c.sessionID, c.sessionName)
-	case "/model select":
+	case "/model":
 		return c, func() tea.Msg {
 			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}
 		}
@@ -543,6 +543,12 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, func() tea.Msg { return OpenDescribeMsg{} }
 	case "/agents":
 		return c, func() tea.Msg { return OpenAgentsMsg{} }
+	case "/chat":
+		return c, func() tea.Msg { return OpenDefaultChatMsg{} }
+	case "/refresh":
+		return c, func() tea.Msg { return RefreshAgentsMsg{} }
+	case "/theme":
+		return c, func() tea.Msg { return CycleThemeMsg{} }
 	case "/quit":
 		return c, tea.Quit
 	default:

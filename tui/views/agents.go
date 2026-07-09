@@ -74,7 +74,7 @@ func NewAgents(client *ipc.Client) Agents {
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
 	ti := textinput.New()
-	ti.Placeholder = "type /command  (e.g. /agent add  /agent chat  /model select  /quit)"
+	ti.Placeholder = "[a] add  [enter] chat  [x] delete  [e] export  [l] logs  [i] describe  /model"
 	ti.Prompt = "❯ "
 	ti.CharLimit = 64
 	ti.ShowSuggestions = true
@@ -358,7 +358,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return h, cmd
 		}
 
-		// table navigation when input is not focused.
+		// table navigation and agent-action hotkeys when input is not focused.
 		switch msg.String() {
 		case "enter":
 			if !h.offline {
@@ -375,6 +375,33 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "esc":
 			if h.modal {
 				return h, func() tea.Msg { return CloseAgentsModalMsg{} }
+			}
+		case "a":
+			if !h.offline {
+				name := pickAgentName(h.usedNames())
+				return h, createSessionCmd(h.client, name)
+			}
+		case "x":
+			if !h.offline {
+				idx := h.table.Cursor()
+				if idx >= 0 && idx < len(h.sessions) {
+					id := h.sessions[idx].ID
+					return h, deleteSessionCmd(h.client, id)
+				}
+			}
+		case "e":
+			idx := h.table.Cursor()
+			if idx >= 0 && idx < len(h.sessions) {
+				sess := h.sessions[idx]
+				return h, exportChatCmd(h.client, sess.ID, sess.Name)
+			}
+		case "l":
+			if !h.offline {
+				return h, func() tea.Msg { return OpenLogsMsg{} }
+			}
+		case "i":
+			if !h.offline {
+				return h, func() tea.Msg { return OpenDescribeMsg{} }
 			}
 		}
 	}
