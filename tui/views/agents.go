@@ -9,7 +9,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -29,13 +28,12 @@ var (
 // Agents is the default session-list view.
 // sessions are owned by inarid; inari fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
-// input is the command entry field shown in the footer; activated when the user types "/".
+// the view is hotkey-only: model selection, export, logs, and describe all live in
+// chat now, so there is no text input to focus here.
 type Agents struct {
 	client          *ipc.Client
 	table           table.Model
 	spinner         spinner.Model
-	input           textinput.Model
-	inputFocused    bool
 	loading         bool
 	status          string
 	sessions        []ipc.SessionInfo
@@ -73,17 +71,10 @@ func NewAgents(client *ipc.Client) Agents {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
-	ti := textinput.New()
-	ti.Placeholder = "[a] add  [enter] chat  [x] delete  [e] export  [l] logs  [i] describe  /model"
-	ti.Prompt = "❯ "
-	ti.CharLimit = 64
-	ti.ShowSuggestions = true
-	ti.SetSuggestions(agentsCommands)
 	return Agents{
 		client:      client,
 		table:       t,
 		spinner:     s,
-		input:       ti,
 		loading:     true,
 		autoOpen:    true,
 		runningInfo: make(map[string]runningMeta),
@@ -112,7 +103,7 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// on narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
 		// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
 		// and pushes the root header off the top of the display.
-		hintStr := RenderHint(agentsHints(false, false, h.offline), h.width)
+		hintStr := RenderHint(agentsHints(false, h.offline), h.width)
 		h.hintHeight = strings.Count(hintStr, "\n") + 1
 		// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + sessionLine(1) + cwdLine(1) + statusLine(1) + input(1) + hint(hintHeight)
 		tableHeight := msg.Height - 8 - h.hintHeight
@@ -298,12 +289,10 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				h.table.MoveDown(3)
 			case tea.MouseButtonLeft:
 				// topbar(1) + box border-top(1) + col-header(1) = first data row at Y=3.
-				// table body occupies Y=[3, 3+tableHeight-1]; border-bottom at 3+tableHeight;
-				// footer (sessionLine, cwdLine, statusLine, input, hint) follows after.
+				// table body occupies Y=[3, 3+tableHeight-1]; border-bottom at 3+tableHeight.
 				const tableBodyY = 3
 				tableBodyEndY := tableBodyY + h.tableHeight - 1
 				if msg.Y >= tableBodyY && msg.Y <= tableBodyEndY {
-					// click in table body → update cursor, blur command input
 					tableH := h.table.Height()
 					cursor := h.table.Cursor()
 					cursorVisRow := min(cursor, tableH)
@@ -312,14 +301,6 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if newCursor >= 0 && newCursor < len(h.sessions) {
 						h.table.SetCursor(newCursor)
 					}
-					if h.inputFocused {
-						h.inputFocused = false
-						h.input.Blur()
-					}
-				} else if msg.Y > tableBodyEndY && !h.inputFocused {
-					// click in footer → focus command input
-					h.inputFocused = true
-					return h, h.input.Focus()
 				}
 			}
 		}
@@ -328,47 +309,15 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		h.infoMsg = ""
 
-		// "/" activates the command input when not already focused.
-		if !h.inputFocused && msg.String() == "/" {
-			h.input.SetValue("/")
-			h.input.CursorEnd()
-			h.inputFocused = true
-			return h, h.input.Focus()
-		}
-
-		if h.inputFocused {
-			switch msg.String() {
-			case "enter":
-				text := strings.TrimSpace(h.input.Value())
-				h.input.Reset()
-				h.inputFocused = false
-				h.input.Blur()
-				if strings.HasPrefix(text, "/") {
-					return h.handleSlashCommand(text)
-				}
-				return h, nil
-			case "esc":
-				h.input.Reset()
-				h.inputFocused = false
-				h.input.Blur()
-				return h, nil
-			}
-			var cmd tea.Cmd
-			h.input, cmd = h.input.Update(msg)
-			return h, cmd
-		}
-
-		// table navigation and agent-action hotkeys when input is not focused.
+		// hotkeys only: no text input, no slash commands in this view.
 		switch msg.String() {
 		case "enter":
 			if !h.offline {
 				idx := h.table.Cursor()
 				if idx >= 0 && idx < len(h.sessions) {
 					sess := h.sessions[idx]
-					if sess.Model != "" {
-						return h, func() tea.Msg {
-							return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, SystemPrompt: sess.SystemPrompt}
-						}
+					return h, func() tea.Msg {
+						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, SystemPrompt: sess.SystemPrompt}
 					}
 				}
 			}
@@ -389,29 +338,12 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return h, deleteSessionCmd(h.client, id)
 				}
 			}
-		case "e":
-			idx := h.table.Cursor()
-			if idx >= 0 && idx < len(h.sessions) {
-				sess := h.sessions[idx]
-				return h, exportChatCmd(h.client, sess.ID, sess.Name)
-			}
-		case "l":
-			if !h.offline {
-				return h, func() tea.Msg { return OpenLogsMsg{} }
-			}
-		case "i":
-			if !h.offline {
-				return h, func() tea.Msg { return OpenDescribeMsg{} }
-			}
 		}
 	}
 	var cmd tea.Cmd
 	h.table, cmd = h.table.Update(msg)
 	return h, cmd
 }
-
-// WithActiveSession returns a copy of the Agents with the active chat session marked.
-func (h Agents) InputFocused() bool { return h.inputFocused }
 
 // Booting reports whether the agents view is still waiting on its initial
 // session fetch to decide between auto-opening a session into chat or

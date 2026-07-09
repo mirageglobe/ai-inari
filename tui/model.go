@@ -487,18 +487,10 @@ func (m Model) View() string {
 	}
 
 	// emit cursor shape once here; views no longer emit escape sequences themselves.
+	// the agents view has no text input, so it never shows the blinking bar cursor.
 	cursorEsc := views.ResetCursor
-	switch {
-	case m.showAgents:
-		if m.agents.InputFocused() {
-			cursorEsc = views.BlinkBarCursor
-		}
-	case m.current == viewChat:
+	if m.current == viewChat {
 		if chat, ok := m.chats[m.activeSession]; ok && chat.InputFocused() {
-			cursorEsc = views.BlinkBarCursor
-		}
-	case m.current == viewAgents:
-		if m.agents.InputFocused() {
 			cursorEsc = views.BlinkBarCursor
 		}
 	}

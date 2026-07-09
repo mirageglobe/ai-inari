@@ -166,6 +166,15 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, nil
 
+	case unassignModelResultMsg:
+		if msg.err != nil {
+			c.status = "[warn] unassign failed: " + msg.err.Error()
+			return c, nil
+		}
+		c = c.WithModel("")
+		c.status = "[info] model unloaded"
+		return c, nil
+
 	case clearHistoryResultMsg:
 		if msg.err != nil {
 			c.status = "[warn] clear failed: " + msg.err.Error()
@@ -530,6 +539,12 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, func() tea.Msg {
 			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}
 		}
+	case "/model unload":
+		if c.model == "" {
+			c.status = "[warn] no model assigned"
+			return c, nil
+		}
+		return c, unassignModelCmd(c.client, c.sessionID, c.sessionName, c.model)
 	case "/tools":
 		if c.cwd != "" {
 			c.showBuiltin = !c.showBuiltin
@@ -541,6 +556,8 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, func() tea.Msg { return ToggleHelpMsg{} }
 	case "/describe":
 		return c, func() tea.Msg { return OpenDescribeMsg{} }
+	case "/logs":
+		return c, func() tea.Msg { return OpenLogsMsg{} }
 	case "/agents":
 		return c, func() tea.Msg { return OpenAgentsMsg{} }
 	case "/chat":

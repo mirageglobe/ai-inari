@@ -25,16 +25,16 @@ type runningMeta struct {
 	expiry string
 }
 
-// OpenLogsMsg is emitted by agents to navigate to the logs view.
+// OpenLogsMsg is emitted by chat's /logs command to navigate to the logs view.
 type OpenLogsMsg struct{}
 
-// OpenDescribeMsg is emitted by agents to navigate to the describe view.
+// OpenDescribeMsg is emitted by chat's /describe command to navigate to the describe view.
 type OpenDescribeMsg struct{}
 
-// CycleThemeMsg is emitted by agents to cycle to the next theme.
+// CycleThemeMsg is emitted by chat's /theme command to cycle to the next theme.
 type CycleThemeMsg struct{}
 
-// ToggleHelpMsg is emitted by agents to open/close the help overlay.
+// ToggleHelpMsg is emitted by chat's /help command to open/close the help overlay.
 type ToggleHelpMsg struct{}
 
 // OpenAgentsMsg is emitted by chat's /agents command to open agents as a popup
