@@ -8,6 +8,10 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
+// defaultNewAgentModel is attached to every session.create call so a new
+// agent can chat immediately without a manual /model select.
+const defaultNewAgentModel = "gemma4:e2b"
+
 // toInfo converts a session to the wire summary sent to inari.
 // ContextChars sums all message content (including system prompt) so inari can
 // display an estimated token count without fetching the full history.
@@ -41,7 +45,8 @@ func (s *Server) dispatch(req Request) Response {
 		}
 		return Response{JSONRPC: "2.0", Result: infos, ID: req.ID}
 
-	// session.create initialises a new named session with no model assigned yet.
+	// session.create initialises a new named session, pre-assigned to
+	// defaultNewAgentModel so it can chat immediately.
 	// if cwd is provided, a shallow file tree is injected into the system prompt so
 	// the model is aware of the project layout without reading any file content.
 	case "session.create":
@@ -53,6 +58,7 @@ func (s *Server) dispatch(req Request) Response {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
 		}
 		sess := session.New(params.Name)
+		sess.Model = defaultNewAgentModel
 		if params.CWD != "" {
 			sess.CWD = params.CWD
 			tree := buildFileTree(params.CWD, 3)
