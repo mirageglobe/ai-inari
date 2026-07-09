@@ -223,6 +223,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.agents.Init()
 	}
 
+	// /chat from chat jumps to the default agent's chat, regardless of which
+	// session is currently active.
+	if _, ok := msg.(views.OpenDefaultChatMsg); ok {
+		if sess, ok := m.agents.DefaultSession(); ok && sess.Model != "" {
+			return m, func() tea.Msg {
+				return views.SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, SystemPrompt: sess.SystemPrompt}
+			}
+		}
+		return m, nil
+	}
+
+	// /refresh from chat silently reloads the agents session list in the
+	// background so it is fresh next time /agents is opened.
+	if _, ok := msg.(views.RefreshAgentsMsg); ok {
+		return m, m.agents.Init()
+	}
+
 	// [q] inside the agents popup closes it and restores chat.
 	if _, ok := msg.(views.CloseAgentsModalMsg); ok {
 		m.showAgents = false

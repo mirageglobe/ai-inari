@@ -45,6 +45,14 @@ type OpenAgentsMsg struct{}
 // rendered as a popup modal, returning the root model to chat.
 type CloseAgentsModalMsg struct{}
 
+// OpenDefaultChatMsg is emitted by chat's /chat command to jump to the
+// default agent's chat regardless of which session is currently active.
+type OpenDefaultChatMsg struct{}
+
+// RefreshAgentsMsg is emitted by chat's /refresh command to silently reload
+// the agents session list and running-model info in the background.
+type RefreshAgentsMsg struct{}
+
 type runningMsg struct {
 	models []provider.RunningModel
 	err    error

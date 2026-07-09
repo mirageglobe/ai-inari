@@ -422,14 +422,37 @@ label | name | model | tokens | cwd
 
 the footer is assembled by `renderFooter` in `tui/views/footer.go` and shared across all views.
 
+**agents hotkeys:** agent actions are single-key hotkeys, not slash commands, since chat is the main view and owns the shared commands (`/help`, `/quit`, `/theme`, `/refresh`, `/chat`) below. `/model` remains a slash command since it opens a modal picker rather than acting immediately.
+
+| key             | effect                                                         |
+| :-------------- | :------------------------------------------------------------- |
+| `a`             | create session                                                 |
+| `enter`         | open chat for the session under the cursor                     |
+| `x`             | delete session under the cursor                                |
+| `e`             | export chat history for the session under the cursor           |
+| `l`             | open logs view                                                 |
+| `i`             | open describe view (session metadata/config)                   |
+| `/model`        | open model selector for the session under the cursor           |
+| `/model unload` | unload the assigned model                                      |
+| `q` / `esc`     | close popup and return to chat (no-op in the full-screen view) |
+
 **chat slash commands:**
 
-| command         | effect                                                            |
-| :-------------- | :---------------------------------------------------------------- |
-| `/clear`        | wipe session message history                                      |
-| `/compact`      | summarise history via the session's own model; replaces old turns |
-| `/model select` | open model selector for this session                              |
-| `/tools`        | list active built-in tools for this session                       |
+| command     | effect                                                        |
+| :---------- | :------------------------------------------------------------ |
+| `/clear`    | wipe session message history                                  |
+| `/compact`  | summarise history via session's own model; replaces old turns |
+| `/copy`     | copy last assistant response to clipboard                     |
+| `/export`   | save full session history to a text file                      |
+| `/model`    | open model selector for this session                          |
+| `/tools`    | toggle built-in tools panel for this session                  |
+| `/describe` | open session metadata/config view                             |
+| `/agents`   | open agents as a popup over chat; [q]/[esc] closes            |
+| `/chat`     | jump to default agent's chat                                  |
+| `/refresh`  | reload agents session list in background                      |
+| `/theme`    | cycle theme                                                   |
+| `/help`     | toggle help overlay                                           |
+| `/quit`     | quit                                                          |
 
 #### 5.2.1 Offline resilience
 

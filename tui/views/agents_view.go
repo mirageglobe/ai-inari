@@ -11,26 +11,19 @@ import (
 )
 
 // agentsHints returns the default command hint list for the agents view.
+// agent actions are hotkeys, not slash commands; /model still opens the picker modal.
 // hasSession, hasModel, and offline control which items are enabled.
-func agentsHints(hasSession, _ /* hasModel */, offline bool) []HintCmd {
+func agentsHints(hasSession, hasModel, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("[/chat]", !offline),
-		hc("[/agent]", !offline),
-		hc("[/model]", hasSession && !offline),
+		hc("[a] add", !offline),
+		hc("[enter] chat", hasModel && !offline),
+		hc("[x] delete", hasSession && !offline),
+		hc("[e] export", hasSession),
+		hc("[l] logs", !offline),
+		hc("[i] describe", hasSession && !offline),
 		HS(),
-		hc("[/refresh]", !offline),
-		H("[/theme]"),
-		H("[/help]"),
-		H("[/quit]"),
-	}
-}
-
-// defaultHints returns the expanded /default sub-command hint list.
-func defaultHints(hasDefault, offline bool) []HintCmd {
-	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
-	return []HintCmd{
-		hc("[/chat]", hasDefault && !offline),
+		hc("[/model]", hasSession && !offline),
 	}
 }
 
@@ -38,21 +31,8 @@ func defaultHints(hasDefault, offline bool) []HintCmd {
 func modelHints(hasSession, hasModel, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
-		hc("[/model select]", hasSession && !offline),
+		hc("[/model]", hasSession && !offline),
 		hc("[/model unload]", hasModel && !offline),
-	}
-}
-
-// agentHints returns the expanded /agent sub-command hint list shown when the user is typing /agent.
-func agentHints(hasSession, hasModel, offline bool) []HintCmd {
-	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
-	return []HintCmd{
-		hc("[/agent add]", !offline),
-		hc("[/agent chat]", hasModel && !offline),
-		hc("[/agent describe]", hasSession && !offline),
-		hc("[/agent export]", hasSession),
-		hc("[/agent logs]", !offline),
-		hc("[/agent delete]", hasSession && !offline),
 	}
 }
 
@@ -68,15 +48,9 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 	hasModel := hasSession && h.sessions[idx].Model != ""
 
 	var hints []HintCmd
-	switch {
-	case strings.HasPrefix(h.input.Value(), "/chat"):
-		hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
-		hints = defaultHints(hasDefault, h.offline)
-	case strings.HasPrefix(h.input.Value(), "/agent"):
-		hints = agentHints(hasSession, hasModel, h.offline)
-	case strings.HasPrefix(h.input.Value(), "/model"):
+	if strings.HasPrefix(h.input.Value(), "/model") {
 		hints = modelHints(hasSession, hasModel, h.offline)
-	default:
+	} else {
 		hints = agentsHints(hasSession, hasModel, h.offline)
 	}
 	hints = append(hints, HS(), H("[q/esc] back to chat"))
@@ -144,16 +118,10 @@ func (h Agents) View() string {
 	}
 	statusLine := renderStatusLine(statusContent)
 
-	hasDefault := len(h.sessions) > 0 && h.sessions[0].Model != ""
 	var hints []HintCmd
-	switch {
-	case strings.HasPrefix(h.input.Value(), "/chat"):
-		hints = defaultHints(hasDefault, h.offline)
-	case strings.HasPrefix(h.input.Value(), "/agent"):
-		hints = agentHints(hasSession, hasModel, h.offline)
-	case strings.HasPrefix(h.input.Value(), "/model"):
+	if strings.HasPrefix(h.input.Value(), "/model") {
 		hints = modelHints(hasSession, hasModel, h.offline)
-	default:
+	} else {
 		hints = agentsHints(hasSession, hasModel, h.offline)
 	}
 	hintLine := RenderHint(hints, h.width)
@@ -217,6 +185,16 @@ func (h Agents) SelectedSession() (ipc.SessionInfo, int64, bool) {
 	}
 	sess := h.sessions[idx]
 	return sess, h.runningInfo[sess.Model].vram, true
+}
+
+// DefaultSession returns the first session in the list (by name, since the
+// table is sorted alphabetically), used by chat's /chat command to jump back
+// to the default agent regardless of which session is currently active.
+func (h Agents) DefaultSession() (ipc.SessionInfo, bool) {
+	if len(h.sessions) == 0 {
+		return ipc.SessionInfo{}, false
+	}
+	return h.sessions[0], true
 }
 
 func (h Agents) usedNames() []string {
