@@ -158,7 +158,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 ### Open Issues
 - [ ] `[inarid/inari]` track and manage known issues and bugs
 - [ ] `[inari]` `[medium]` **no general focus-aware key suppression**: the concrete `?`/`t` clash was worked around (theme cycling moved off the bare `t` key, bare `?` scoped away from chat/agents, ctrl-prefixed shortcuts chosen instead; agents view already absorbs keys into its textinput while focused), but there is still no general mechanism to suppress global hotkeys when a text input is focused, so a future bare-key binding could reintroduce the clash.
-- [ ] `[inari/inarid]` `[medium]` **model swap returns ollama error for some models** — swapping to certain models (e.g. deepseek) produces an ollama error; swapping between gemma4 and qwen works. likely a model-name format mismatch or missing pull — inarid should validate the model is available via `/api/tags` before sending the assign RPC and surface a clear error if not.
+- [x] `[inari/inarid]` `[medium]` **model swap returns ollama error for some models** — swapping to certain models (e.g. deepseek) produces an ollama error; swapping between gemma4 and qwen works. likely a model-name format mismatch or missing pull — inarid should validate the model is available via `/api/tags` before sending the assign RPC and surface a clear error if not. fixed: `session.assign` (`internal/ipc/dispatch.go`) now calls the provider's `ListModels` and rejects an unmatched model name with a clear error instead of persisting the assignment silently; covered by `TestSessionAssign` (`internal/ipc/ipc_test.go`).
 
 ---
 
