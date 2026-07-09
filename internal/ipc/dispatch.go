@@ -127,6 +127,23 @@ func (s *Server) dispatch(req Request) Response {
 		if !ok {
 			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
 		}
+		// a model-name mismatch (e.g. missing tag) reaches Ollama as an opaque
+		// error later in the chat loop; check against the backend's own list now
+		// so the failure surfaces immediately, at assign time, with a clear cause.
+		models, err := s.provider.ListModels()
+		if err != nil {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32000, Message: "could not verify model: " + err.Error()}, ID: req.ID}
+		}
+		found := false
+		for _, m := range models {
+			if m.Name == params.Model {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "model " + params.Model + " not found; pull it first"}, ID: req.ID}
+		}
 		sess.Model = params.Model
 		sess.UpdatedAt = time.Now()
 		s.store.Persist(sess.ID)
