@@ -94,16 +94,19 @@ test: ## run all tests
 ##@ release
 
 bump-patch: ## tag next patch version (e.g. v0.1.2 -> v0.1.3)
-	@read -p "tag $$($(NEXT_VERSION))? [y/N] " ans && [ "$$ans" = "y" ] && \
-		git tag $$($(NEXT_VERSION)) && echo "tagged $$($(NEXT_VERSION))" || echo "aborted"
+	@next=$$($(NEXT_VERSION)); \
+	read -p "tag $$next? [y/N] " ans && [ "$$ans" = "y" ] && \
+		git tag $$next && echo "tagged $$next" || echo "aborted"
 
 bump-minor: ## tag next minor version (e.g. v0.1.3 -> v0.2.0)
-	@read -p "tag $$($(NEXT_MINOR_VERSION))? [y/N] " ans && [ "$$ans" = "y" ] && \
-		git tag $$($(NEXT_MINOR_VERSION)) && echo "tagged $$($(NEXT_MINOR_VERSION))" || echo "aborted"
+	@next=$$($(NEXT_MINOR_VERSION)); \
+	read -p "tag $$next? [y/N] " ans && [ "$$ans" = "y" ] && \
+		git tag $$next && echo "tagged $$next" || echo "aborted"
 
 bump-major: ## tag next major version (e.g. v0.2.0 -> v1.0.0)
-	@read -p "tag $$($(NEXT_MAJOR_VERSION))? [y/N] " ans && [ "$$ans" = "y" ] && \
-		git tag $$($(NEXT_MAJOR_VERSION)) && echo "tagged $$($(NEXT_MAJOR_VERSION))" || echo "aborted"
+	@next=$$($(NEXT_MAJOR_VERSION)); \
+	read -p "tag $$next? [y/N] " ans && [ "$$ans" = "y" ] && \
+		git tag $$next && echo "tagged $$next" || echo "aborted"
 
 push-tags: ## push local tags to origin (triggers CI goreleaser)
 	git push origin --tags
