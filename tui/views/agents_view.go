@@ -10,29 +10,15 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-// agentsHints returns the default command hint list for the agents view.
-// agent actions are hotkeys, not slash commands; /model still opens the picker modal.
-// hasSession, hasModel, and offline control which items are enabled.
-func agentsHints(hasSession, hasModel, offline bool) []HintCmd {
+// agentsHints returns the command hint list for the agents view.
+// the view is hotkey-only: model selection, export, logs, and describe all live in
+// chat, so this list is just the session-table actions.
+func agentsHints(hasSession, offline bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	return []HintCmd{
 		hc("[a] add", !offline),
-		hc("[enter] chat", hasModel && !offline),
+		hc("[enter] chat", hasSession && !offline),
 		hc("[x] delete", hasSession && !offline),
-		hc("[e] export", hasSession),
-		hc("[l] logs", !offline),
-		hc("[i] describe", hasSession && !offline),
-		HS(),
-		hc("[/model]", hasSession && !offline),
-	}
-}
-
-// modelHints returns the expanded /model sub-command hint list shown when the user is typing /model.
-func modelHints(hasSession, hasModel, offline bool) []HintCmd {
-	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
-	return []HintCmd{
-		hc("[/model]", hasSession && !offline),
-		hc("[/model unload]", hasModel && !offline),
 	}
 }
 
@@ -45,14 +31,8 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
-	hasModel := hasSession && h.sessions[idx].Model != ""
 
-	var hints []HintCmd
-	if strings.HasPrefix(h.input.Value(), "/model") {
-		hints = modelHints(hasSession, hasModel, h.offline)
-	} else {
-		hints = agentsHints(hasSession, hasModel, h.offline)
-	}
+	hints := agentsHints(hasSession, h.offline)
 	hints = append(hints, HS(), H("[q/esc] back to chat"))
 	hint := RenderHint(hints, h.width)
 
@@ -63,9 +43,6 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 		lines = append(lines, pad.Render(h.spinner.View()+" fetching agents..."))
 	} else {
 		lines = append(lines, h.table.View())
-		if h.inputFocused {
-			lines = append(lines, h.input.View())
-		}
 	}
 	lines = append(lines, hint)
 
@@ -81,7 +58,6 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 func (h Agents) View() string {
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
-	hasModel := hasSession && h.sessions[idx].Model != ""
 
 	sessionName := "agent"
 	if hasSession {
@@ -118,13 +94,7 @@ func (h Agents) View() string {
 	}
 	statusLine := renderStatusLine(statusContent)
 
-	var hints []HintCmd
-	if strings.HasPrefix(h.input.Value(), "/model") {
-		hints = modelHints(hasSession, hasModel, h.offline)
-	} else {
-		hints = agentsHints(hasSession, hasModel, h.offline)
-	}
-	hintLine := RenderHint(hints, h.width)
+	hintLine := RenderHint(agentsHints(hasSession, h.offline), h.width)
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
@@ -133,7 +103,7 @@ func (h Agents) View() string {
 	}
 
 	body := agentsStyle.Render(h.table.View())
-	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, h.input.View(), hintLine)
+	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, "", hintLine)
 }
 
 func (h *Agents) rebuildTable() {

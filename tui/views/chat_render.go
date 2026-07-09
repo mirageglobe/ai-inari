@@ -9,7 +9,7 @@ import (
 )
 
 // chatCommands is the ordered list of slash commands available in the chat view.
-var chatCommands = []string{"/clear", "/compact", "/copy", "/export", "/model", "/describe", "/tools", "/agents", "/chat", "/refresh", "/theme", "/help", "/quit"}
+var chatCommands = []string{"/clear", "/compact", "/copy", "/export", "/model", "/model unload", "/describe", "/logs", "/tools", "/agents", "/chat", "/refresh", "/theme", "/help", "/quit"}
 
 // viewportContent returns the string to show in the viewport.
 // during streaming, streamBuf is rendered as a live in-progress assistant message.
