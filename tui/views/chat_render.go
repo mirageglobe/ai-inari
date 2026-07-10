@@ -8,9 +8,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// chatCommands is the ordered list of slash commands available in the chat view.
-var chatCommands = []string{"/clear", "/compact", "/copy", "/export", "/model", "/model unload", "/describe", "/logs", "/tools", "/agents", "/chat", "/refresh", "/theme", "/help", "/quit"}
-
 // viewportContent returns the string to show in the viewport.
 // during streaming, streamBuf is rendered as a live in-progress assistant message.
 // before the first token arrives, the spinner is shown instead.
@@ -99,34 +96,6 @@ func (c Chat) selectedText() string {
 	return ansi.Strip(strings.Join(lines[lo:hi+1], "\n"))
 }
 
-// renderChatSuggestions replaces the hint bar when the user is typing a slash command,
-// narrowing chatCommands down to only those matching the current prefix.
-func renderChatSuggestions(prefix string, width int) string {
-	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-
-	var matches []string
-	for _, cmd := range chatCommands {
-		if strings.HasPrefix(cmd, prefix) {
-			matches = append(matches, cmd)
-		}
-	}
-
-	label := labelStyle.Render("[cmd]") + " "
-	_ = width
-	if len(matches) == 0 {
-		return label + dimStyle.Render("no match")
-	}
-
-	const gap = "  "
-	parts := make([]string, len(matches))
-	for i, cmd := range matches {
-		parts[i] = activeStyle.Render(cmd)
-	}
-	return label + strings.Join(parts, gap)
-}
-
 // lastAssistantText returns the content of the most recent assistant message,
 // or "" if the conversation has no assistant reply yet.
 func (c Chat) lastAssistantText() string {
@@ -157,7 +126,7 @@ func (c Chat) View() string {
 	c.input.Prompt = c.inputPrompt()
 	var hintLine string
 	if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin && c.pendingTool == nil {
-		hintLine = renderChatSuggestions(inputVal, c.viewport.Width+2)
+		hintLine = c.renderChatSuggestions(inputVal, c.viewport.Width+2)
 	} else if c.showBuiltin {
 		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
 		dimStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)

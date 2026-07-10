@@ -380,9 +380,9 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyTab {
 			inputVal := c.input.Value()
 			if strings.HasPrefix(inputVal, "/") {
-				for _, cmd := range chatCommands {
-					if strings.HasPrefix(cmd, inputVal) {
-						c.input.SetValue(cmd)
+				for _, cmd := range chatCommandTable {
+					if strings.HasPrefix(cmd.Name, inputVal) {
+						c.input.SetValue(cmd.Name)
 						c.input.CursorEnd()
 						return c, nil
 					}
