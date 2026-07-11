@@ -14,15 +14,16 @@ func printHelp() {
 	fmt.Printf("inari %s\n", version.Version)
 	fmt.Println()
 	fmt.Println("usage:")
-	fmt.Println("  inari <command> [flags]")
+	fmt.Println("  inari [command] [flags]")
 	fmt.Println()
 	fmt.Println("commands:")
-	fmt.Println("  start    launch daemon and open the TUI")
+	fmt.Println("  (none)   launch daemon and open the TUI  (default)")
 	fmt.Println("  tui      open TUI  (assumes daemon is running)")
 	fmt.Println("  daemon   run daemon in foreground")
+	fmt.Println("  doctor   check dependencies and daemon status")
 	fmt.Println("  stop     stop the running daemon")
-	fmt.Println("  status   show daemon status")
 	fmt.Println("  version  print version and exit")
+	fmt.Println("  help     show this message")
 	fmt.Println()
 	fmt.Println("flags (follow the subcommand):")
 	fmt.Println("  -v         verbose daemon logging")
@@ -30,13 +31,24 @@ func printHelp() {
 }
 
 func main() {
+	// bare invocation is the default user path: fork the daemon and open the TUI.
 	if len(os.Args) < 2 {
-		printHelp()
+		cmdStart(defaultConfigPath(), false)
 		return
 	}
 
 	sub := os.Args[1]
 	rest := os.Args[2:]
+
+	// help and version need no flag parsing and no config resolution.
+	switch sub {
+	case "help", "-h", "--help":
+		printHelp()
+		return
+	case "version", "--version":
+		fmt.Println(version.Version)
+		return
+	}
 
 	fs := flag.NewFlagSet(sub, flag.ExitOnError)
 	verbose := fs.Bool("v", false, "verbose logging")
@@ -50,18 +62,16 @@ func main() {
 	}
 
 	switch sub {
-	case "start":
+	case "start": // alias of the bare invocation; keeps `make start` and muscle memory working
 		cmdStart(cfgPath, *verbose)
 	case "daemon":
 		runDaemon(cfgPath, *verbose, *background)
 	case "tui":
 		runTUI(cfgPath)
+	case "doctor":
+		cmdDoctor(cfgPath)
 	case "stop":
 		cmdStop()
-	case "status":
-		cmdStatus()
-	case "version":
-		fmt.Println(version.Version)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", sub)
 		printHelp()
