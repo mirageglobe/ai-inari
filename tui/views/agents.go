@@ -1,5 +1,6 @@
 // this file owns the Agents type, its Init/Update/View methods, and the hint list.
-// message types, commands, and helpers live in agents_cmds.go.
+// message types live in agents_msgs.go, tea.Cmd constructors in agents_cmds.go,
+// and naming/formatting helpers in agents_fmt.go.
 
 package views
 
