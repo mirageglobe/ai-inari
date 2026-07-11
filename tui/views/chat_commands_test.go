@@ -1,11 +1,25 @@
 package views
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
 )
+
+// the command table is sorted alphabetically in init(), so the palette and help
+// overlay list commands predictably. guards against a new command being appended
+// out of order and skipping the sort invariant.
+func TestChatCommandTableSorted(t *testing.T) {
+	names := make([]string, len(chatCommandTable))
+	for i, cmd := range chatCommandTable {
+		names[i] = cmd.Name
+	}
+	if !sort.StringsAreSorted(names) {
+		t.Errorf("chatCommandTable is not alphabetically sorted: %v", names)
+	}
+}
 
 // a zero-value chat has no model, no cwd, and no assistant reply, so the three
 // context-gated commands must report disabled.
