@@ -69,10 +69,18 @@ brew upgrade mirageglobe/tap/inari
 
 ## quick start
 
+inari drives local models through [Ollama](https://ollama.com), so make sure Ollama
+is running first. then:
+
 ```sh
-make start    # builds, starts ollama + inarid in background, launches inari TUI
-make stop     # stop inarid (also runs automatically when inari exits)
+inari doctor   # check ollama, config, and that the base model is pulled
+inari          # launch the daemon + TUI (the default action)
+inari stop     # stop the background daemon
 ```
+
+`inari doctor` prints the exact `ollama pull` command if the base model is missing.
+the background daemon also shuts itself down after an idle period, so `inari stop` is
+only needed to end it immediately.
 
 ---
 
@@ -104,6 +112,16 @@ make stop     # stop inarid (also runs automatically when inari exits)
 ---
 
 ## usage
+
+### commands
+
+- `inari`: launch the daemon and open the TUI (the default action)
+- `inari tui`: open the TUI; assumes the daemon is already running
+- `inari daemon`: run the daemon in the foreground
+- `inari doctor`: check dependencies and daemon status
+- `inari stop`: stop the running daemon
+- `inari version`: print the version
+- `inari help`: show usage
 
 ### inari (TUI)
 

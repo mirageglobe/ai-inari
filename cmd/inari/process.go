@@ -68,18 +68,3 @@ func cmdStop() {
 	os.Remove(pidFile())
 	fmt.Printf("inari daemon stopped (pid %d)\n", pid)
 }
-
-func cmdStatus() {
-	pid, err := readPID()
-	if err != nil {
-		fmt.Println("inari daemon: not running")
-		return
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil || proc.Signal(syscall.Signal(0)) != nil {
-		fmt.Printf("inari daemon: not running (stale pid %d)\n", pid)
-		os.Remove(pidFile())
-		return
-	}
-	fmt.Printf("inari daemon: running (pid %d)\n", pid)
-}
