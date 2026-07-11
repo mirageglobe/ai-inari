@@ -1,7 +1,10 @@
+// server.go owns the Server struct and its lifecycle (listen/close), the
+// model-default helper, and the idle watchdog. it does NOT own the JSON-RPC wire
+// types (types.go), the connection read loop (conn.go), or dispatch (dispatch.go).
+
 package ipc
 
 import (
-	"encoding/json"
 	"log"
 	"net"
 	"os"
@@ -15,28 +18,6 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
-
-// Request is a JSON-RPC 2.0 request.
-type Request struct {
-	JSONRPC string          `json:"jsonrpc"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
-	ID      any             `json:"id"`
-}
-
-// Response is a JSON-RPC 2.0 response.
-type Response struct {
-	JSONRPC string `json:"jsonrpc"`
-	Result  any    `json:"result,omitempty"`
-	Error   *Error `json:"error,omitempty"`
-	ID      any    `json:"id"`
-}
-
-// Error is a JSON-RPC 2.0 error object.
-type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
 
 // Server listens on a Unix Domain Socket and dispatches JSON-RPC calls.
 type Server struct {
@@ -158,67 +139,6 @@ func (s *Server) providerErr(req Request) (Response, bool) {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: "provider not configured"}, ID: req.ID}, false
 	}
 	return Response{}, true
-}
-
-// accept runs until the listener is closed (on shutdown). each connection gets its own goroutine
-// so a slow inari call (e.g. a long Ollama reply) doesn't block other clients.
-func (s *Server) accept() {
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			return
-		}
-		go s.handle(conn)
-	}
-}
-
-// handle reads JSON-RPC requests from conn in a loop. the connection stays open across multiple
-// calls so inari can reuse it without re-dialing for every operation.
-// session.stream is handled specially: it takes over the connection for the duration of the
-// stream and closes it when done, so the loop exits after one streaming call.
-func (s *Server) handle(conn net.Conn) {
-	defer conn.Close()
-	dec := json.NewDecoder(conn)
-	enc := json.NewEncoder(conn)
-
-	for {
-		var req Request
-		if err := dec.Decode(&req); err != nil {
-			return
-		}
-		s.touch() // any RPC (including ping heartbeats) resets the idle watchdog
-		s.auditor.Log(req.Method, req.Params)
-
-		if req.Method == "session.stream" {
-			if s.verbose {
-				log.Printf("[inariui->inarid] session.stream %s", req.Params)
-			}
-			s.handleStream(conn, dec, req)
-			return
-		}
-
-		if req.Method == "model.pull" {
-			if s.verbose {
-				log.Printf("[inariui->inarid] model.pull %s", req.Params)
-			}
-			s.handlePull(conn, req)
-			return
-		}
-
-		// suppress ping; fires on every heartbeat and adds no signal.
-		if req.Method != "ping" && s.verbose {
-			log.Printf("[inariui->inarid] %s %s", req.Method, req.Params)
-		}
-		resp := s.dispatch(req)
-		if req.Method != "ping" && s.verbose {
-			if resp.Error != nil {
-				log.Printf("[inarid->inariui] %s error: %s", req.Method, resp.Error.Message)
-			} else {
-				log.Printf("[inarid->inariui] %s ok", req.Method)
-			}
-		}
-		enc.Encode(resp)
-	}
 }
 
 func (s *Server) Close() {
