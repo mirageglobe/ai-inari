@@ -108,12 +108,12 @@ func (c Chat) lastAssistantText() string {
 }
 
 // inputPrompt returns the entry prefix reflecting the active mode:
-// [/] while composing a slash command, [tool] while the builtin panel is open,
+// [cmd] while composing a slash command, [tool] while the builtin panel is open,
 // otherwise plain [chat]. gives the user visual feedback on what the input does.
 func (c Chat) inputPrompt() string {
 	switch {
 	case strings.HasPrefix(c.input.Value(), "/"):
-		return "[/] ❯ "
+		return "[cmd] ❯ "
 	case c.showBuiltin:
 		return "[tool] ❯ "
 	default:

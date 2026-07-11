@@ -8,6 +8,7 @@
 package views
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -22,7 +23,9 @@ type ChatCommand struct {
 	Enabled func(c Chat) bool
 }
 
-// chatCommandTable is the canonical, ordered set of chat slash commands.
+// chatCommandTable is the canonical set of chat slash commands, sorted
+// alphabetically by name in init() so the palette and help overlay both list
+// commands in a predictable order regardless of literal ordering here.
 // the three context-gated commands mirror the validity guards already enforced
 // in handleSlashCommand, so the palette dims exactly what dispatch would reject.
 var chatCommandTable = []ChatCommand{
@@ -108,8 +111,13 @@ func buildChatHelp() []helpEntry {
 	return entries
 }
 
-// register the derived chat help rows so helpByView["chat"] stays in sync with
-// the command table rather than being a hand-maintained parallel list.
+// sort the command table alphabetically, then register the derived chat help
+// rows so helpByView["chat"] stays in sync with the command table rather than
+// being a hand-maintained parallel list. sorting here keeps both the palette and
+// the help overlay alphabetical without hand-ordering the literal.
 func init() {
+	sort.Slice(chatCommandTable, func(i, j int) bool {
+		return chatCommandTable[i].Name < chatCommandTable[j].Name
+	})
 	helpByView["chat"] = buildChatHelp()
 }
