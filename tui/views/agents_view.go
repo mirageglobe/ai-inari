@@ -34,7 +34,7 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 
 	hints := agentsHints(hasSession, h.offline)
 	hints = append(hints, HS(), H("[q/esc] back to chat"))
-	hint := RenderHint(hints, h.width)
+	hint := RenderHint(hints, modalInnerWidth(h.width))
 
 	var lines []string
 	lines = append(lines, title)
