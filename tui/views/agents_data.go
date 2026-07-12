@@ -41,10 +41,11 @@ func (h Agents) onWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	}
 	h.tableHeight = tableHeight
 	h.table.SetHeight(tableHeight)
-	// resize model column to fill available width.
+	// resize model column to fill the shared modal width (capped, not raw terminal
+	// width, so wide terminals do not stretch the popup past the UIWidth budget).
 	// fixed cols: indicator(2) + name(20) + vram(12) + status(16) + context(12) = 62
-	// overhead: 6 cols x 2 cell padding + 2 border = 14; total fixed overhead = 76.
-	modelColW := h.width - 76
+	// plus 6 cols x 2 cell padding = 12; model takes the rest of the inner width.
+	modelColW := modalInnerWidth(h.width) - 74
 	if modelColW < 10 {
 		modelColW = 10
 	}

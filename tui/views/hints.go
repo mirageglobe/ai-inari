@@ -14,6 +14,29 @@ import (
 // UIWidth is the fallback terminal width used before the first WindowSizeMsg arrives.
 const UIWidth = 100
 
+// ModalInnerW is the shared inner width for centred modal overlays (model
+// selector, agents), excluding the box chrome. capped to the UIWidth budget
+// (UIWidth - 4: rounded border 1*2 + padding 1*2) so wide terminals do not
+// stretch modals past the TUI budget.
+const ModalInnerW = UIWidth - 4
+
+// modalInnerWidth returns the inner width for a centred modal box: capped at
+// ModalInnerW and clamped down to the terminal width (minus box chrome) so
+// narrow terminals still fit. termWidth <= 0 falls back to the cap.
+func modalInnerWidth(termWidth int) int {
+	if termWidth <= 0 {
+		return ModalInnerW
+	}
+	const chrome = 4 // rounded border (1*2) + padding (1*2)
+	if avail := termWidth - chrome; avail < ModalInnerW {
+		if avail < 20 {
+			return 20 // floor so columns never collapse to nothing
+		}
+		return avail
+	}
+	return ModalInnerW
+}
+
 var (
 	hintActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	hintDisabledStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))

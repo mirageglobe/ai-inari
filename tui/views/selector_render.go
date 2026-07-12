@@ -7,24 +7,14 @@ package views
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 )
-
-const modalInnerW = 64 // inner width of the model selector modal (excl. border+padding)
 
 // WithModalDimensions resizes the selector's table to fit the modal box.
 // called once when the modal opens; the table keeps these dimensions until next WindowSizeMsg.
 func (m ModelSelector) WithModalDimensions() ModelSelector {
-	modelColW := modalInnerW - 16 // 12 vram + 2 cell-padding each side
-	if modelColW < 10 {
-		modelColW = 10
-	}
-	m.table.SetColumns([]table.Column{
-		{Title: "model", Width: modelColW},
-		{Title: "est. vram", Width: 12},
-	})
 	m.table.SetHeight(8)
+	m.refreshRows() // size columns to the shared modal width (falls back to ModalInnerW)
 	return m
 }
 
@@ -38,7 +28,7 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 		title += "  " + secStyle.Render("→ "+m.targetSessionName)
 	}
 
-	hint := RenderHint([]HintCmd{H("[enter] assign/pull"), H("[q/esc] cancel")}, modalInnerW)
+	hint := RenderHint([]HintCmd{H("[enter] assign/pull"), H("[q/esc] cancel")}, modalInnerWidth(m.width))
 
 	var lines []string
 	lines = append(lines, title)

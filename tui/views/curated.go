@@ -6,6 +6,8 @@
 
 package views
 
+import "github.com/charmbracelet/lipgloss"
+
 // CuratedModel is one entry from SPEC.md's §6.1 Ollama Model Curation table.
 type CuratedModel struct {
 	TierGB int
@@ -42,6 +44,38 @@ func DetectTier(totalBytes uint64) int {
 		}
 	}
 	return curatedTiers[len(curatedTiers)-1]
+}
+
+// curatedNotes returns the §6.1 Notes for a model name, or "" when the model
+// is not in the curated table (e.g. a locally-pulled model outside the list).
+func curatedNotes(name string) string {
+	for _, c := range CuratedModels {
+		if c.Model == name {
+			return c.Notes
+		}
+	}
+	return ""
+}
+
+// truncateCell shortens s to fit within w display columns, appending "..." when
+// it overflows. cuts on rune boundaries and measures with lipgloss.Width so
+// wide runes and ANSI never mis-align the table cell.
+func truncateCell(s string, w int) string {
+	if w <= 0 || lipgloss.Width(s) <= w {
+		return s
+	}
+	if w <= 3 {
+		r := []rune(s)
+		if len(r) > w {
+			r = r[:w]
+		}
+		return string(r)
+	}
+	r := []rune(s)
+	for len(r) > 0 && lipgloss.Width(string(r))+3 > w {
+		r = r[:len(r)-1]
+	}
+	return string(r) + "..."
 }
 
 // NotLocal returns every curated model, across all hardware tiers, that is

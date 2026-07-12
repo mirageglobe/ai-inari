@@ -4,11 +4,9 @@
 package views
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
@@ -29,15 +27,8 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			tableHeight = 1
 		}
 		m.table.SetHeight(tableHeight)
-		// resize model column so total width = m.width (see NewModelSelector for overhead breakdown).
-		modelColW := m.width - 18
-		if modelColW < 10 {
-			modelColW = 10
-		}
-		m.table.SetColumns([]table.Column{
-			{Title: "model", Width: modelColW},
-			{Title: "est. vram", Width: 12},
-		})
+		// recompute columns for the new width and re-truncate notes to fit.
+		m.refreshRows()
 		return m, nil
 
 	case spinner.TickMsg:
@@ -57,25 +48,9 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i, model := range msg.models {
 				names[i] = model.Name
 			}
+			m.localModels = msg.models
 			m.recommended = NotLocal(names)
-
-			rows := make([]table.Row, 0, len(msg.models)+len(m.recommended))
-			local := make([]bool, 0, cap(rows))
-			modelNames := make([]string, 0, cap(rows))
-			for _, model := range msg.models {
-				rows = append(rows, table.Row{model.Name, formatBytes(model.Size)})
-				local = append(local, true)
-				modelNames = append(modelNames, model.Name)
-			}
-			for _, c := range m.recommended {
-				label := fmt.Sprintf("%s  (%dgb %s)", c.Model, c.TierGB, c.Role)
-				rows = append(rows, table.Row{label, c.Size + " [pull]"})
-				local = append(local, false)
-				modelNames = append(modelNames, c.Model)
-			}
-			m.table.SetRows(rows)
-			m.rowLocal = local
-			m.rowModel = modelNames
+			m.refreshRows()
 		}
 		return m, nil
 
