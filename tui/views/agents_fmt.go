@@ -10,7 +10,9 @@ import (
 	"time"
 )
 
-// sessionAdjectives are paired with "agent" to form session names like "jade agent".
+// sessionAdjectives and sessionNouns are paired to form session names like
+// "jade fox". pairing (not a fixed "agent" suffix) gives N*M combinations, so
+// name generation only exhausts after len(adj)*len(noun) sessions.
 var sessionAdjectives = []string{
 	"arctic", "amber", "ash", "blaze", "copper", "crimson", "dusk",
 	"ember", "fire", "frost", "ghost", "golden", "jade", "midnight",
@@ -18,19 +20,33 @@ var sessionAdjectives = []string{
 	"tundra", "violet", "wild",
 }
 
-// pickAgentName returns an agent-themed name not already in use.
+// sessionNouns keep inari's fox/woodland flavour (kitsune are the messengers).
+var sessionNouns = []string{
+	"fox", "otter", "lynx", "heron", "crane", "raven", "marten", "wren",
+	"badger", "ferret", "gecko", "hare", "lemur", "magpie", "meerkat",
+	"newt", "ocelot", "osprey", "puffin", "quokka", "robin", "sable",
+	"stoat", "tapir", "vole", "weasel",
+}
+
+// pickAgentName returns an adjective+noun session name not already in use,
+// falling back to a numbered agent once every combination is taken.
 func pickAgentName(used []string) string {
 	inUse := make(map[string]bool, len(used))
 	for _, v := range used {
 		inUse[v] = true
 	}
-	pool := make([]string, len(sessionAdjectives))
-	copy(pool, sessionAdjectives)
-	rand.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
-	for _, adj := range pool {
-		name := adj + " agent"
-		if !inUse[name] {
-			return name
+	adjs := make([]string, len(sessionAdjectives))
+	copy(adjs, sessionAdjectives)
+	rand.Shuffle(len(adjs), func(i, j int) { adjs[i], adjs[j] = adjs[j], adjs[i] })
+	nouns := make([]string, len(sessionNouns))
+	copy(nouns, sessionNouns)
+	rand.Shuffle(len(nouns), func(i, j int) { nouns[i], nouns[j] = nouns[j], nouns[i] })
+	for _, adj := range adjs {
+		for _, noun := range nouns {
+			name := adj + " " + noun
+			if !inUse[name] {
+				return name
+			}
 		}
 	}
 	return fmt.Sprintf("agent #%d", len(used)+1)

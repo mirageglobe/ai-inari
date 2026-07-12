@@ -59,6 +59,18 @@ var Themes = []Theme{
 		Name: "rose", Primary: "211", Secondary: "217", User: "225",
 		Ray: [5]lipgloss.Color{"168", "211", "217", "211", "168"},
 	},
+	{
+		Name: "emerald", Primary: "35", Secondary: "42", User: "48",
+		Ray: [5]lipgloss.Color{"29", "35", "42", "35", "29"},
+	},
+	{
+		Name: "cyan", Primary: "37", Secondary: "44", User: "51",
+		Ray: [5]lipgloss.Color{"30", "37", "44", "37", "30"},
+	},
+	{
+		Name: "mono", Primary: "246", Secondary: "250", User: "253",
+		Ray: [5]lipgloss.Color{"240", "244", "250", "244", "240"},
+	},
 }
 
 // ActiveTheme holds the currently applied palette.
