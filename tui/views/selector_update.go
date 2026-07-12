@@ -54,6 +54,17 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case runningMsg:
+		if msg.err == nil {
+			set := make(map[string]bool, len(msg.models))
+			for _, rm := range msg.models {
+				set[rm.Name] = true
+			}
+			m.running = set
+			m.refreshRows()
+		}
+		return m, nil
+
 	case loadModelMsg:
 		m.loading = false
 		if msg.err != nil {

@@ -65,13 +65,13 @@ func TestBuildSelectorRows(t *testing.T) {
 	local := []provider.Model{{Name: "gemma4:e2b", Size: 1500000000}}
 	recommended := []CuratedModel{{TierGB: 16, Role: "coding", Model: "deepseek-r1:14b", Size: "~9gb", Notes: "r1-671b distil; strong coding and reasoning"}}
 
-	rows, rowLocal, rowModel := buildSelectorRows(local, recommended, 20)
+	rows, rowLocal, rowModel := buildSelectorRows(local, recommended, nil, 20)
 
 	if len(rows) != 2 || len(rowLocal) != 2 || len(rowModel) != 2 {
 		t.Fatalf("expected 2 aligned rows, got rows=%d local=%d model=%d", len(rows), len(rowLocal), len(rowModel))
 	}
 
-	// row 0: downloaded local model, notes looked up from the curated table.
+	// row 0: downloaded local model (not running), notes looked up from the curated table.
 	if rows[0][0] != "gemma4:e2b" || rows[0][1] != "downloaded" || !rowLocal[0] {
 		t.Errorf("local row = %v (local=%v), want downloaded gemma4:e2b", rows[0], rowLocal[0])
 	}
@@ -92,6 +92,12 @@ func TestBuildSelectorRows(t *testing.T) {
 		if w := lipgloss.Width(r[2]); w > 20 {
 			t.Errorf("row %d notes width %d exceeds 20: %q", i, w, r[2])
 		}
+	}
+
+	// a local model resident in memory is statused "loaded", not "downloaded".
+	loadedRows, _, _ := buildSelectorRows(local, nil, map[string]bool{"gemma4:e2b": true}, 20)
+	if loadedRows[0][1] != "loaded" {
+		t.Errorf("running local model status = %q, want loaded", loadedRows[0][1])
 	}
 }
 

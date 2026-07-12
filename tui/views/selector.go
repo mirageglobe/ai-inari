@@ -85,6 +85,7 @@ type ModelSelector struct {
 	width             int
 	tierGB            int
 	localModels       []provider.Model // pulled models, sorted by name; source for the "downloaded" rows
+	running           map[string]bool  // model names currently resident in memory (ListRunning); shown as "loaded"
 	recommended       []CuratedModel
 	rowLocal          []bool
 	rowModel          []string // actual model tag per row (the model cell shows the bare name)
@@ -119,7 +120,9 @@ func (m ModelSelector) ForSession(sessionID, sessionName, model string) ModelSel
 }
 
 func (m ModelSelector) Init() tea.Cmd {
-	return fetchModels(m.client)
+	// fetch the model list and the currently-loaded set together so rows can
+	// show a "loaded" status for models resident in memory.
+	return tea.Batch(fetchModels(m.client), fetchRunning(m.client))
 }
 
 // selectorColumns sizes the model-selector table to fit inner (the modal inner
@@ -148,13 +151,18 @@ func selectorColumns(inner int) []table.Column {
 }
 
 // buildSelectorRows builds the table rows and the parallel rowLocal/rowModel
-// slices. pulled models come first with a "downloaded" status; curated models
-// not yet local follow, marked "[pull]". notes come from the curated table
-// (empty for non-curated local models) and are truncated to notesW.
-func buildSelectorRows(local []provider.Model, recommended []CuratedModel, notesW int) (rows []table.Row, rowLocal []bool, rowModel []string) {
+// slices. pulled models come first, statused "loaded" when resident in memory
+// (present in running) else "downloaded"; curated models not yet local follow,
+// marked "[pull]". notes come from the curated table (empty for non-curated
+// local models) and are truncated to notesW.
+func buildSelectorRows(local []provider.Model, recommended []CuratedModel, running map[string]bool, notesW int) (rows []table.Row, rowLocal []bool, rowModel []string) {
 	rows = make([]table.Row, 0, len(local)+len(recommended))
 	for _, mdl := range local {
-		rows = append(rows, table.Row{mdl.Name, "downloaded", truncateCell(curatedNotes(mdl.Name), notesW), formatBytes(mdl.Size)})
+		status := "downloaded"
+		if running[mdl.Name] {
+			status = "loaded"
+		}
+		rows = append(rows, table.Row{mdl.Name, status, truncateCell(curatedNotes(mdl.Name), notesW), formatBytes(mdl.Size)})
 		rowLocal = append(rowLocal, true)
 		rowModel = append(rowModel, mdl.Name)
 	}
@@ -172,7 +180,7 @@ func buildSelectorRows(local []provider.Model, recommended []CuratedModel, notes
 func (m *ModelSelector) refreshRows() {
 	cols := selectorColumns(modalInnerWidth(m.width))
 	notesW := cols[2].Width
-	rows, local, models := buildSelectorRows(m.localModels, m.recommended, notesW)
+	rows, local, models := buildSelectorRows(m.localModels, m.recommended, m.running, notesW)
 	m.table.SetColumns(cols)
 	m.table.SetRows(rows)
 	m.rowLocal = local
