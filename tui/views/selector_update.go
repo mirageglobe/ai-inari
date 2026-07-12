@@ -91,6 +91,12 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "u":
+			// unload (unassign) the session's current model; no-op if none assigned.
+			if !m.loading && m.targetModel != "" {
+				id, name := m.targetSessionID, m.targetSessionName
+				return m, func() tea.Msg { return UnassignModelMsg{SessionID: id, SessionName: name} }
+			}
 		case "enter", "l":
 			if !m.loading {
 				idx := m.table.Cursor()

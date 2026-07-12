@@ -37,7 +37,8 @@ var helpByView = map[string][]helpEntry{
 		{"[esc]", "back"},
 	},
 	"models": {
-		{"[enter] / [l]", "assign model to session"},
+		{"[enter] / [l]", "assign / pull model"},
+		{"[u]", "unload model from session"},
 		{"[↑] / [↓]", "navigate list"},
 		{"[esc]", "back"},
 	},

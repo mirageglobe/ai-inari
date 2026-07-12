@@ -111,6 +111,8 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h.onExportResult(msg)
 	case AssignModelMsg:
 		return h.onAssignModel(msg)
+	case UnassignModelMsg:
+		return h.onUnassignModel(msg)
 	case tea.MouseMsg:
 		return h.onMouse(msg)
 	case tea.KeyMsg:

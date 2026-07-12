@@ -100,3 +100,19 @@ func (h Agents) onAssignModel(msg AssignModelMsg) (tea.Model, tea.Cmd) {
 	h.rebuildTable()
 	return h, assignModelCmd(h.client, msg.SessionID, sessionName, msg.ModelName)
 }
+
+func (h Agents) onUnassignModel(msg UnassignModelMsg) (tea.Model, tea.Cmd) {
+	// optimistically clear the session's model so the table updates immediately.
+	// unassignModelCmd fires concurrently to persist the change in inarid.
+	sessionName, model := msg.SessionName, ""
+	for i, s := range h.sessions {
+		if s.ID == msg.SessionID {
+			model = s.Model
+			h.sessions[i].Model = ""
+			sessionName = s.Name
+			break
+		}
+	}
+	h.rebuildTable()
+	return h, unassignModelCmd(h.client, msg.SessionID, sessionName, model)
+}

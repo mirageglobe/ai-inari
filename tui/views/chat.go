@@ -112,6 +112,7 @@ func (c Chat) Init() tea.Cmd {
 
 func (c Chat) SessionID() string   { return c.sessionID }
 func (c Chat) SessionName() string { return c.sessionName }
+func (c Chat) Model() string       { return c.model }
 func (c Chat) InputFocused() bool  { return c.inputFocused }
 
 func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars int, systemPrompt string) Chat {
