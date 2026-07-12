@@ -48,11 +48,11 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - footer labels (`[session]`, `[cwd]`, `[status]`, `[hint]`) always visible, uniform grey style
 - theme cycling (`/theme`)
 - config auto-creation at `~/.config/inari/config.json` when missing
-- IPC over unix domain socket between kitsune (TUI) and inarid (daemon)
+- IPC over unix domain socket between inarit (TUI) and inarid (daemon)
 - export chat history to file (`/agent export`)
 
 ### changed
-- consolidated kitsune + inarid into a single `inari` binary
+- consolidated inarit + inarid into a single `inari` binary
 - config moved to `~/.config/inari/config.json`
 - `run_command` system prompt lists permitted commands dynamically
 
