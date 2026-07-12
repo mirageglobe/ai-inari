@@ -39,7 +39,7 @@ var defaults = &Config{
 	OllamaBaseURL:  "http://localhost:11434",
 	MCPConnectors:  []MCPConnector{},
 	Models: Models{
-		Thinker: "gemma4:e4b",
+		Thinker: "gemma4:e2b",
 		Worker:  "bonsai:4b",
 		Sensor:  "qwen3-nano",
 	},
