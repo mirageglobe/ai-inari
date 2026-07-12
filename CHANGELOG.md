@@ -20,10 +20,12 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - model selector: `[pull]` list now spans the full curated catalog (SPEC.md §6.1, all hardware tiers, tagged with tier/role), not just the detected tier
 - model selector: `status` column (`downloaded` / `[pull]`) and a `notes` column (curated §6.1 notes, single-line truncated) alongside `model` and `est. vram`
 - curated model table: add `gemma4:e2b` alongside `gemma4:e4b` at the 8gb general tier
+- themes: `emerald`, `cyan`, and `mono` added alongside `purple`, `amber`, `slate`, `rose` (cycle with `[t]`)
 
 ### changed
 - modal overlays (model selector, agents) share one capped inner width; wide terminals no longer stretch popups past the 100-col budget
 - model unload moved from the `/model unload` slash command to a `[u]` hotkey in the model selector modal (shown only when the session has a model assigned)
+- session names are now `<adjective> <noun>` (e.g. `jade fox`) instead of `<adjective> agent`, giving N*M combinations before the numbered fallback
 
 ---
 
