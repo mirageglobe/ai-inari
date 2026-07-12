@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
@@ -128,6 +129,34 @@ func TestSelectorRenderModalWidth(t *testing.T) {
 	// terminal it must stay at the capped width, not stretch to fill.
 	if want := ModalInnerW + 4; widest != want {
 		t.Errorf("modal box width = %d, want %d (capped)", widest, want)
+	}
+}
+
+// [u] emits UnassignModelMsg for the target session when a model is assigned,
+// and is a no-op when the session has none.
+func TestSelectorUnloadHotkey(t *testing.T) {
+	keyU := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}}
+
+	// model assigned: [u] emits UnassignModelMsg for the target session.
+	m := NewModelSelector(nil).ForSession("s1", "sess-one", "gemma4:e2b")
+	_, cmd := m.Update(keyU)
+	if cmd == nil {
+		t.Fatal("[u] with an assigned model produced no command")
+	}
+	un, ok := cmd().(UnassignModelMsg)
+	if !ok {
+		t.Fatalf("[u] produced %T, want UnassignModelMsg", cmd())
+	}
+	if un.SessionID != "s1" || un.SessionName != "sess-one" {
+		t.Errorf("UnassignModelMsg = %+v, want session s1/sess-one", un)
+	}
+
+	// no model assigned: [u] must not emit an unassign.
+	m2 := NewModelSelector(nil).ForSession("s2", "sess-two", "")
+	if _, cmd2 := m2.Update(keyU); cmd2 != nil {
+		if _, isUnassign := cmd2().(UnassignModelMsg); isUnassign {
+			t.Error("[u] with no assigned model should not emit UnassignModelMsg")
+		}
 	}
 }
 

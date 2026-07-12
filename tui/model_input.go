@@ -96,7 +96,7 @@ func (m Model) updateKeys(msg tea.Msg) (Model, tea.Cmd, bool) {
 		switch key.String() {
 		case "ctrl+o":
 			if chat, ok := m.chats[m.activeSession]; ok {
-				m.models = m.models.ForSession(chat.SessionID(), chat.SessionName())
+				m.models = m.models.ForSession(chat.SessionID(), chat.SessionName(), chat.Model())
 			}
 			m.showModelSelector = true
 			m.models = m.models.WithModalDimensions()

@@ -23,6 +23,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### changed
 - modal overlays (model selector, agents) share one capped inner width; wide terminals no longer stretch popups past the 100-col budget
+- model unload moved from the `/model unload` slash command to a `[u]` hotkey in the model selector modal (shown only when the session has a model assigned)
 
 ---
 

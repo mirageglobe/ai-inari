@@ -47,10 +47,18 @@ type AssignModelMsg struct {
 	ModelName string
 }
 
+// UnassignModelMsg is emitted from the selector's [u] hotkey to clear the
+// target session's assigned model (replaces the former /model unload command).
+type UnassignModelMsg struct {
+	SessionID   string
+	SessionName string
+}
+
 // OpenModelSelectorMsg is emitted by agents to open the model selector for a session.
 type OpenModelSelectorMsg struct {
 	SessionID   string
 	SessionName string
+	Model       string // the session's currently-assigned model, if any (gates [u] unload)
 }
 
 type loadModelMsg struct {
@@ -73,6 +81,7 @@ type ModelSelector struct {
 	status            string
 	targetSessionID   string
 	targetSessionName string
+	targetModel       string // session's currently-assigned model; gates and labels the [u] unload hotkey
 	width             int
 	tierGB            int
 	localModels       []provider.Model // pulled models, sorted by name; source for the "downloaded" rows
@@ -99,10 +108,12 @@ func NewModelSelector(client *ipc.Client) ModelSelector {
 	return ModelSelector{client: client, table: t, spinner: s, tierGB: DetectTier(TotalMemBytes())}
 }
 
-// ForSession returns a copy of the selector targeting the given session.
-func (m ModelSelector) ForSession(sessionID, sessionName string) ModelSelector {
+// ForSession returns a copy of the selector targeting the given session. model
+// is the session's currently-assigned model (empty if none), used to gate [u].
+func (m ModelSelector) ForSession(sessionID, sessionName, model string) ModelSelector {
 	m.targetSessionID = sessionID
 	m.targetSessionName = sessionName
+	m.targetModel = model
 	m.status = ""
 	return m
 }

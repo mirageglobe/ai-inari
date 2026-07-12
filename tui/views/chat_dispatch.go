@@ -46,14 +46,8 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, exportChatCmd(c.client, c.sessionID, c.sessionName)
 	case "/model":
 		return c, func() tea.Msg {
-			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName}
+			return OpenModelSelectorMsg{SessionID: c.sessionID, SessionName: c.sessionName, Model: c.model}
 		}
-	case "/model unload":
-		if c.model == "" {
-			c.status = "[warn] no model assigned"
-			return c, nil
-		}
-		return c, unassignModelCmd(c.client, c.sessionID, c.sessionName, c.model)
 	case "/tools":
 		if c.cwd != "" {
 			c.showBuiltin = !c.showBuiltin

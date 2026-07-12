@@ -29,7 +29,7 @@ func TestMatchingCommandsDisabledWhenEmpty(t *testing.T) {
 	for _, s := range c.matchingCommands("/") {
 		got[s.Name] = s.Enabled
 	}
-	for _, name := range []string{"/model unload", "/copy", "/tools"} {
+	for _, name := range []string{"/copy", "/tools"} {
 		if got[name] {
 			t.Errorf("%q should be disabled on an empty chat", name)
 		}
@@ -50,21 +50,22 @@ func TestMatchingCommandsEnabledWhenReady(t *testing.T) {
 	for _, s := range c.matchingCommands("/") {
 		got[s.Name] = s.Enabled
 	}
-	for _, name := range []string{"/model unload", "/copy", "/tools"} {
+	for _, name := range []string{"/copy", "/tools"} {
 		if !got[name] {
 			t.Errorf("%q should be enabled when its context is present", name)
 		}
 	}
 }
 
-// the "/model" prefix must match both /model and /model unload, and nothing else.
+// the "/model" prefix matches the single /model command (unload is now a hotkey
+// inside the selector modal, not a slash command).
 func TestMatchingCommandsPrefixFilter(t *testing.T) {
 	c := Chat{}
 	var names []string
 	for _, s := range c.matchingCommands("/model") {
 		names = append(names, s.Name)
 	}
-	want := []string{"/model", "/model unload"}
+	want := []string{"/model"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Errorf("prefix /model matched %v, want %v", names, want)
 	}

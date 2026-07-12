@@ -77,7 +77,7 @@ func (m Model) updateNav(msg tea.Msg) (Model, tea.Cmd, bool) {
 	// open model selector targeting a specific session, always as a modal overlay on
 	// whatever view is current: agents, agents-over-chat, or chat directly.
 	if openMs, ok := msg.(views.OpenModelSelectorMsg); ok {
-		m.models = m.models.ForSession(openMs.SessionID, openMs.SessionName)
+		m.models = m.models.ForSession(openMs.SessionID, openMs.SessionName, openMs.Model)
 		m.showModelSelector = true
 		m.models = m.models.WithModalDimensions()
 		return m, m.models.Init(), true
@@ -92,6 +92,19 @@ func (m Model) updateNav(msg tea.Msg) (Model, tea.Cmd, bool) {
 			chat := m.chats[m.activeSession].WithModel(assign.ModelName)
 			m.chats[m.activeSession] = chat
 			return m, tea.Batch(cmd, chat.Init()), true
+		}
+		return m, cmd, true
+	}
+	// [u] in the selector cleared the session's model; agents does the optimistic
+	// update and the unassign RPC, mirroring the assign path.
+	if un, ok := msg.(views.UnassignModelMsg); ok {
+		updated, cmd := m.agents.Update(un)
+		m.agents = updated.(views.Agents)
+		m.showModelSelector = false
+		if m.current == viewChat && !m.showAgents {
+			// opened directly from chat: clear the active chat's displayed model.
+			chat := m.chats[m.activeSession].WithModel("")
+			m.chats[m.activeSession] = chat
 		}
 		return m, cmd, true
 	}
