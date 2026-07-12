@@ -73,9 +73,9 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [x] `[kitsune/inarid]` detach/reattach preserves session state.
 
 ### Near-term
-- [x] `[inarid]` `[easy]` add `gemma4:e4b` as the default master local model always — set as the thinker-tier default in config and fallback when no model is assigned to a session
+- [x] `[inarid]` `[easy]` add `gemma4:e2b` as the default master local model always — set as the thinker-tier default in config and fallback when no model is assigned to a session
 - [ ] `[inarid]` `[medium]` consider adding vLLM as an alternative backend to Ollama — vLLM is OpenAI-compatible and may offer better throughput on CUDA hardware; evaluate alongside the local endpoint profiles item as a concrete second backend candidate
-- [ ] `[inarid]` `[medium]` consider exposing Ollama as an MCP server so other models — local or cloud — can be invoked as tools by the default master model (`gemma4:e4b`); this lets the thinker delegate sub-tasks to specialised models (e.g. a coding worker) via the existing MCP tool-call loop rather than requiring a separate session
+- [ ] `[inarid]` `[medium]` consider exposing Ollama as an MCP server so other models — local or cloud — can be invoked as tools by the default master model (`gemma4:e2b`); this lets the thinker delegate sub-tasks to specialised models (e.g. a coding worker) via the existing MCP tool-call loop rather than requiring a separate session
 - [ ] `[inari]` `[medium]` session search and filter in agents view
 - [ ] `[inari/inarid]` `[hard]` long-term task planning from high-level prompts
 - [ ] `[inari/inarid]` `[medium]` interrupt in chat for messages

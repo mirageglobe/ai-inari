@@ -100,7 +100,7 @@ only needed to end it immediately.
     { "name": "search",     "command": "mcp-search",     "args": [] }
   ],
   "models": {
-    "thinker": "gemma4:e4b",
+    "thinker": "gemma4:e2b",
     "worker":  "bonsai:4b",
     "sensor":  "qwen3-nano"
   }
