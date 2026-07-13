@@ -19,6 +19,15 @@ type Models struct {
 	Sensor  string `json:"sensor"`
 }
 
+// Shell configures the execute_shell_command tool gate.
+type Shell struct {
+	// Allowlist holds command binaries that execute_shell_command runs without a
+	// per-call approval prompt. commands not listed still run, but only after the
+	// user approves them. base names only; args are never shell-expanded. empty
+	// falls back to inarid's built-in default set.
+	Allowlist []string `json:"allowlist"`
+}
+
 type Config struct {
 	Socket         string         `json:"socket"`
 	MemoryBudgetMB int            `json:"memory_budget_mb"`
@@ -26,6 +35,7 @@ type Config struct {
 	DataDir        string         `json:"data_dir"`
 	MCPConnectors  []MCPConnector `json:"mcp_connectors"`
 	Models         Models         `json:"models"`
+	Shell          Shell          `json:"shell"`
 	Theme          string         `json:"theme,omitempty"`
 	// idle_shutdown_mins: minutes of no client activity after which the daemon
 	// exits on its own. 0 falls back to the 30 min default; a negative value
@@ -43,6 +53,7 @@ var defaults = &Config{
 		Worker:  "bonsai:4b",
 		Sensor:  "qwen3-nano",
 	},
+	Shell:            Shell{Allowlist: []string{}}, // empty -> inarid's built-in default allowlist
 	Theme:            "slate",
 	IdleShutdownMins: 30,
 }

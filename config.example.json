@@ -9,5 +9,8 @@
     "worker": "bonsai:4b",
     "sensor": "qwen3-nano"
   },
+  "shell": {
+    "allowlist": ["go", "make", "git", "ls", "cat", "find", "pwd", "whoami", "uname", "wc", "date", "echo", "which", "df", "du", "uptime", "ps"]
+  },
   "theme": "slate"
 }

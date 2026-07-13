@@ -111,10 +111,12 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 			rawPath, info.Size(), info.ModTime().Format(time.RFC3339), info.IsDir()), nil
 	case "execute_shell_command":
 		command, _ := args["command"].(string)
-		argsStr, _ := args["args"].(string)
-		if !allowedCommands[command] {
-			return "", fmt.Errorf("command not allowed: %q; permitted: go, make, git", command)
+		if command == "" {
+			return "", fmt.Errorf("command is required")
 		}
+		argsStr, _ := args["args"].(string)
+		// no allowlist check here: the stream gate already decided auto-run vs.
+		// user approval; a command reaching execTool has cleared that gate.
 		var cmdArgs []string
 		if argsStr != "" {
 			cmdArgs = strings.Fields(argsStr)

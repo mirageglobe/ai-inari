@@ -11,7 +11,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - herd view: active chat session marked with `▶` indicator column
 - chat view: `/describe` command opens session context editor without leaving chat
 - chat view: `[copied] N lines` status after clipboard yank shows line count
-- tool approval tiering: safe read-only builtins (`read_file`, `list_dir`, `grep_file`, `stat_file`) auto-execute; `run` always requires confirmation
+- tool approval tiering: safe read-only builtins (`read_file`, `list_dir`, `grep_file`, `stat_file`) auto-execute; `execute_shell_command` auto-runs binaries on the `shell.allowlist` (config.json, defaults to common read/build commands) and prompts for `[y]`/`[n]` on anything else, which then runs on approval (`curl`/`wget` left off the default so network egress always asks)
 - default system prompt instructs models to respond in plain text with no markdown formatting
 - chat view: `ctrl+t` toggles tools panel, `ctrl+p` opens command palette, `ctrl+g` toggles help; `esc` exits tools panel or clears slash input
 - chat view: input prefix shows the active mode (`[chat]`, `[tool]`, `[/]`)

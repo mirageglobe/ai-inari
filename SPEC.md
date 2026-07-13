@@ -94,13 +94,12 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarit]` `[medium]` **rolling usage hints on idle** - when the chat view has no activity, surface a rotating "how to use inari" hint (e.g. `try /compact to summarise a long chat`, `ctrl+o opens the model selector`) in an unobtrusive line (hint/status line preferred over the chat viewport so history is not disturbed). an idle timer resets on any keypress or stream token; after 60s of no activity the current hint shows, cycling to the next hint every 60s thereafter. hints are drawn from a static pool; stop cycling once the user acts.
 - [ ] `[inarit]` `[medium]` **pre-send prompt optimisation (autocorrect)** - the prompt-optimisation half of the pre-send intercept layer (its security/validation half is **pre-send message intercept** above, which stays daemon-side as the authoritative gate). client-side because it is a UX affordance, not a security control: before the message leaves the TUI, lightly rewrite it to improve model accuracy - fix obvious typos, expand terse fragments, normalise formatting - without altering intent. the user must preview the rewrite in the input box and accept or reject it before send (or toggle the feature off); it never silently distorts what the user asked.
 - [ ] `[inarit/inarid]` `[medium]` **change session cwd** - cwd is currently fixed at session creation; allow switching an existing session to a different working directory. inari offers a path picker/entry; inarid handles a `session.setcwd` RPC that updates the stored cwd, re-injects the filesystem-context system prompt for the new tree (layer 1), re-reads the `AGENTS.md`/`.inari/context.md` project context, and re-points the tool-call sandbox (`sandboxPath` in `internal/ipc/tools.go`) at the new path so shell/file tools stay confined. footer cwd line updates on success. mirrors the `session.rename` RPC pattern in Ideas.
-- [ ] `[inarid]` `[medium]` **per-command shell auto-approve** - refine the caution-tier gate for `execute_shell_command` (§8.3): a command whose binary is on the allowlist (`internal/ipc/tools_exec.go`: `go`, `make`, `git`, `ls`, `cat`, `find`, etc.) auto-executes without an approval prompt, while any command whose binary is NOT on the allowlist prompts the user for permission before running. today `execute_shell_command` always confirms regardless of the specific command; this keeps the known-safe read/build commands friction-free while still gating anything unrecognised. surface the allowlist in `config.json` so the user can extend or trim it; the §8.2 destructive-action policy and the sandbox `cwd` confinement still apply on top of the auto-approve decision.
 
 ### Ideas
 - [ ] `[inarid]` **MCP tool-call dispatch** — `internal/mcp/host.go` `Call()` is a TODO stub; audit logging exists but actual JSON-RPC dispatch over stdio is not implemented. complete to fulfil M4.
 - [ ] `[inarid]` `[medium]` **model loop / EOF prevention** — some models enter repetitive generation loops (e.g. `for_for_for...`) that exhaust the context window and terminate the stream with an EOF error. three mitigations to investigate: (1) set `repeat_penalty` (1.3–1.5) and `num_predict` cap in the ollama request options to penalise and hard-limit runaway output; (2) add a stream-side n-gram detector in `handleStream` that buffers the last N tokens, identifies a repeating sequence appearing 3+ times consecutively, and cancels the stream with a graceful error before EOF is hit.
 - [ ] `[inarid]` **MCP filesystem connector (layer 3)** — once the tool-call loop exists, replace built-in tools with `@modelcontextprotocol/server-filesystem` spawned via mcp-go. this is a natural extension of the MCP integration work below.
-- [ ] `[inarid]` **destructive action prevention (§8.2)**: cwd enforcement (`sandboxPath` in `internal/ipc/tools.go`) and a tool-call loop cap (`maxToolRounds = 10` in `internal/ipc/stream.go`) are shipped, alongside per-call size caps; remaining scope is a true file-op-count cap and dry-run previews for caution-tier tool-calls. risk-tiered auto-approval is done (safe builtins auto-execute, `execute_shell_command` always confirms)
+- [ ] `[inarid]` **destructive action prevention (§8.2)**: cwd enforcement (`sandboxPath` in `internal/ipc/tools.go`) and a tool-call loop cap (`maxToolRounds = 10` in `internal/ipc/stream.go`) are shipped, alongside per-call size caps; remaining scope is a true file-op-count cap and dry-run previews for caution-tier tool-calls. risk-tiered auto-approval is done (safe builtins auto-execute, allowlisted `execute_shell_command` binaries auto-execute, unlisted ones confirm)
 - [ ] `[inarid]` multiple models per session — allow attaching different models to a single session for collaborative discussions and task execution
 - [ ] `[inarid]` MCP integration — replace `internal/mcp` with `github.com/mark3labs/mcp-go`; connectors (Linear, Slack, Google Drive, etc.) configured via `config.json`
 - [ ] `[inarid]` **prompt-based tool calling** — for models without native function-calling support, inject tool definitions as plain text into the system prompt and set `format: "json"`; inarid parses the JSON response to detect tool calls. select mode via session config or auto-detect from model name. makes layer 2 work on any instruction-following model (hermes-3-pro, qwen3-coder, etc.)
@@ -114,6 +113,7 @@ designing abstractions too early produces interfaces that fit the first implemen
 - [ ] `[inarit/inarid]` **rename session** — allow the user to rename an existing session from the agents view; inari sends a `session.rename` RPC to inarid which updates the stored session name and propagates the change back to all open views.
 
 ### Done
+- [x] `[inarid]` `[medium]` **per-command shell auto-approve** - the caution-tier gate for `execute_shell_command` now branches per command: a binary on the auto-approve allowlist runs immediately (no `tool_request` round-trip), while any command not on the list still sends a `tool_request` and blocks for the user's `[y]`/`[n]`. the allowlist is a default read/build/inspect set (`go`, `make`, `git`, `ls`, `cat`, `find`, ...) in `internal/ipc/tools.go`, overridable via `config.json` `shell.allowlist` (empty falls back to the default); `curl`/`wget` were dropped from the default so network egress still prompts. `execTool`'s former hard-reject of non-allowlisted commands is gone: a non-listed command now runs *after* explicit approval rather than being refused, gated by `shellAutoApproved` at the stream dispatch. blast-radius note: this widens what a user can approve (previously non-listed commands were unrunnable), and `execute_shell_command` args are not path-sandboxed (only `cmd.Dir` is set), so an approved `rm`/`ssh`/`curl` can reach outside `cwd`; a future destructive tier should re-introduce hard-blocks for interpreters and remote-shell binaries. verified via go vet, go build, full test suite (`TestShellAutoApproved`, `TestSetShellAllowlist`, `TestLoadShellAllowlist`).
 - [x] `[inarit/inarid]` `[medium]` **delete model from disk** - a `[d]` hotkey in the model selector removes a downloaded model from local disk storage (Ollama `DELETE /api/delete`), reclaiming space. distinct from `[u]` unload (memory eviction, `UnloadModel`); this frees disk, not RAM, and needs a re-pull afterwards. added `DeleteModel` to `provider.Provider` (implemented by `*ollama.Client` via `http.MethodDelete`), an `ollama.delete` one-shot RPC in the dispatch switch (placed alongside `ollama.load`/`ollama.unload`, not the streaming `model.pull` special-case), and an `ipc.Client.DeleteModel` proxy. destructive and irreversible, so `[d]` arms an in-selector confirm (`[y]` confirms, any other key cancels) per §8.2; when the target row is the session's assigned model the prompt carries an extra `(assigned to <session>)` warning. on success the list refreshes so the row flips back to `[pull]`. known limitation: deleting a model still assigned to a session leaves a dangling reference (next chat fails at Ollama until reassigned); auto-unassign-on-delete is out of scope here. verified via go vet, go build, full test suite (`TestDeleteModel`, `TestDeleteModelError`, `TestSelectorDeleteHotkey`).
 - [x] `[inarit/inarid]` `[medium]` **model-load vs thinking indicator** - inarid checks `ListRunning` before starting a stream's first round; if the assigned model is not yet resident it emits a `status: "loading"` frame, then a `status: "thinking"` frame once the first chunk arrives from the provider (Ollama blocks the whole request until the model is loaded, so the first chunk is a reliable load-complete signal). state-accurate, not timeout-based; subsequent tool-call rounds within the same turn never re-signal since the model is already resident by then. inari's `ipc.Client.ChatStream` gained a `statuses` channel alongside `tokens`; the chat spinner renders `loading <model>...` while `loadingModel` is set, falling back to `thinking...`, with a running tool still taking priority over both. verified via go vet, go build, full test suite (`TestStreamSignalsLoadingWhenModelNotResident`, `TestStreamSkipsLoadingWhenModelResident`, `TestOnStatusTracksLoadingModel`, `TestViewportContentLoadingLabel`).
 - [x] `[inarit]` `[easy]` **rename TUI references to `inarit`** - swept the docs (SPEC.md, CHANGELOG.md) so the terminal-UI client is called `inarit` everywhere, matching the `inarid` daemon convention: `inari` = product/umbrella, `inarid` = daemon, `inarit` = terminal ui, with `inarig`/`inariw` reserved for future frontends. resolved the overloaded roadmap component tags: `[kitsune]` -> `[inarit]`, `[kitsune/inarid]` -> `[inarit/inarid]`, and each `[inari]`/`[inari/inarid]` reclassified to `[inarit]`/`[inarit/inarid]` for TUI or client+daemon work; only genuinely product-level items keep `[inari]` (e.g. the cli command surface + doctor). mythological uses of "kitsune" (the fox messengers, in README and a code comment) were left intact. docs/tags only; the `cmd/inari` binary and `tui` package are unchanged by design.
@@ -621,7 +621,7 @@ every tool-call is classified at dispatch time by a static risk tier. the tier i
 | tier        | current tools                                         | inarid behaviour                                                            |
 | :---------- | :---------------------------------------------------- | :-------------------------------------------------------------------------- |
 | safe        | `read_file`, `list_dir`, `grep_file`, `stat_file`     | execute immediately, no approval round-trip, log result                     |
-| caution     | `execute_shell_command`                               | send `tool_request` to inari; block until `tool_approved`; rejection logged |
+| caution     | `execute_shell_command`                               | allowlisted command: execute immediately; otherwise send `tool_request`, block until `tool_approved`, rejection logged |
 | destructive | (none yet, future write tools)                        | always require confirmation; shown in red in inari                          |
 | forbidden   | process spawn, network outside ollama/mcp, shell exec | hard-rejected; never routable                                               |
 
@@ -660,7 +660,7 @@ inari renders the preview and waits for `[y] approve` or `[n] reject`. only on a
 
 | constraint        | detail                                                                                                           |
 | :---              | :---                                                                                                             |
-| allowlist         | `go`, `make`, `git`, `date`, `echo`, `pwd`, `whoami`, `uname`, `wc`, `curl`, `wget`, `find`, `ps`, `ls`, `cat`, `df`, `uptime`, `which` — binary base name only; all others hard-rejected |
+| auto-approve list | default `go`, `make`, `git`, `ls`, `cat`, `find`, `pwd`, `whoami`, `uname`, `wc`, `date`, `echo`, `which`, `df`, `du`, `uptime`, `ps` (binary base name only), overridable via `config.json` `shell.allowlist`. listed = run without a prompt; unlisted = prompt for approval, then run |
 | no shell expand   | `exec.Command(binary, args...)` — never `sh -c`; injection impossible |
 | cwd lock          | `cmd.Dir = sess.CWD`; process starts inside the session directory     |
 | timeout           | 30 s hard kill via `context.WithTimeout`                               |
@@ -669,30 +669,34 @@ inari renders the preview and waits for `[y] approve` or `[n] reject`. only on a
 
 **adding a new allowed command**
 
-edit `allowedCommands` in `internal/ipc/server.go`. the map key is the binary base name. no other changes are needed — the dispatch is generic.
+add it to `shell.allowlist` in `config.json` (auto-approve, no rebuild), or edit `defaultShellAllowlist` in `internal/ipc/tools.go` to change the built-in default. the entry is the binary base name; the dispatch is generic. a command left off the list still runs, but prompts the user for approval first rather than being rejected.
 
 **risk tier**
 
-`execute_shell_command` is **caution-tier**. the allowlist keeps it out of the destructive tier, but:
-- `git reset --hard`, `make clean`, `go generate` can delete or regenerate files.
-- every `execute_shell_command` call sends a `tool_request` to inari and blocks until the user presses `[y]` or `[n]`. the call never executes unattended.
-- read-only builtins (`read_file`, `list_dir`, `grep_file`, `stat_file`) are safe-tier and execute without prompting.
+`execute_shell_command` is **caution-tier**, but the per-command allowlist splits it:
+- a command on the auto-approve list executes immediately, like a safe-tier builtin, so keep that list to genuinely low-risk read/build/inspect commands.
+- any other command sends a `tool_request` to inari and blocks until the user presses `[y]` or `[n]`.
+- allowlisted commands still carry risk: `git reset --hard`, `make clean`, `go generate` can delete or regenerate files, and run without a prompt.
+- read-only builtins (`read_file`, `list_dir`, `grep_file`, `stat_file`) are safe-tier and always execute without prompting.
 
 **rollout order for future expansion**
 
 1. *(done)* allowlist-only `execute_shell_command` - `go`, `make`, `git`.
 2. *(done)* per-call approval gating in inari (§8.2) for `execute_shell_command`; safe-tier builtins auto-execute.
-3. arbitrary bash (destructive tier) only after write tools and blast-radius limits are in production.
+3. *(done)* per-command auto-approve: allowlisted binaries run without a prompt, unlisted binaries prompt; the list is config-overridable via `shell.allowlist`.
+4. arbitrary bash (destructive tier) only after write tools and blast-radius limits are in production.
 4. replace with MCP process connector once the tool-call loop supports it.
 
-**what stays forbidden**
+**what prompts before running** (anything not on the auto-approve list)
 
-- `ssh`, `scp` — remote shell and file-copy; network calls outside ollama/mcp.
-- `rm`, `mv`, `chmod` — destructive filesystem ops.
-- `sh`, `bash`, `zsh`, `python` — shell interpreters that bypass the allowlist.
-- any binary not in `allowedCommands` — hard-rejected at dispatch.
+these are no longer hard-blocked at the shell layer; each runs only after the user approves that specific call, so review them when prompted:
 
-note: `curl` and `wget` are in the allowlist for read-only http queries (e.g. querying local endpoints). they are caution-tier via `execute_shell_command`, so each call requires user confirmation. revisit whether they belong in the allowlist once write tools and blast-radius limits are in production.
+- `ssh`, `scp`: remote shell and file-copy reaching outside the host.
+- `rm`, `mv`, `chmod`: destructive filesystem ops.
+- `curl`, `wget`: network egress.
+- `sh`, `bash`, `zsh`, `python`: interpreters that would run arbitrary code.
+
+`execute_shell_command` args are NOT path-validated (only `cmd.Dir` is set to `cwd`), so an approved command can touch paths outside `cwd`; the sandbox confines the file tools, not shell arguments. structural limits that always hold: layer B caps (1 MB/op, 10 calls/turn). a future destructive tier should re-introduce hard-blocks for the interpreter and remote-shell binaries above.
 
 ---
 

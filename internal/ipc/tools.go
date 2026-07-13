@@ -76,7 +76,7 @@ func filesystemTools() []provider.Tool {
 			Type: "function",
 			Function: provider.ToolFunction{
 				Name:        "execute_shell_command",
-				Description: "run an allowlisted shell command inside the session working directory and return its stdout and stderr. only specific commands are permitted; others are rejected.",
+				Description: "run a shell command inside the session working directory and return its stdout and stderr. commands on the auto-approve allowlist run immediately; any other command runs only after the user approves it, so prefer allowlisted commands.",
 				Parameters: provider.ToolParameters{
 					Type: "object",
 					Properties: map[string]provider.Property{
@@ -100,28 +100,48 @@ var safeTools = map[string]bool{
 	"stat_file": true,
 }
 
-// allowedCommands is the set of binaries that execute_shell_command may invoke.
-// each entry is the base command name only; arguments are passed separately and never shell-expanded.
-var allowedCommands = map[string]bool{
-	"go":     true,
-	"make":   true,
-	"git":    true,
-	"date":   true,
-	"echo":   true,
-	"pwd":    true,
-	"whoami": true,
-	"uname":  true,
-	"wc":     true,
-	"curl":   true,
-	"wget":   true,
-	"find":   true,
-	"ps":     true,
-	"ls":     true,
-	"cat":    true,
-	"df":     true,
-	"du":     true,
-	"uptime": true,
-	"which":  true,
+// defaultShellAllowlist is the built-in set of command binaries that
+// execute_shell_command runs without a per-call approval prompt. read/build/
+// inspect commands only; network commands (curl, wget) are intentionally absent
+// so they still prompt. config.json "shell.allowlist" overrides this set.
+var defaultShellAllowlist = []string{
+	"go", "make", "git", "ls", "cat", "find", "pwd", "whoami",
+	"uname", "wc", "date", "echo", "which", "df", "du", "uptime", "ps",
+}
+
+// allowedCommands is the active auto-approve set: commands here run without a
+// prompt; anything else still requires user approval. seeded from the default
+// and replaceable via SetShellAllowlist at startup. base names only; args are
+// passed separately and never shell-expanded.
+var allowedCommands = commandSet(defaultShellAllowlist)
+
+func commandSet(cmds []string) map[string]bool {
+	m := make(map[string]bool, len(cmds))
+	for _, c := range cmds {
+		m[c] = true
+	}
+	return m
+}
+
+// SetShellAllowlist replaces the auto-approve command set from config. it must
+// be called before the server starts accepting connections. an empty list keeps
+// the built-in default (covers configs predating the shell.allowlist field).
+func SetShellAllowlist(cmds []string) {
+	if len(cmds) == 0 {
+		return
+	}
+	allowedCommands = commandSet(cmds)
+}
+
+// shellAutoApproved reports whether a tool call may run without a user prompt:
+// only execute_shell_command whose binary is on the allowlist. every other
+// non-safe tool returns false and still requires explicit approval.
+func shellAutoApproved(tc provider.ToolCall) bool {
+	if tc.Function.Name != "execute_shell_command" {
+		return false
+	}
+	command, _ := tc.Function.Arguments["command"].(string)
+	return allowedCommands[command]
 }
 
 // sortedAllowedCommands returns the allowed command names as a sorted, comma-separated string.

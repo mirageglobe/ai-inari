@@ -103,11 +103,16 @@ only needed to end it immediately.
     "thinker": "gemma4:e2b",
     "worker":  "bonsai:4b",
     "sensor":  "qwen3-nano"
+  },
+  "shell": {
+    "allowlist": ["go", "make", "git", "ls", "cat", "find"]
   }
 }
 ```
 
 `idle_shutdown_mins` is how long the daemon may sit with no client activity before it shuts itself down (default `30`). set it to `0` to use the default, or a negative value to keep the daemon running indefinitely.
+
+`shell.allowlist` lists the commands the assistant may run without asking you first. anything on the list runs straight away; anything else pauses for your `[y]`/`[n]` before it runs. leave it empty to use the built-in default set (common read and build commands; network tools like `curl` are deliberately left off so they always ask). add a command here only if you are happy for the assistant to run it unattended.
 
 ---
 

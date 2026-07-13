@@ -30,6 +30,10 @@ func runDaemon(cfgPath string, verbose, background bool) {
 		log.Fatalf("config: %v", err)
 	}
 
+	// auto-approve allowlist for execute_shell_command; empty keeps the default.
+	// set before NewServer starts accepting so the value is stable under serving.
+	ipc.SetShellAllowlist(cfg.Shell.Allowlist)
+
 	auditor := audit.New("inari-audit.log")
 	defer auditor.Close()
 
