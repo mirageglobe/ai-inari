@@ -65,6 +65,8 @@ func (s *Server) dispatch(req Request) Response {
 		return s.handleOllamaModels(req)
 	case "ollama.show":
 		return s.handleOllamaShow(req)
+	case "ollama.context":
+		return s.handleOllamaContext(req)
 	case "daemon.quit":
 		return s.handleDaemonQuit(req)
 	default:

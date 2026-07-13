@@ -1,11 +1,14 @@
 package views
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
 // viewportContent returns the string to show in the viewport.
@@ -152,6 +155,11 @@ func (c Chat) View() string {
 	tokens := fmtTokens(c.ctxChars)
 	if c.ctxChars == 0 {
 		tokens = "-"
+	}
+	// append the effective context window (num_ctx inarid requests) over the
+	// model's max, once detected: e.g. "~500 tokens  ctx 8192/40960".
+	if c.maxCtx > 0 {
+		tokens += fmt.Sprintf("  ctx %d/%d", ipc.DefaultNumCtx(c.maxCtx), c.maxCtx)
 	}
 	sessionLine := RenderSessionLine("chat", c.sessionName, model, tokens)
 	cwdLine := renderCWDLine(c.cwd)

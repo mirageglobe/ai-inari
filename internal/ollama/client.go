@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
 )
@@ -157,4 +158,37 @@ func (c *Client) ModelCaps(model string) ([]string, error) {
 		return []string{}, nil
 	}
 	return result.Capabilities, nil
+}
+
+// ModelContextLength calls /api/show and returns the model's maximum context
+// window in tokens, read from the architecture-prefixed "<arch>.context_length"
+// key in model_info. returns 0 (not an error) when the model is unknown or the
+// field is absent, so callers can treat it as "use the backend default".
+func (c *Client) ModelContextLength(model string) (int, error) {
+	body, _ := json.Marshal(map[string]string{"name": model})
+	resp, err := c.http.Post(c.baseURL+"/api/show", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, nil
+	}
+	var result struct {
+		ModelInfo map[string]json.RawMessage `json:"model_info"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, nil
+	}
+	// the key is "<architecture>.context_length" (e.g. "llama.context_length");
+	// scan by suffix so we don't need to resolve the architecture first.
+	for k, v := range result.ModelInfo {
+		if strings.HasSuffix(k, ".context_length") {
+			var n int
+			if json.Unmarshal(v, &n) == nil {
+				return n, nil
+			}
+		}
+	}
+	return 0, nil
 }

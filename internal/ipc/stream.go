@@ -50,6 +50,16 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	// "loading <model>..." state for round 0 instead of "thinking...".
 	loading := s.modelNotResident(model)
 
+	// request a sensible num_ctx derived from the model's declared context window
+	// so small models get a larger-than-default window, capped to avoid OOM. a 0
+	// (unknown) result omits the option so Ollama falls back to its own default.
+	var opts map[string]any
+	if maxCtx, err := s.provider.ModelContextLength(model); err == nil {
+		if nc := DefaultNumCtx(maxCtx); nc > 0 {
+			opts = map[string]any{"num_ctx": nc}
+		}
+	}
+
 	const maxToolRounds = 10
 	for round := range maxToolRounds {
 		if round == 0 && loading {
@@ -64,6 +74,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 				Messages: sess.ChatHistory(),
 				Stream:   true,
 				Tools:    builtin,
+				Options:  opts,
 			}, chunks)
 			close(chunks)
 		}()
@@ -146,6 +157,21 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	}
 
 	enc.Encode(map[string]string{"error": "tool call limit reached"})
+}
+
+// DefaultNumCtx returns the num_ctx to request for a model whose maximum context
+// window is maxCtx: maxCtx capped at defaultNumCtxCap, or 0 when maxCtx is unknown
+// (<= 0) so callers omit the option and fall back to the backend default. exported
+// so the TUI shows the same effective window the daemon will actually request.
+func DefaultNumCtx(maxCtx int) int {
+	const defaultNumCtxCap = 8192
+	if maxCtx <= 0 {
+		return 0
+	}
+	if maxCtx < defaultNumCtxCap {
+		return maxCtx
+	}
+	return defaultNumCtxCap
 }
 
 // modelNotResident reports whether model is absent from the backend's currently

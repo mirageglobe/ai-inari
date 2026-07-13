@@ -46,11 +46,14 @@ type Property struct {
 }
 
 // ChatRequest is the input to a chat call.
+// Options carries backend runtime options (e.g. num_ctx); omitted when empty so
+// the backend falls back to its own defaults.
 type ChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`
-	Tools    []Tool    `json:"tools,omitempty"`
+	Model    string         `json:"model"`
+	Messages []Message      `json:"messages"`
+	Stream   bool           `json:"stream"`
+	Tools    []Tool         `json:"tools,omitempty"`
+	Options  map[string]any `json:"options,omitempty"`
 }
 
 // ChatResponse is a single streamed or complete response chunk.
@@ -106,4 +109,7 @@ type Provider interface {
 	// DeleteModel removes model from the backend's local disk storage.
 	// distinct from UnloadModel (memory eviction only); irreversible without a re-pull.
 	DeleteModel(model string) error
+	// ModelContextLength returns the model's maximum context window in tokens,
+	// as declared by the backend. returns 0 (not an error) when unknown.
+	ModelContextLength(model string) (int, error)
 }

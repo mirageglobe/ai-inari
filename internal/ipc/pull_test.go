@@ -34,7 +34,8 @@ func (f *fakePullProvider) PullModel(model string, out chan<- provider.PullProgr
 	}
 	return f.err
 }
-func (f *fakePullProvider) DeleteModel(string) error { return nil }
+func (f *fakePullProvider) DeleteModel(string) error               { return nil }
+func (f *fakePullProvider) ModelContextLength(string) (int, error) { return 0, nil }
 
 func TestModelPullStreamsProgress(t *testing.T) {
 	sock := "/tmp/inari-test-pull.sock"

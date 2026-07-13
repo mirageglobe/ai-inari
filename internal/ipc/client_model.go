@@ -71,6 +71,20 @@ func (c *Client) UnloadModel(model string) error {
 	return nil
 }
 
+// ModelContextLength returns the model's maximum context window in tokens via
+// inarid, or 0 when unknown.
+func (c *Client) ModelContextLength(model string) (int, error) {
+	resp, err := c.Call("ollama.context", map[string]string{"model": model})
+	if err != nil {
+		return 0, err
+	}
+	if resp.Error != nil {
+		return 0, fmt.Errorf("%s", resp.Error.Message)
+	}
+	n, _ := resp.Result.(float64) // JSON numbers decode to float64
+	return int(n), nil
+}
+
 // DeleteModel removes the named model from Ollama's local disk storage via
 // inarid. distinct from UnloadModel (memory eviction); this frees disk and
 // requires a re-pull before the model can be used again.

@@ -171,3 +171,41 @@ func TestModelCapsNotFoundReturnsEmpty(t *testing.T) {
 		t.Errorf("got %v, want empty slice", caps)
 	}
 }
+
+func TestModelContextLength(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/show" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		// model_info uses an architecture-prefixed context_length key.
+		fmt.Fprint(w, `{"model_info":{"general.architecture":"llama","llama.context_length":40960,"llama.block_count":32}}`)
+	}))
+	defer srv.Close()
+
+	n, err := NewClient(srv.URL).ModelContextLength("gemma4:e4b")
+	if err != nil {
+		t.Fatalf("ModelContextLength: %v", err)
+	}
+	if n != 40960 {
+		t.Errorf("got %d, want 40960", n)
+	}
+}
+
+func TestModelContextLengthUnknown(t *testing.T) {
+	// 404, and a 200 with no context_length key, both yield 0 and no error.
+	notFound := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer notFound.Close()
+	if n, err := NewClient(notFound.URL).ModelContextLength("missing"); err != nil || n != 0 {
+		t.Errorf("404: got (%d, %v), want (0, nil)", n, err)
+	}
+
+	noKey := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"model_info":{"general.architecture":"llama"}}`)
+	}))
+	defer noKey.Close()
+	if n, err := NewClient(noKey.URL).ModelContextLength("nokey"); err != nil || n != 0 {
+		t.Errorf("missing key: got (%d, %v), want (0, nil)", n, err)
+	}
+}
