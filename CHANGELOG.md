@@ -5,7 +5,9 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [v0.2.0] — unreleased
+## [unreleased]
+
+## [v0.3.0] - 2026-07-13
 
 ### added
 - chat: reopening a session left idle 10+ min shows a one-line `[recap]` of where the conversation left off (generated on demand via `session.recap`, history untouched)
