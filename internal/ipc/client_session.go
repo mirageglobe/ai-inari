@@ -172,6 +172,28 @@ func (c *Client) SetContext(sessionID, prompt string) error {
 	return nil
 }
 
+// SetCwd switches a session's working directory via session.setcwd and returns
+// the updated session info (new cwd + rebuilt system prompt) so the caller can
+// refresh its view. errors when the path is not an existing directory.
+func (c *Client) SetCwd(sessionID, cwd string) (SessionInfo, error) {
+	resp, err := c.Call("session.setcwd", map[string]string{"id": sessionID, "cwd": cwd})
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	if resp.Error != nil {
+		return SessionInfo{}, fmt.Errorf("%s", resp.Error.Message)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	var sess SessionInfo
+	if err := json.Unmarshal(b, &sess); err != nil {
+		return SessionInfo{}, err
+	}
+	return sess, nil
+}
+
 // Chat sends a single user message to the session identified by sessionID.
 // inarid owns the message history; it appends the message, sends the full
 // history to Ollama, stores the reply, and returns the assistant's text.

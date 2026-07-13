@@ -1,11 +1,12 @@
 // dispatch_session.go owns the session lifecycle/config handlers: list, create,
-// delete, assign/unassign, and setcontext. it does NOT own conversation ops
-// (dispatch_chat.go), ollama.* (dispatch_ollama.go), or the switch (dispatch.go).
+// delete, assign/unassign, setcontext, and setcwd. it does NOT own conversation
+// ops (dispatch_chat.go), ollama.* (dispatch_ollama.go), or the switch (dispatch.go).
 
 package ipc
 
 import (
 	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/session"
@@ -37,25 +38,7 @@ func (s *Server) handleSessionCreate(req Request) Response {
 	sess.Model = defaultNewAgentModel
 	if params.CWD != "" {
 		sess.CWD = params.CWD
-		tree := buildFileTree(params.CWD, 3)
-		// omit "respond in plain text only" from the default prompt because it conflicts
-		// with structured function calling and causes the model to output tool invocations
-		// as text rather than structured tool_calls.
-		combined := "keep all responses concise and short." +
-			"\n\nworking directory: " + params.CWD + "\n" + tree +
-			"\n\nyou have access to the following tools to explore the working directory:\n" +
-			"- read_file(path): read the full text of a file\n" +
-			"- list_dir(path): list files and directories inside a path\n" +
-			"- grep_file(path, pattern): search for a regex pattern across files, returns matching lines\n" +
-			"- stat_file(path): return size, modification time, and type for a file or directory\n" +
-			"- execute_shell_command(command, args): run a command in the working directory; these run without asking: " + sortedAllowedCommands() + "; any other command asks the user first\n" +
-			"use these tools whenever the user asks about files, code, or the project structure."
-		// inject a project-level context file (AGENTS.md / .inari/context.md) so the
-		// model picks up local conventions without manual copy-paste; absent file is fine.
-		if ctx := readAgentContext(params.CWD); ctx != "" {
-			combined += "\n\nproject context:\n" + ctx
-		}
-		sess.SetSystemPrompt(combined)
+		sess.SetSystemPrompt(buildCWDSystemPrompt(params.CWD))
 	}
 	s.store.Add(sess)
 	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
@@ -147,4 +130,31 @@ func (s *Server) handleSessionSetContext(req Request) Response {
 	sess.SetSystemPrompt(params.Prompt)
 	s.store.Persist(sess.ID)
 	return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
+}
+
+// session.setcwd switches an existing session's working directory. it validates
+// the target is an existing directory, updates the stored cwd, and rebuilds the
+// filesystem-context system prompt (file tree + project context) for the new tree.
+// tool calls read sess.CWD per-call, so the shell/file sandbox re-points to the new
+// path automatically. returns the updated session info so inari refreshes its footer.
+func (s *Server) handleSessionSetCwd(req Request) Response {
+	var params struct {
+		ID  string `json:"id"`
+		CWD string `json:"cwd"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil || params.CWD == "" {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: cwd required"}, ID: req.ID}
+	}
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	}
+	cwd := expandUserPath(params.CWD)
+	if info, err := os.Stat(cwd); err != nil || !info.IsDir() {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "not a directory: " + params.CWD}, ID: req.ID}
+	}
+	sess.CWD = cwd
+	sess.SetSystemPrompt(buildCWDSystemPrompt(cwd))
+	s.store.Persist(sess.ID)
+	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
 }

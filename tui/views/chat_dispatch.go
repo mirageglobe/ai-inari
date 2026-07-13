@@ -6,6 +6,8 @@
 package views
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -13,6 +15,19 @@ import (
 // command falls through to the default case and surfaces a warning; the command
 // palette (chat_commands.go) only ever offers names present in chatCommandTable.
 func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
+	// /cwd takes a path argument, so match it by prefix before the exact switch.
+	if cmd == "/cwd" || strings.HasPrefix(cmd, "/cwd ") {
+		path := strings.TrimSpace(strings.TrimPrefix(cmd, "/cwd"))
+		if path == "" {
+			c.status = "[warn] usage: /cwd <path>"
+			return c, nil
+		}
+		id := c.sessionID
+		return c, func() tea.Msg {
+			info, err := c.client.SetCwd(id, path)
+			return setCwdResultMsg{info: info, err: err}
+		}
+	}
 	switch cmd {
 	case "/clear":
 		id := c.sessionID

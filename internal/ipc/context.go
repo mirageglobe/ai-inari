@@ -47,6 +47,46 @@ func readAgentContext(cwd string) string {
 	return ""
 }
 
+// expandUserPath expands a leading ~ (or ~/) to the user's home directory and
+// cleans the result, so a session.setcwd path entered by hand behaves like a
+// shell path. non-tilde paths are just cleaned; relative paths stay relative
+// (resolved against the daemon's own cwd by the subsequent stat).
+func expandUserPath(p string) string {
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			p = filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(p, "~"), "/"))
+		}
+	}
+	return filepath.Clean(p)
+}
+
+// buildCWDSystemPrompt builds the filesystem-context system prompt for a session
+// whose working directory is cwd: a concise-response instruction, the working dir
+// and its shallow file tree, the builtin tool descriptions, and (when present) the
+// project-level context file. shared by session.create and session.setcwd so both
+// entry points inject identical context. cwd must be non-empty.
+func buildCWDSystemPrompt(cwd string) string {
+	tree := buildFileTree(cwd, 3)
+	// omit "respond in plain text only" from the default prompt because it conflicts
+	// with structured function calling and causes the model to output tool invocations
+	// as text rather than structured tool_calls.
+	combined := "keep all responses concise and short." +
+		"\n\nworking directory: " + cwd + "\n" + tree +
+		"\n\nyou have access to the following tools to explore the working directory:\n" +
+		"- read_file(path): read the full text of a file\n" +
+		"- list_dir(path): list files and directories inside a path\n" +
+		"- grep_file(path, pattern): search for a regex pattern across files, returns matching lines\n" +
+		"- stat_file(path): return size, modification time, and type for a file or directory\n" +
+		"- execute_shell_command(command, args): run a command in the working directory; these run without asking: " + sortedAllowedCommands() + "; any other command asks the user first\n" +
+		"use these tools whenever the user asks about files, code, or the project structure."
+	// inject a project-level context file (AGENTS.md / .inari/context.md) so the
+	// model picks up local conventions without manual copy-paste; absent file is fine.
+	if ctx := readAgentContext(cwd); ctx != "" {
+		combined += "\n\nproject context:\n" + ctx
+	}
+	return combined
+}
+
 // buildFileTree returns a compact file tree of dir up to maxDepth levels deep.
 // directories in skipDirs are pruned. the result is suitable for injection into a system prompt.
 func buildFileTree(dir string, maxDepth int) string {

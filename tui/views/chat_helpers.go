@@ -13,6 +13,13 @@ import (
 )
 
 type clearHistoryResultMsg struct{ err error }
+
+// setCwdResultMsg carries the outcome of a /cwd command: the updated session info
+// (new cwd + rebuilt system prompt) on success, or an error.
+type setCwdResultMsg struct {
+	info ipc.SessionInfo
+	err  error
+}
 type compactHistoryResultMsg struct {
 	summary string
 	err     error

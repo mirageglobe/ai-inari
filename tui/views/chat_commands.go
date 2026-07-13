@@ -36,6 +36,7 @@ var chatCommandTable = []ChatCommand{
 	{"/model", "assign/unload model (modal; [u] to unload)", nil},
 	{"/describe", "open session metadata/config view", nil},
 	{"/logs", "open logs view", nil},
+	{"/cwd", "change working directory (/cwd <path>)", nil},
 	{"/tools", "toggle builtin tools panel", func(c Chat) bool { return c.cwd != "" }},
 	{"/agents", "open agents as a popup ([q] to close)", nil},
 	{"/chat", "jump to default agent's chat", nil},
