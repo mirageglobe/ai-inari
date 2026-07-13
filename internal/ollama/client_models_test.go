@@ -112,6 +112,33 @@ func TestUnloadModel(t *testing.T) {
 	}
 }
 
+func TestDeleteModel(t *testing.T) {
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+	}))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).DeleteModel("gemma4:e4b"); err != nil {
+		t.Fatalf("DeleteModel: %v", err)
+	}
+	if gotMethod != http.MethodDelete || gotPath != "/api/delete" {
+		t.Errorf("got %s %s, want DELETE /api/delete", gotMethod, gotPath)
+	}
+}
+
+func TestDeleteModelError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":"model not found"}`)
+	}))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).DeleteModel("missing"); err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+}
+
 func TestModelCapsReturnsTags(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/show" {

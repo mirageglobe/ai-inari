@@ -28,7 +28,7 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 		title += "  " + secStyle.Render("→ "+m.targetSessionName)
 	}
 
-	hintCmds := []HintCmd{H("[enter] assign/pull")}
+	hintCmds := []HintCmd{H("[enter] assign/pull"), H("[d] delete")}
 	if m.targetModel != "" {
 		hintCmds = append(hintCmds, H("[u] unload"))
 	}

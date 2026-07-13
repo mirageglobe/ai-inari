@@ -32,6 +32,7 @@ func (f *fakeAssignProvider) ModelCaps(string) ([]string, error)            { re
 func (f *fakeAssignProvider) PullModel(string, chan<- provider.PullProgress) error {
 	return nil
 }
+func (f *fakeAssignProvider) DeleteModel(string) error { return nil }
 
 func TestPingPong(t *testing.T) {
 	sock := "/tmp/inari-test.sock"

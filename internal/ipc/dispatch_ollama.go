@@ -1,4 +1,4 @@
-// dispatch_ollama.go owns the ollama.* JSON-RPC handlers (load, unload,
+// dispatch_ollama.go owns the ollama.* JSON-RPC handlers (load, unload, delete,
 // running, models, show) and daemon.quit. it does NOT own the session.*
 // handlers (dispatch_session.go) or the method switch (dispatch.go).
 
@@ -38,6 +38,24 @@ func (s *Server) handleOllamaUnload(req Request) Response {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
 	}
 	return Response{JSONRPC: "2.0", Result: "unloaded", ID: req.ID}
+}
+
+// handleOllamaDelete removes a model from local disk storage. destructive and
+// irreversible; the TUI gates it behind a confirm prompt before this is called.
+func (s *Server) handleOllamaDelete(req Request) Response {
+	if r, ok := s.providerErr(req); !ok {
+		return r
+	}
+	var params struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	}
+	if err := s.provider.DeleteModel(params.Model); err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
+	}
+	return Response{JSONRPC: "2.0", Result: "deleted", ID: req.ID}
 }
 
 func (s *Server) handleOllamaRunning(req Request) Response {

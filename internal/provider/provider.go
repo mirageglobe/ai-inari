@@ -103,4 +103,7 @@ type Provider interface {
 	// PullModel downloads model, streaming progress updates via out until the
 	// final "success" status; out is not closed by the implementation.
 	PullModel(model string, out chan<- PullProgress) error
+	// DeleteModel removes model from the backend's local disk storage.
+	// distinct from UnloadModel (memory eviction only); irreversible without a re-pull.
+	DeleteModel(model string) error
 }
