@@ -7,6 +7,7 @@ package ollama
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -71,7 +72,9 @@ func (c *Client) PullModel(model string, out chan<- provider.PullProgress) error
 }
 
 // ChatStream sends a chat request and yields response chunks via a channel.
-func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatResponse) error {
+// cancelling ctx aborts the underlying HTTP request mid-stream so a long
+// generation can be interrupted; the returned error is then ctx.Err().
+func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, out chan<- provider.ChatResponse) error {
 	if c.verbose {
 		log.Printf("[inarid→ollama] chat.stream model=%s msgs=%d", req.Model, len(req.Messages))
 	}
@@ -81,7 +84,12 @@ func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatRe
 		return err
 	}
 
-	resp, err := c.http.Post(c.baseURL+"/api/chat", "application/json", bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/chat", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
 	if err != nil {
 		return err
 	}
@@ -96,7 +104,13 @@ func (c *Client) ChatStream(req provider.ChatRequest, out chan<- provider.ChatRe
 		if err := json.Unmarshal(scanner.Bytes(), &chunk); err != nil {
 			continue
 		}
-		out <- chunk
+		// stop cleanly if the caller cancelled between chunks, so a torn-down
+		// consumer never leaves this goroutine blocked on the send.
+		select {
+		case out <- chunk:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if chunk.Done {
 			break
 		}

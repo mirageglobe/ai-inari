@@ -145,7 +145,7 @@ The TUI is inspired by `k9s` and is entirely keyboard-driven.
 **chat**
 - `enter`: send message | `ctrl+o`: change model
 - `ctrl+t`: tools panel | `ctrl+p`: command palette | `ctrl+g`: help
-- `↑` / `↓`: input history | `esc`: exit tools panel / clear slash input
+- `↑` / `↓`: input history | `esc`: stop response / exit tools panel / clear slash input
 
 ---
 

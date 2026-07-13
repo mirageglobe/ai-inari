@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -58,7 +59,7 @@ func TestChatStreamForwardsChunksUntilDone(t *testing.T) {
 
 	out := make(chan provider.ChatResponse, 8)
 	req := provider.ChatRequest{Model: "gemma4:e4b", Messages: []provider.Message{{Role: "user", Content: "hi"}}}
-	if err := NewClient(srv.URL).ChatStream(req, out); err != nil {
+	if err := NewClient(srv.URL).ChatStream(context.Background(), req, out); err != nil {
 		t.Fatalf("ChatStream: %v", err)
 	}
 	close(out)
@@ -84,7 +85,7 @@ func TestChatStreamPropagatesErrorStatus(t *testing.T) {
 
 	out := make(chan provider.ChatResponse, 8)
 	req := provider.ChatRequest{Model: "gemma4:e4b"}
-	if err := NewClient(srv.URL).ChatStream(req, out); err == nil {
+	if err := NewClient(srv.URL).ChatStream(context.Background(), req, out); err == nil {
 		t.Fatal("expected error for 503 response, got nil")
 	}
 }

@@ -1,5 +1,7 @@
 package provider
 
+import "context"
+
 // Message is a single chat turn.
 // ToolCalls is populated on assistant messages when the model requests a function call.
 type Message struct {
@@ -91,7 +93,9 @@ type Provider interface {
 	// Chat sends a blocking single-turn request and returns the full reply.
 	Chat(model string, messages []Message) (string, error)
 	// ChatStream sends a request and yields response chunks via out until done.
-	ChatStream(req ChatRequest, out chan<- ChatResponse) error
+	// cancelling ctx aborts the in-flight request so the caller can interrupt a
+	// long generation; the implementation returns ctx.Err() in that case.
+	ChatStream(ctx context.Context, req ChatRequest, out chan<- ChatResponse) error
 	// LoadModel warms the model into backend memory.
 	LoadModel(model string) error
 	// UnloadModel evicts the model from backend memory.

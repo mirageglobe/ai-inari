@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net"
@@ -40,6 +41,15 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 
 	sess.AppendMessage(provider.Message{Role: "user", Content: params.Text})
 
+	// a cancellable context spans every tool round so a session.interrupt RPC can
+	// abort the in-flight generation; registered under the session ID for lookup.
+	ctx, cancel := context.WithCancel(context.Background())
+	s.registerStream(params.ID, cancel)
+	defer func() {
+		cancel()
+		s.unregisterStream(params.ID)
+	}()
+
 	var builtin []provider.Tool
 	if sess.CWD != "" {
 		builtin = filesystemTools()
@@ -69,7 +79,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		chunks := make(chan provider.ChatResponse, 32)
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- s.provider.ChatStream(provider.ChatRequest{
+			errCh <- s.provider.ChatStream(ctx, provider.ChatRequest{
 				Model:    model,
 				Messages: sess.ChatHistory(),
 				Stream:   true,
@@ -101,6 +111,19 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		}
 
 		if err := <-errCh; err != nil {
+			// user interrupt (ctx cancelled): keep whatever was generated so far and
+			// end the turn cleanly rather than surfacing a scary error.
+			if ctx.Err() != nil {
+				if reply := textBuf.String(); reply != "" {
+					sess.AppendMessage(provider.Message{Role: "assistant", Content: reply})
+				}
+				s.store.Persist(sess.ID)
+				enc.Encode(map[string]bool{"done": true})
+				if s.verbose {
+					log.Printf("[inarid->inariui] session.stream interrupted (%d chars)", textBuf.Len())
+				}
+				return
+			}
 			sess.Messages = sess.Messages[:len(sess.Messages)-1]
 			enc.Encode(map[string]string{"error": err.Error()})
 			if s.verbose {

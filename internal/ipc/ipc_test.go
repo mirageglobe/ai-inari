@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -19,7 +20,7 @@ type fakeAssignProvider struct {
 
 func (f *fakeAssignProvider) Ping() error                                     { return nil }
 func (f *fakeAssignProvider) Chat(string, []provider.Message) (string, error) { return "", nil }
-func (f *fakeAssignProvider) ChatStream(provider.ChatRequest, chan<- provider.ChatResponse) error {
+func (f *fakeAssignProvider) ChatStream(context.Context, provider.ChatRequest, chan<- provider.ChatResponse) error {
 	return nil
 }
 func (f *fakeAssignProvider) LoadModel(string) error   { return nil }

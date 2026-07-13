@@ -5,6 +5,7 @@
 package ipc
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
@@ -30,6 +31,11 @@ type Server struct {
 	quit     chan struct{}
 	quitOnce sync.Once
 	verbose  bool
+
+	// streams maps a session ID to the cancel func of its in-flight stream, so a
+	// session.interrupt RPC can abort a long generation. guarded by streamsMu.
+	streamsMu sync.Mutex
+	streams   map[string]context.CancelFunc
 
 	// defaultModel is the thinker-tier model (config.json's models.thinker) used
 	// for chat/stream/compact when a session has no model explicitly assigned.
@@ -65,6 +71,7 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		provider: p,
 		quit:     make(chan struct{}),
 		verbose:  verbose,
+		streams:  make(map[string]context.CancelFunc),
 
 		defaultModel: defaultModel,
 		idleTimeout:  idleTimeout,
@@ -84,6 +91,37 @@ func (s *Server) modelFor(sess *session.Session) string {
 		return sess.Model
 	}
 	return s.defaultModel
+}
+
+// registerStream records the cancel func for a session's in-flight stream so a
+// session.interrupt RPC can abort it. any prior stream for the same session is
+// cancelled first (a session streams one turn at a time).
+func (s *Server) registerStream(id string, cancel context.CancelFunc) {
+	s.streamsMu.Lock()
+	defer s.streamsMu.Unlock()
+	if prev, ok := s.streams[id]; ok {
+		prev()
+	}
+	s.streams[id] = cancel
+}
+
+// unregisterStream drops a session's stream cancel func once the stream ends.
+func (s *Server) unregisterStream(id string) {
+	s.streamsMu.Lock()
+	defer s.streamsMu.Unlock()
+	delete(s.streams, id)
+}
+
+// interruptStream cancels a session's in-flight stream if one is active;
+// reports whether a stream was found to cancel.
+func (s *Server) interruptStream(id string) bool {
+	s.streamsMu.Lock()
+	cancel, ok := s.streams[id]
+	s.streamsMu.Unlock()
+	if ok {
+		cancel()
+	}
+	return ok
 }
 
 // touch records the time of the latest client activity for the idle watchdog.
