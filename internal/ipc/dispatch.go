@@ -45,6 +45,8 @@ func (s *Server) dispatch(req Request) Response {
 		return s.handleSessionAssign(req)
 	case "session.setcontext":
 		return s.handleSessionSetContext(req)
+	case "session.setcwd":
+		return s.handleSessionSetCwd(req)
 	case "session.history":
 		return s.handleSessionHistory(req)
 	case "session.clear":

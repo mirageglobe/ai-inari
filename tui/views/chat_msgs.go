@@ -24,6 +24,21 @@ func (c Chat) onThemeSaveErr(msg ThemeSaveErrMsg) (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
+// onSetCwd applies a /cwd result: on success it adopts the new working directory,
+// rebuilds the context line from the returned info, and re-renders; tools become
+// available since c.cwd is now set. on failure it surfaces the error in the status.
+func (c Chat) onSetCwd(msg setCwdResultMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		c.status = "[warn] cwd: " + msg.err.Error()
+		return c, nil
+	}
+	c.cwd = msg.info.CWD
+	c.contextLine = buildContextLine(msg.info.CWD, msg.info.SystemPrompt)
+	c.rebuildDisplay()
+	c.status = "[info] cwd -> " + msg.info.CWD
+	return c, nil
+}
+
 // onExportResult reports where the session context was written, or why it failed.
 func (c Chat) onExportResult(msg exportChatResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
