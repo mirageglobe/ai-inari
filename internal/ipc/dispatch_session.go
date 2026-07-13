@@ -48,7 +48,7 @@ func (s *Server) handleSessionCreate(req Request) Response {
 			"- list_dir(path): list files and directories inside a path\n" +
 			"- grep_file(path, pattern): search for a regex pattern across files, returns matching lines\n" +
 			"- stat_file(path): return size, modification time, and type for a file or directory\n" +
-			"- execute_shell_command(command, args): run an allowlisted command in the working directory; permitted commands: " + sortedAllowedCommands() + "\n" +
+			"- execute_shell_command(command, args): run a command in the working directory; these run without asking: " + sortedAllowedCommands() + "; any other command asks the user first\n" +
 			"use these tools whenever the user asks about files, code, or the project structure."
 		// inject a project-level context file (AGENTS.md / .inari/context.md) so the
 		// model picks up local conventions without manual copy-paste; absent file is fine.

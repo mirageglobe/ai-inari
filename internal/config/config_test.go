@@ -35,3 +35,21 @@ func TestLoad(t *testing.T) {
 		t.Errorf("thinker = %q, want bonsai:8b", cfg.Models.Thinker)
 	}
 }
+
+func TestLoadShellAllowlist(t *testing.T) {
+	f, err := os.CreateTemp("", "inari-config-shell-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+	f.WriteString(`{"shell": {"allowlist": ["go", "rg"]}}`)
+	f.Close()
+
+	cfg, err := Load(f.Name())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Shell.Allowlist) != 2 || cfg.Shell.Allowlist[0] != "go" || cfg.Shell.Allowlist[1] != "rg" {
+		t.Errorf("shell.allowlist = %v, want [go rg]", cfg.Shell.Allowlist)
+	}
+}
