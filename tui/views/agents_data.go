@@ -7,11 +7,14 @@ package views
 
 import (
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
 func (h Agents) onThemeChanged() (tea.Model, tea.Cmd) {
@@ -32,7 +35,7 @@ func (h Agents) onWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	// on narrow terminals (~80 chars) the hint wraps to 2 lines; using a fixed
 	// reservation of 1 would cause a 1-line overflow that scrolls the alt screen
 	// and pushes the root header off the top of the display.
-	hintStr := RenderHint(agentsHints(false, h.offline), h.width)
+	hintStr := RenderHint(agentsHints(false, h.offline, h.filtering), h.width)
 	h.hintHeight = strings.Count(hintStr, "\n") + 1
 	// topbar(1) + border-top(1) + col-header(1) + border-bottom(1) + sessionLine(1) + cwdLine(1) + statusLine(1) + input(1) + hint(hintHeight)
 	tableHeight := msg.Height - 8 - h.hintHeight
@@ -75,7 +78,10 @@ func (h Agents) onSessions(msg sessionsMsg) (tea.Model, tea.Cmd) {
 		log.Printf("session fetch error: %v", msg.err)
 	} else {
 		h.status = ""
-		h.sessions = msg.sessions
+		h.allSessions = msg.sessions
+		// keep allSessions name-sorted so DefaultSession/[0] is the alphabetical
+		// first regardless of any active filter; the table re-sorts anyway.
+		sort.Slice(h.allSessions, func(i, j int) bool { return h.allSessions[i].Name < h.allSessions[j].Name })
 		if len(msg.sessions) == 0 && !h.autoCreated {
 			h.autoCreated = true
 			return h, createSessionCmd(h.client, "default agent")
@@ -94,10 +100,11 @@ func (h Agents) onSessions(msg sessionsMsg) (tea.Model, tea.Cmd) {
 			h.autoOpen = false
 		}
 	}
+	h.applyFilter()
 	h.rebuildTable()
-	// fetch caps for any model not yet cached
+	// fetch caps for any model not yet cached (over the full set, not just the filtered view)
 	var cmds []tea.Cmd
-	for _, s := range h.sessions {
+	for _, s := range h.allSessions {
 		if s.Model != "" {
 			if _, ok := h.modelCaps[s.Model]; !ok {
 				cmds = append(cmds, fetchModelCapsCmd(h.client, s.Model))
@@ -105,6 +112,25 @@ func (h Agents) onSessions(msg sessionsMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return h, tea.Batch(cmds...)
+}
+
+// applyFilter recomputes h.sessions (the displayed list) from allSessions using
+// the current case-insensitive filter, matched against session name and model.
+// an empty filter shows everything. it produces a fresh slice so rebuildTable's
+// in-place sort never disturbs the backing allSessions.
+func (h *Agents) applyFilter() {
+	if h.filter == "" {
+		h.sessions = append([]ipc.SessionInfo(nil), h.allSessions...)
+		return
+	}
+	q := strings.ToLower(h.filter)
+	var out []ipc.SessionInfo
+	for _, s := range h.allSessions {
+		if strings.Contains(strings.ToLower(s.Name), q) || strings.Contains(strings.ToLower(s.Model), q) {
+			out = append(out, s)
+		}
+	}
+	h.sessions = out
 }
 
 func (h Agents) onModelCaps(msg modelCapsMsg) (tea.Model, tea.Cmd) {

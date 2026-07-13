@@ -43,8 +43,50 @@ func (h Agents) onMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 // when the key was not handled.
 func (h Agents) handleKey(msg tea.KeyMsg) (Agents, tea.Cmd, bool) {
 	h.infoMsg = ""
+
+	// filter mode: keystrokes edit the filter string and the table live-filters.
+	// esc clears and exits; enter keeps the filter and returns to hotkey navigation.
+	if h.filtering {
+		switch msg.Type {
+		case tea.KeyEsc:
+			h.filter, h.filtering = "", false
+			h.applyFilter()
+			h.rebuildTable()
+			h.table.SetCursor(0)
+			return h, nil, true
+		case tea.KeyEnter:
+			h.filtering = false
+			return h, nil, true
+		case tea.KeyBackspace:
+			if r := []rune(h.filter); len(r) > 0 {
+				h.filter = string(r[:len(r)-1])
+				h.applyFilter()
+				h.rebuildTable()
+				h.table.SetCursor(0)
+			}
+			return h, nil, true
+		case tea.KeyRunes, tea.KeySpace:
+			if msg.Type == tea.KeySpace {
+				h.filter += " "
+			} else {
+				h.filter += string(msg.Runes)
+			}
+			h.applyFilter()
+			h.rebuildTable()
+			h.table.SetCursor(0)
+			return h, nil, true
+		case tea.KeyUp, tea.KeyDown:
+			return h, nil, false // let the table move the cursor within the filtered list
+		default:
+			return h, nil, true // swallow other keys while filtering
+		}
+	}
+
 	// hotkeys only: no text input, no slash commands in this view.
 	switch msg.String() {
+	case "/":
+		h.filtering = true
+		return h, nil, true
 	case "enter":
 		if !h.offline {
 			idx := h.table.Cursor()
