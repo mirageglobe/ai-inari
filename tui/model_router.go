@@ -112,6 +112,17 @@ func (m Model) updateSystem(msg tea.Msg) (Model, tea.Cmd, bool) {
 		}
 		return m, views.ConnTick(m.client), true
 	}
+	if _, ok := msg.(views.IdleHintTickMsg); ok {
+		// single root-owned idle poll: fan out to every chat, then reschedule.
+		var cmds []tea.Cmd
+		for id, chat := range m.chats {
+			updated, cmd := chat.Update(msg)
+			m.chats[id] = updated.(views.Chat)
+			cmds = append(cmds, cmd)
+		}
+		cmds = append(cmds, views.IdleHintTick())
+		return m, tea.Batch(cmds...), true
+	}
 	if tok, ok := msg.(views.ChatTokenMsg); ok {
 		if chat, exists := m.chats[tok.SessionID]; exists {
 			updated, cmd := chat.Update(tok)

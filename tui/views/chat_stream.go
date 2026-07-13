@@ -5,6 +5,8 @@
 package views
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -35,6 +37,8 @@ func (c Chat) onToken(msg ChatTokenMsg) (tea.Model, tea.Cmd) {
 	c.waiting = false // hide spinner once first token arrives
 	c.runningTool = ""
 	c.loadingModel = ""
+	c.lastActivity = time.Now() // a streamed token is activity: hold off idle hints
+	c.idleHint = ""
 	setViewportContent(&c.viewport, c.viewportContent())
 	c.viewport.GotoBottom()
 	return c, readNextToken(c.sessionID, c.streamTokens, c.streamStatus, c.streamErrc, c.toolReqs)

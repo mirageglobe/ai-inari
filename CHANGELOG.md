@@ -7,6 +7,9 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [unreleased]
 
+### added
+- chat: after 60s idle the status line shows a rotating `hint:` usage tip (e.g. `try /compact to summarise a long chat`), cycling every 60s; any keypress or streamed token clears it and resets the timer. hints never override a recap, error, or live reply.
+
 ## [v0.3.0] - 2026-07-13
 
 ### added

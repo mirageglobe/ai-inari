@@ -1,6 +1,8 @@
 package views
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -107,8 +109,10 @@ type Chat struct {
 	runningTool   string // name of the tool currently executing after approval
 	loadingModel  string // non-empty while inarid reports the assigned model is cold-loading
 	selActive     bool
-	selStartLine  int // absolute content line (post-hardwrap) where drag started
-	selEndLine    int // absolute content line where drag currently ends
+	selStartLine  int       // absolute content line (post-hardwrap) where drag started
+	selEndLine    int       // absolute content line where drag currently ends
+	lastActivity  time.Time // last keypress or stream token; drives the idle-hint timer
+	idleHint      string    // rotating usage hint shown after idleHintDelay of inactivity
 }
 
 // WithOffline returns a copy of the chat with the offline flag set.
@@ -163,6 +167,7 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 		ctxChars:     ctxChars,
 		historyIdx:   -1,
 		inputFocused: true,
+		lastActivity: time.Now(), // opening the chat counts as activity
 	}
 }
 
@@ -206,9 +211,14 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c.onDone(msg)
 	case spinner.TickMsg:
 		return c.onTick(msg)
+	case IdleHintTickMsg:
+		return c.onIdleHintTick()
 	case tea.WindowSizeMsg:
 		return c.onWindowSize(msg)
 	case tea.KeyMsg:
+		// any keypress is activity: reset the idle timer and drop the current hint.
+		c.lastActivity = time.Now()
+		c.idleHint = ""
 		var cmd tea.Cmd
 		var handled bool
 		c, cmd, handled = c.handleKey(msg)
