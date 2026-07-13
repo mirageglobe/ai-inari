@@ -15,6 +15,20 @@ import (
 // session.recap returns a "where you left off" summary instead of an empty string.
 const recapIdleThreshold = 10 * time.Minute
 
+// session.interrupt aborts a session's in-flight stream. it returns
+// {"interrupted": true} when a stream was cancelled, false when none was active.
+// the stream connection itself finalises the partial reply and signals done.
+func (s *Server) handleSessionInterrupt(req Request) Response {
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil || params.ID == "" {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params"}, ID: req.ID}
+	}
+	interrupted := s.interruptStream(params.ID)
+	return Response{JSONRPC: "2.0", Result: map[string]bool{"interrupted": interrupted}, ID: req.ID}
+}
+
 // session.history returns the full message history for a session.
 // inari calls this when opening a session to restore the display from inarid's store.
 func (s *Server) handleSessionHistory(req Request) Response {

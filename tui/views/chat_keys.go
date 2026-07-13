@@ -70,6 +70,12 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 			c.input.Reset()
 			return c, nil, true
 		}
+		// otherwise, esc interrupts an in-flight response (waiting or mid-stream);
+		// the daemon cancels generation and the stream ends via its normal done path.
+		if c.waiting || c.streamBuf != "" {
+			c.status = "[info] interrupting..."
+			return c, interruptStream(c.client, c.sessionID), true
+		}
 	}
 	// up/down navigate input history instead of scrolling the viewport.
 	if msg.String() == "up" && !c.waiting {

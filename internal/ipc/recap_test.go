@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ func (fakeRecapProvider) Ping() error { return nil }
 func (fakeRecapProvider) Chat(string, []provider.Message) (string, error) {
 	return "you were debugging the recap RPC.", nil
 }
-func (fakeRecapProvider) ChatStream(provider.ChatRequest, chan<- provider.ChatResponse) error {
+func (fakeRecapProvider) ChatStream(context.Context, provider.ChatRequest, chan<- provider.ChatResponse) error {
 	return nil
 }
 func (fakeRecapProvider) LoadModel(string) error                               { return nil }

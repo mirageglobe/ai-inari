@@ -106,6 +106,17 @@ func readNextToken(sessionID string, tokens <-chan string, statuses <-chan strin
 	}
 }
 
+// interruptStream fires the session.interrupt RPC over the shared client
+// connection, aborting an in-flight response. it is fire-and-forget: the daemon
+// cancels the generation and the stream ends via its normal done path, so no
+// message is emitted here (nil).
+func interruptStream(client *ipc.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		_ = client.Interrupt(sessionID)
+		return nil
+	}
+}
+
 // buildContextLine summarises the injected file-tree/project-context system prompt
 // as a single line, so the user can see what context inarid loaded for this session.
 // empty when cwd is unset, since no context is injected in that case.

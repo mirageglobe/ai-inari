@@ -172,6 +172,15 @@ func (c *Client) ChatStream(sessionID, text string, tokens chan<- string, status
 	}
 }
 
+// Interrupt aborts an in-flight stream for sessionID over the shared connection,
+// decoupled from the dedicated stream conn. the daemon cancels the generation and
+// the stream finalises normally, so the caller's stream goroutine ends via its
+// usual done path; no direct teardown is needed here.
+func (c *Client) Interrupt(sessionID string) error {
+	_, err := c.Call("session.interrupt", map[string]string{"id": sessionID})
+	return err
+}
+
 func (c *Client) Quit() error {
 	_, err := c.Call("daemon.quit", nil)
 	return err

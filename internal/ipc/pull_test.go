@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -20,7 +21,7 @@ type fakePullProvider struct {
 
 func (f *fakePullProvider) Ping() error                                     { return nil }
 func (f *fakePullProvider) Chat(string, []provider.Message) (string, error) { return "", nil }
-func (f *fakePullProvider) ChatStream(provider.ChatRequest, chan<- provider.ChatResponse) error {
+func (f *fakePullProvider) ChatStream(context.Context, provider.ChatRequest, chan<- provider.ChatResponse) error {
 	return nil
 }
 func (f *fakePullProvider) LoadModel(string) error                        { return nil }
