@@ -45,6 +45,15 @@ func fetchChatHistory(client *ipc.Client, sessionID string) tea.Cmd {
 	}
 }
 
+// fetchModelContext looks up the model's max context window (tokens) via inarid,
+// once, when a chat opens; a lookup failure yields 0 (window hidden in the footer).
+func fetchModelContext(client *ipc.Client, model string) tea.Cmd {
+	return func() tea.Msg {
+		n, _ := client.ModelContextLength(model)
+		return modelContextMsg{max: n}
+	}
+}
+
 // formatToolArgs renders a tool argument map as a compact key=value string for display.
 func formatToolArgs(args map[string]any) string {
 	keys := make([]string, 0, len(args))

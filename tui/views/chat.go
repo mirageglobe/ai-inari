@@ -44,6 +44,10 @@ type chatHistoryMsg struct {
 	err      error
 }
 
+// modelContextMsg carries the assigned model's maximum context window (tokens),
+// fetched once on chat open; 0 when unknown.
+type modelContextMsg struct{ max int }
+
 // Chat is the interactive conversation view for a session.
 // display holds the rendered lines shown in the viewport — local to this inari instance.
 // all message history lives in inarid; inari sends only the new user text each turn.
@@ -83,6 +87,7 @@ type Chat struct {
 	offline       bool
 	showBuiltin   bool
 	ctxChars      int
+	maxCtx        int      // model's max context window (tokens); 0 until fetched / unknown
 	status        string   // transient status/warn message shown in the status line
 	inputHistory  []string // sent user messages, oldest first
 	historyIdx    int      // index into inputHistory during navigation; -1 = not navigating
@@ -117,7 +122,11 @@ func (c Chat) WithModel(model string) Chat {
 // Init focuses the textarea and fetches the session's message history from inarid
 // so prior conversations are restored when inari reconnects to an existing session.
 func (c Chat) Init() tea.Cmd {
-	return tea.Batch(c.input.Focus(), fetchChatHistory(c.client, c.sessionID))
+	cmds := []tea.Cmd{c.input.Focus(), fetchChatHistory(c.client, c.sessionID)}
+	if c.model != "" {
+		cmds = append(cmds, fetchModelContext(c.client, c.model))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (c Chat) SessionID() string   { return c.sessionID }
@@ -173,6 +182,9 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c.onCompact(msg)
 	case chatHistoryMsg:
 		return c.onHistory(msg)
+	case modelContextMsg:
+		c.maxCtx = msg.max
+		return c, nil
 	case toolApprovalRequestMsg:
 		return c.onToolApproval(msg)
 	case ChatTokenMsg:

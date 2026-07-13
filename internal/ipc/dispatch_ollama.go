@@ -97,6 +97,24 @@ func (s *Server) handleOllamaShow(req Request) Response {
 	return Response{JSONRPC: "2.0", Result: caps, ID: req.ID}
 }
 
+// handleOllamaContext returns the model's maximum context window in tokens (0 if unknown).
+func (s *Server) handleOllamaContext(req Request) Response {
+	if r, ok := s.providerErr(req); !ok {
+		return r
+	}
+	var params struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	}
+	n, err := s.provider.ModelContextLength(params.Model)
+	if err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
+	}
+	return Response{JSONRPC: "2.0", Result: n, ID: req.ID}
+}
+
 func (s *Server) handleDaemonQuit(req Request) Response {
 	s.closeQuit() // idempotent; also used by the idle watchdog
 	return Response{JSONRPC: "2.0", Result: "shutting down", ID: req.ID}

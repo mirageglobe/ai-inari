@@ -8,6 +8,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 ## [v0.2.0] — unreleased
 
 ### added
+- context window: inarid detects a model's max context (`/api/show`) and requests a capped `num_ctx` (`min(max, 8192)`) on each chat, up from Ollama's default; the chat footer shows the effective window over the model max (e.g. `ctx 8192/40960`)
 - agents view: `[/]` filters the session list live by name or model (case-insensitive); `[esc]` clears, `[enter]` keeps the filter; footer shows `[filter] <query> (N of M)`
 - herd view: active chat session marked with `▶` indicator column
 - chat view: `/describe` command opens session context editor without leaving chat
