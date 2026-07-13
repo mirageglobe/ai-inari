@@ -32,6 +32,7 @@ func (f *fakeStreamProvider) ModelCaps(string) ([]string, error)            { re
 func (f *fakeStreamProvider) PullModel(string, chan<- provider.PullProgress) error {
 	return nil
 }
+func (f *fakeStreamProvider) DeleteModel(string) error { return nil }
 
 func newStreamTestServer(t *testing.T, sock string, p provider.Provider) (*Server, *session.Session) {
 	t.Helper()

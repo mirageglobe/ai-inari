@@ -57,6 +57,8 @@ func (s *Server) dispatch(req Request) Response {
 		return s.handleOllamaLoad(req)
 	case "ollama.unload":
 		return s.handleOllamaUnload(req)
+	case "ollama.delete":
+		return s.handleOllamaDelete(req)
 	case "ollama.running":
 		return s.handleOllamaRunning(req)
 	case "ollama.models":

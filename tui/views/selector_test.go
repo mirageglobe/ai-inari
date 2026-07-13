@@ -166,6 +166,53 @@ func TestSelectorUnloadHotkey(t *testing.T) {
 	}
 }
 
+// [d] arms a disk-delete confirm on a downloaded row (no immediate delete);
+// [y] confirms and fires a command; any other key cancels in place.
+func TestSelectorDeleteHotkey(t *testing.T) {
+	keyD := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}}
+
+	load := func() ModelSelector {
+		m := NewModelSelector(nil).ForSession("s1", "sess-one", "")
+		updated, _ := m.Update(modelsMsg{models: []provider.Model{{Name: "gemma4:e2b"}}})
+		return updated.(ModelSelector)
+	}
+
+	// [d] on a downloaded row arms pendingDelete without firing a command.
+	m := load()
+	updated, cmd := m.Update(keyD)
+	m = updated.(ModelSelector)
+	if m.pendingDelete != "gemma4:e2b" {
+		t.Fatalf("[d] pendingDelete = %q, want gemma4:e2b", m.pendingDelete)
+	}
+	if cmd != nil {
+		t.Error("[d] should arm a confirm, not fire a delete command")
+	}
+
+	// any non-y key cancels the pending delete in place, no command.
+	keyN := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}}
+	updated, cmd = m.Update(keyN)
+	m = updated.(ModelSelector)
+	if m.pendingDelete != "" {
+		t.Errorf("[n] should clear pendingDelete, got %q", m.pendingDelete)
+	}
+	if cmd != nil {
+		t.Error("[n] cancel should not fire a command")
+	}
+
+	// re-arm then [y] confirms: clears pendingDelete, enters loading, returns a command.
+	updated, _ = m.Update(keyD)
+	m = updated.(ModelSelector)
+	keyY := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}
+	updated, cmd = m.Update(keyY)
+	m = updated.(ModelSelector)
+	if m.pendingDelete != "" || !m.loading {
+		t.Errorf("[y] want cleared pendingDelete + loading, got pending=%q loading=%v", m.pendingDelete, m.loading)
+	}
+	if cmd == nil {
+		t.Error("[y] confirm should fire a delete command")
+	}
+}
+
 // truncateCell cuts on rune boundaries with an ellipsis and never overflows.
 func TestTruncateCell(t *testing.T) {
 	cases := []struct {

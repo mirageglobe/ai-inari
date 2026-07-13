@@ -71,6 +71,20 @@ func (c *Client) UnloadModel(model string) error {
 	return nil
 }
 
+// DeleteModel removes the named model from Ollama's local disk storage via
+// inarid. distinct from UnloadModel (memory eviction); this frees disk and
+// requires a re-pull before the model can be used again.
+func (c *Client) DeleteModel(model string) error {
+	resp, err := c.Call("ollama.delete", map[string]string{"model": model})
+	if err != nil {
+		return err
+	}
+	if resp.Error != nil {
+		return fmt.Errorf("%s", resp.Error.Message)
+	}
+	return nil
+}
+
 // ModelCaps returns the capability tags for a model (e.g. "tools", "vision").
 // returns an empty slice when the model is unknown or the backend does not support introspection.
 func (c *Client) ModelCaps(model string) ([]string, error) {

@@ -4,7 +4,7 @@
 //
 // it owns:
 //   - the Provider interface (Chat, ChatStream, LoadModel, UnloadModel, ListModels,
-//     ListRunning, Ping, ModelCaps).
+//     ListRunning, Ping, ModelCaps, PullModel, DeleteModel).
 //   - shared wire types: Message, Tool, ChatRequest, ChatResponse, Model, RunningModel.
 //
 // it does NOT own:

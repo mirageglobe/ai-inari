@@ -77,6 +77,16 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		id, name := m.targetSessionID, msg.name
 		return m, func() tea.Msg { return AssignModelMsg{SessionID: id, ModelName: name} }
 
+	case deleteModelMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.status = connErrStyle.Render("delete failed: " + msg.err.Error())
+			return m, nil
+		}
+		m.status = modelsStyle.Render("deleted " + msg.name)
+		// refresh so the freed model's row flips back to [pull] and drops from running.
+		return m, tea.Batch(fetchModels(m.client), fetchRunning(m.client))
+
 	case pullProgressMsg:
 		if msg.model != m.pullTarget {
 			return m, nil
@@ -101,6 +111,22 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case tea.KeyMsg:
+		// a disk delete is armed: [y] confirms, any other key cancels in place.
+		// esc/q never reach here (the root closes the modal first), which also cancels.
+		if m.pendingDelete != "" {
+			name := m.pendingDelete
+			m.pendingDelete = ""
+			if msg.String() == "y" {
+				m.loading = true
+				m.status = modelsStyle.Render("deleting " + name + "...")
+				return m, tea.Batch(
+					m.spinner.Tick,
+					func() tea.Msg { return deleteModelMsg{name: name, err: m.client.DeleteModel(name)} },
+				)
+			}
+			m.status = "" // cancelled
+			return m, nil
+		}
 		switch msg.String() {
 		case "u":
 			// unload (unassign) the session's current model; no-op if none assigned.
@@ -108,6 +134,23 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				id, name := m.targetSessionID, m.targetSessionName
 				return m, func() tea.Msg { return UnassignModelMsg{SessionID: id, SessionName: name} }
 			}
+		case "d":
+			// delete a downloaded model from disk; arms a confirm ([pull] rows are a no-op).
+			// destructive + irreversible, so require [y] before the delete fires (§8.2).
+			if !m.loading {
+				idx := m.table.Cursor()
+				if idx >= 0 && idx < len(m.rowLocal) && m.rowLocal[idx] {
+					name := m.rowModel[idx]
+					m.pendingDelete = name
+					warn := ""
+					if name == m.targetModel {
+						warn = " (assigned to " + m.targetSessionName + ")"
+					}
+					m.status = connErrStyle.Render("delete " + name + warn + " from disk? [y] confirm  [n] cancel")
+				}
+			}
+			// consume [d] whether or not it armed, so it never doubles as a table nav key.
+			return m, nil
 		case "enter", "l":
 			if !m.loading {
 				idx := m.table.Cursor()

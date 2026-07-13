@@ -116,6 +116,27 @@ func (c *Client) UnloadModel(model string) error {
 	return nil
 }
 
+// DeleteModel removes the model from Ollama's local disk storage via
+// DELETE /api/delete. distinct from UnloadModel (memory eviction); this frees
+// disk and requires a re-pull before the model can be used again.
+func (c *Client) DeleteModel(model string) error {
+	body, _ := json.Marshal(map[string]string{"model": model})
+	req, err := http.NewRequest(http.MethodDelete, c.baseURL+"/api/delete", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return ollamaError(resp)
+	}
+	resp.Body.Close()
+	return nil
+}
+
 // ModelCaps calls /api/show and returns the model's declared capability tags
 // (e.g. "tools", "vision"). returns an empty slice when the field is absent or
 // when the model is not found rather than an error, so callers can ignore unknowns.

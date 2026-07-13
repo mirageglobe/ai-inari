@@ -66,6 +66,12 @@ type loadModelMsg struct {
 	err  error
 }
 
+// deleteModelMsg reports the outcome of a disk delete triggered by [d]+[y].
+type deleteModelMsg struct {
+	name string
+	err  error
+}
+
 // ModelSelector lists available Ollama models and lets the user assign one to a session.
 // recommended holds every curated model (SPEC.md §6.1, all hardware tiers) that is not
 // already pulled; they're appended to the table with a [pull] status - selecting one
@@ -82,6 +88,7 @@ type ModelSelector struct {
 	targetSessionID   string
 	targetSessionName string
 	targetModel       string // session's currently-assigned model; gates and labels the [u] unload hotkey
+	pendingDelete     string // model name armed for [d] delete, awaiting [y] confirm; "" when idle
 	width             int
 	tierGB            int
 	localModels       []provider.Model // pulled models, sorted by name; source for the "downloaded" rows
@@ -116,6 +123,7 @@ func (m ModelSelector) ForSession(sessionID, sessionName, model string) ModelSel
 	m.targetSessionName = sessionName
 	m.targetModel = model
 	m.status = ""
+	m.pendingDelete = ""
 	return m
 }
 

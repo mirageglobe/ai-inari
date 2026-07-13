@@ -128,9 +128,13 @@ only needed to end it immediately.
 The TUI is inspired by `k9s` and is entirely keyboard-driven.
 
 **agents (main screen)**
-- `s`: new session | `m`: assign model | `u`: unload model
+- `s`: new session | `m`: assign model
 - `c` / `enter`: open chat | `x`: delete session | `d`: describe
 - `l`: view logs | `r`: refresh | `q`: quit
+
+**model selector** (opened with `m` or `ctrl+o`)
+- `enter`: assign / pull | `u`: unload from RAM | `d`: delete from disk
+- `q` / `esc`: cancel
 
 **chat**
 - `enter`: send message | `ctrl+o`: change model
