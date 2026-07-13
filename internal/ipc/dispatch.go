@@ -51,6 +51,8 @@ func (s *Server) dispatch(req Request) Response {
 		return s.handleSessionClear(req)
 	case "session.compact":
 		return s.handleSessionCompact(req)
+	case "session.recap":
+		return s.handleSessionRecap(req)
 	case "session.chat":
 		return s.handleSessionChat(req)
 	case "ollama.load":

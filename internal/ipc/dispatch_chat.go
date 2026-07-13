@@ -6,9 +6,14 @@ package ipc
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
 )
+
+// recapIdleThreshold is how long a session must sit with no new messages before
+// session.recap returns a "where you left off" summary instead of an empty string.
+const recapIdleThreshold = 10 * time.Minute
 
 // session.history returns the full message history for a session.
 // inari calls this when opening a session to restore the display from inarid's store.
@@ -82,6 +87,47 @@ func (s *Server) handleSessionCompact(req Request) Response {
 	sess.ReplaceWithSummary(summary)
 	s.store.Persist(params.ID)
 	return Response{JSONRPC: "2.0", Result: summary, ID: req.ID}
+}
+
+// session.recap returns a one-sentence "where you left off" summary for a session
+// that has gone idle, generated with the assigned model. it is non-destructive:
+// the history is left untouched (unlike session.compact). returns an empty string
+// when the session is not idle long enough, has no real conversation, or has no
+// model, so the client simply shows nothing.
+func (s *Server) handleSessionRecap(req Request) Response {
+	if r, ok := s.providerErr(req); !ok {
+		return r
+	}
+	var params struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	}
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	}
+	// gate: only recap a session that has gone quiet and has an exchange to recap.
+	convo := 0
+	for _, m := range sess.ChatHistory() {
+		if m.Role == "user" || m.Role == "assistant" {
+			convo++
+		}
+	}
+	model := s.modelFor(sess)
+	if time.Since(sess.UpdatedAt) < recapIdleThreshold || convo < 2 || model == "" {
+		return Response{JSONRPC: "2.0", Result: "", ID: req.ID}
+	}
+	recapPrompt := append(sess.ChatHistory(), provider.Message{
+		Role:    "user",
+		Content: "in one short sentence, recap where this conversation left off so i can pick it back up. plain text, no preamble.",
+	})
+	recap, err := s.provider.Chat(model, recapPrompt)
+	if err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
+	}
+	return Response{JSONRPC: "2.0", Result: recap, ID: req.ID}
 }
 
 // session.chat appends a user message, sends the full history to Ollama,

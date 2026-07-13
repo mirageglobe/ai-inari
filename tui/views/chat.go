@@ -48,6 +48,10 @@ type chatHistoryMsg struct {
 // fetched once on chat open; 0 when unknown.
 type modelContextMsg struct{ max int }
 
+// recapMsg carries a one-line "where you left off" summary for an idle session,
+// fetched on open; empty when the session is not idle or has nothing to recap.
+type recapMsg struct{ text string }
+
 // Chat is the interactive conversation view for a session.
 // display holds the rendered lines shown in the viewport — local to this inari instance.
 // all message history lives in inarid; inari sends only the new user text each turn.
@@ -122,7 +126,7 @@ func (c Chat) WithModel(model string) Chat {
 // Init focuses the textarea and fetches the session's message history from inarid
 // so prior conversations are restored when inari reconnects to an existing session.
 func (c Chat) Init() tea.Cmd {
-	cmds := []tea.Cmd{c.input.Focus(), fetchChatHistory(c.client, c.sessionID)}
+	cmds := []tea.Cmd{c.input.Focus(), fetchChatHistory(c.client, c.sessionID), fetchRecap(c.client, c.sessionID)}
 	if c.model != "" {
 		cmds = append(cmds, fetchModelContext(c.client, c.model))
 	}
@@ -184,6 +188,13 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c.onHistory(msg)
 	case modelContextMsg:
 		c.maxCtx = msg.max
+		return c, nil
+	case recapMsg:
+		// show the recap in the status line when reopening an idle session; skip
+		// if empty or a stream/response is already underway so it never clobbers it.
+		if msg.text != "" && !c.waiting && c.status == "" {
+			c.status = "[recap] " + msg.text
+		}
 		return c, nil
 	case toolApprovalRequestMsg:
 		return c.onToolApproval(msg)
