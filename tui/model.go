@@ -85,7 +85,7 @@ func New(client *ipc.Client, configPath string, themeIdx int) Model {
 func (m Model) Init() tea.Cmd {
 	// fire TitleStartMsg immediately so the first sweep begins on launch.
 	firstSweep := func() tea.Msg { return views.TitleStartMsg{} }
-	return tea.Batch(m.agents.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep)
+	return tea.Batch(m.agents.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep, views.IdleHintTick())
 }
 
 // Update is the root message dispatcher. each stage handles the messages it

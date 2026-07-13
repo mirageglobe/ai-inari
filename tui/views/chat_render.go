@@ -177,6 +177,9 @@ func (c Chat) View() string {
 		statusContent = toolStyle.Render("[ tool ] " + c.runningTool)
 	} else if c.status != "" {
 		statusContent = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(c.status)
+	} else if c.idleHint != "" {
+		// idle usage hint: dimmed, lowest priority so any real status wins.
+		statusContent = lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true).Render("hint: " + c.idleHint)
 	}
 	return body + "\n" + renderFooter(sessionLine, cwdLine, renderStatusLine(statusContent), c.input.View(), hintLine)
 }
