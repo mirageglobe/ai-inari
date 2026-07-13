@@ -31,6 +31,14 @@ type ChatDoneMsg struct {
 	Err       error
 }
 
+// ChatStatusMsg carries a coarse phase signal from inarid: "loading" while the
+// model is being cold-loaded into backend memory, "thinking" once generation
+// has actually begun. absent entirely when the model was already resident.
+type ChatStatusMsg struct {
+	SessionID string
+	Status    string
+}
+
 type chatHistoryMsg struct {
 	messages []provider.Message
 	err      error
@@ -82,11 +90,13 @@ type Chat struct {
 	inputFocused  bool
 	streamBuf     string
 	streamTokens  <-chan string
+	streamStatus  <-chan string
 	streamErrc    <-chan error
 	toolReqs      <-chan ipc.ToolRequestMsg
 	toolApprovals chan<- bool
 	pendingTool   *toolApprovalRequestMsg
 	runningTool   string // name of the tool currently executing after approval
+	loadingModel  string // non-empty while inarid reports the assigned model is cold-loading
 	selActive     bool
 	selStartLine  int // absolute content line (post-hardwrap) where drag started
 	selEndLine    int // absolute content line where drag currently ends
@@ -167,6 +177,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c.onToolApproval(msg)
 	case ChatTokenMsg:
 		return c.onToken(msg)
+	case ChatStatusMsg:
+		return c.onStatus(msg)
 	case ChatDoneMsg:
 		return c.onDone(msg)
 	case spinner.TickMsg:

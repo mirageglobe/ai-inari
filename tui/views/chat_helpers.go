@@ -59,10 +59,11 @@ func formatToolArgs(args map[string]any) string {
 	return strings.Join(parts, ", ")
 }
 
-// readNextToken returns a cmd that blocks until the next token or tool request arrives,
-// then emits ChatTokenMsg, ChatDoneMsg (channel closed), or toolApprovalRequestMsg.
-// selecting on a nil toolReqs channel blocks indefinitely, effectively ignoring it.
-func readNextToken(sessionID string, tokens <-chan string, errc <-chan error, toolReqs <-chan ipc.ToolRequestMsg) tea.Cmd {
+// readNextToken returns a cmd that blocks until the next token, status update, or
+// tool request arrives, then emits ChatTokenMsg, ChatStatusMsg, ChatDoneMsg (any
+// channel closed), or toolApprovalRequestMsg. selecting on a nil toolReqs channel
+// blocks indefinitely, effectively ignoring it.
+func readNextToken(sessionID string, tokens <-chan string, statuses <-chan string, errc <-chan error, toolReqs <-chan ipc.ToolRequestMsg) tea.Cmd {
 	return func() tea.Msg {
 		select {
 		case token, ok := <-tokens:
@@ -70,6 +71,11 @@ func readNextToken(sessionID string, tokens <-chan string, errc <-chan error, to
 				return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
 			}
 			return ChatTokenMsg{SessionID: sessionID, Token: token}
+		case status, ok := <-statuses:
+			if !ok {
+				return ChatDoneMsg{SessionID: sessionID, Err: <-errc}
+			}
+			return ChatStatusMsg{SessionID: sessionID, Status: status}
 		case req, ok := <-toolReqs:
 			if !ok {
 				return ChatDoneMsg{SessionID: sessionID, Err: <-errc}

@@ -108,10 +108,13 @@ type ToolRequestMsg struct {
 // it dials a fresh dedicated UDS connection so it never blocks the shared client
 // connection; multiple sessions can stream concurrently without contention.
 // when the server needs to run a tool it sends a ToolRequestMsg on toolReqs and
-// blocks until the caller sends true/false on approvals. the caller must drain
-// tokens until it is closed; the goroutine closes it after the stream ends.
-// the returned error reflects the final outcome.
-func (c *Client) ChatStream(sessionID, text string, tokens chan<- string, toolReqs chan<- ToolRequestMsg, approvals <-chan bool) error {
+// blocks until the caller sends true/false on approvals. statuses carries
+// coarse phase signals ("loading", "thinking") the server emits when the model
+// is not yet resident in backend memory; ChatTokenMsg/onToken handle the actual
+// content stream regardless of phase. the caller must drain tokens until it is
+// closed; the goroutine closes it after the stream ends. the returned error
+// reflects the final outcome.
+func (c *Client) ChatStream(sessionID, text string, tokens chan<- string, statuses chan<- string, toolReqs chan<- ToolRequestMsg, approvals <-chan bool) error {
 	conn, err := net.Dial("unix", c.socket)
 	if err != nil {
 		return fmt.Errorf("stream dial: %w", err)
@@ -136,6 +139,7 @@ func (c *Client) ChatStream(sessionID, text string, tokens chan<- string, toolRe
 	for {
 		var frame struct {
 			Token       string          `json:"token"`
+			Status      string          `json:"status"`
 			Done        bool            `json:"done"`
 			Error       string          `json:"error"`
 			ToolRequest *ToolRequestMsg `json:"tool_request,omitempty"`
@@ -148,6 +152,10 @@ func (c *Client) ChatStream(sessionID, text string, tokens chan<- string, toolRe
 		}
 		if frame.Done {
 			return nil
+		}
+		if frame.Status != "" {
+			statuses <- frame.Status
+			continue
 		}
 		if frame.ToolRequest != nil {
 			// forward to TUI, wait for user decision, send back to server.

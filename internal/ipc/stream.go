@@ -45,8 +45,17 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		builtin = filesystemTools()
 	}
 
+	// Ollama cold-loads a model into memory before it can generate; if the model
+	// is not already resident, signal the load phase so inari can show a distinct
+	// "loading <model>..." state for round 0 instead of "thinking...".
+	loading := s.modelNotResident(model)
+
 	const maxToolRounds = 10
-	for range maxToolRounds {
+	for round := range maxToolRounds {
+		if round == 0 && loading {
+			enc.Encode(map[string]string{"status": "loading"})
+		}
+
 		chunks := make(chan provider.ChatResponse, 32)
 		errCh := make(chan error, 1)
 		go func() {
@@ -61,10 +70,16 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 
 		// stream tokens to inari as they arrive; collect tool_calls from the done chunk.
 		// tool-call rounds produce empty content so no tokens are forwarded during those rounds;
-		// only the final text round produces visible output.
+		// only the final text round produces visible output. the first chunk of round 0 also
+		// marks the end of the load phase, since Ollama blocks the whole request until the
+		// model is resident before it emits anything.
 		var textBuf strings.Builder
 		var toolCalls []provider.ToolCall
 		for chunk := range chunks {
+			if loading {
+				enc.Encode(map[string]string{"status": "thinking"})
+				loading = false
+			}
 			if len(chunk.Message.ToolCalls) > 0 {
 				toolCalls = chunk.Message.ToolCalls
 			}
@@ -131,4 +146,20 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	}
 
 	enc.Encode(map[string]string{"error": "tool call limit reached"})
+}
+
+// modelNotResident reports whether model is absent from the backend's currently
+// loaded models, meaning the next request will trigger a cold load. a ListRunning
+// error is treated as "resident" (no load signal) so it never blocks the stream.
+func (s *Server) modelNotResident(model string) bool {
+	running, err := s.provider.ListRunning()
+	if err != nil {
+		return false
+	}
+	for _, r := range running {
+		if r.Name == model {
+			return false
+		}
+	}
+	return true
 }
