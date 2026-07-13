@@ -143,6 +143,21 @@ func (c *Client) CompactHistory(sessionID string) (string, error) {
 	return summary, nil
 }
 
+// Recap returns a one-sentence "where you left off" summary for an idle session,
+// or "" when the session is not idle long enough or has nothing to recap. never
+// mutates the session history.
+func (c *Client) Recap(sessionID string) (string, error) {
+	resp, err := c.Call("session.recap", map[string]string{"id": sessionID})
+	if err != nil {
+		return "", err
+	}
+	if resp.Error != nil {
+		return "", fmt.Errorf("%s", resp.Error.Message)
+	}
+	recap, _ := resp.Result.(string)
+	return recap, nil
+}
+
 // SetContext sets the system prompt for a session.
 // the prompt is prepended as a system message on every subsequent chat request.
 // pass an empty string to clear the context.

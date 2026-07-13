@@ -54,6 +54,18 @@ func fetchModelContext(client *ipc.Client, model string) tea.Cmd {
 	}
 }
 
+// fetchRecap asks inarid for a "where you left off" recap when a chat opens.
+// inarid returns "" unless the session is idle 10+ min with a real conversation,
+// so this is a no-op for fresh/active sessions. newlines are collapsed so the
+// recap fits the single-line status slot.
+func fetchRecap(client *ipc.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		text, _ := client.Recap(sessionID)
+		text = strings.TrimSpace(strings.ReplaceAll(text, "\n", " "))
+		return recapMsg{text: text}
+	}
+}
+
 // formatToolArgs renders a tool argument map as a compact key=value string for display.
 func formatToolArgs(args map[string]any) string {
 	keys := make([]string, 0, len(args))
