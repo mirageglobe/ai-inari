@@ -24,9 +24,12 @@ func (c Chat) viewportContent() string {
 	}
 	if c.waiting {
 		var waitLine string
-		if c.runningTool != "" {
+		switch {
+		case c.runningTool != "":
 			waitLine = thinkingStyle.Render(c.spinner.View() + " running: " + c.runningTool + "...")
-		} else {
+		case c.loadingModel != "":
+			waitLine = thinkingStyle.Render(c.spinner.View() + " loading " + c.loadingModel + "...")
+		default:
 			waitLine = thinkingStyle.Render(c.spinner.View() + " thinking...")
 		}
 		if base == "" {

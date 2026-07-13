@@ -31,14 +31,14 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 			c.waiting = true
 			setViewportContent(&c.viewport, c.viewportContent())
 			c.viewport.GotoBottom()
-			return c, tea.Batch(readNextToken(c.sessionID, c.streamTokens, c.streamErrc, c.toolReqs), c.spinner.Tick), true
+			return c, tea.Batch(readNextToken(c.sessionID, c.streamTokens, c.streamStatus, c.streamErrc, c.toolReqs), c.spinner.Tick), true
 		case "n", "N", "esc":
 			c.toolApprovals <- false
 			c.pendingTool = nil
 			c.waiting = true
 			setViewportContent(&c.viewport, c.viewportContent())
 			c.viewport.GotoBottom()
-			return c, tea.Batch(readNextToken(c.sessionID, c.streamTokens, c.streamErrc, c.toolReqs), c.spinner.Tick), true
+			return c, tea.Batch(readNextToken(c.sessionID, c.streamTokens, c.streamStatus, c.streamErrc, c.toolReqs), c.spinner.Tick), true
 		}
 		return c, nil, true // absorb other keys while approval is pending
 	}
@@ -136,26 +136,30 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 		c.input.Reset()
 		c.status = ""
 		c.waiting = true
+		c.loadingModel = ""
 		// start stream goroutine; store channels on the struct so ChatTokenMsg
 		// handlers can schedule the next readNextToken without carrying them in the message.
 		tokens := make(chan string, 64)
+		statuses := make(chan string, 4)
 		errc := make(chan error, 1)
 		toolReqs := make(chan ipc.ToolRequestMsg, 1)
 		approvals := make(chan bool, 1)
 		go func() {
-			err := c.client.ChatStream(c.sessionID, text, tokens, toolReqs, approvals)
+			err := c.client.ChatStream(c.sessionID, text, tokens, statuses, toolReqs, approvals)
 			errc <- err
 			close(tokens)
+			close(statuses)
 			close(toolReqs)
 		}()
 		c.streamTokens = tokens
+		c.streamStatus = statuses
 		c.streamErrc = errc
 		c.toolReqs = toolReqs
 		c.toolApprovals = approvals
 
 		setViewportContent(&c.viewport, c.viewportContent())
 		c.viewport.GotoBottom()
-		return c, tea.Batch(readNextToken(c.sessionID, tokens, errc, toolReqs), c.spinner.Tick), true
+		return c, tea.Batch(readNextToken(c.sessionID, tokens, statuses, errc, toolReqs), c.spinner.Tick), true
 	}
 	return c, nil, false
 }

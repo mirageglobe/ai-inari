@@ -34,9 +34,27 @@ func (c Chat) onToken(msg ChatTokenMsg) (tea.Model, tea.Cmd) {
 	c.streamBuf += msg.Token
 	c.waiting = false // hide spinner once first token arrives
 	c.runningTool = ""
+	c.loadingModel = ""
 	setViewportContent(&c.viewport, c.viewportContent())
 	c.viewport.GotoBottom()
-	return c, readNextToken(c.sessionID, c.streamTokens, c.streamErrc, c.toolReqs)
+	return c, readNextToken(c.sessionID, c.streamTokens, c.streamStatus, c.streamErrc, c.toolReqs)
+}
+
+// onStatus updates the spinner label to reflect the phase inarid reports:
+// "loading" while the assigned model is being cold-loaded into backend memory,
+// "thinking" once generation has actually begun.
+func (c Chat) onStatus(msg ChatStatusMsg) (tea.Model, tea.Cmd) {
+	if msg.SessionID != c.sessionID {
+		return c, nil
+	}
+	if msg.Status == "loading" {
+		c.loadingModel = c.model
+	} else {
+		c.loadingModel = ""
+	}
+	setViewportContent(&c.viewport, c.viewportContent())
+	c.viewport.GotoBottom()
+	return c, readNextToken(c.sessionID, c.streamTokens, c.streamStatus, c.streamErrc, c.toolReqs)
 }
 
 // onDone finalises a stream: on success the buffered text is committed to
@@ -56,10 +74,12 @@ func (c Chat) onDone(msg ChatDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	c.streamBuf = ""
 	c.streamTokens = nil
+	c.streamStatus = nil
 	c.streamErrc = nil
 	c.toolReqs = nil
 	c.toolApprovals = nil
 	c.runningTool = ""
+	c.loadingModel = ""
 	setViewportContent(&c.viewport, c.viewportContent())
 	c.viewport.GotoBottom()
 	return c, nil

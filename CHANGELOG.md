@@ -21,6 +21,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - model selector: `status` column (`loaded` / `downloaded` / `[pull]`) and a `notes` column (curated §6.1 notes, single-line truncated) alongside `model` and `est. vram`
 - curated model table: add `gemma4:e2b` alongside `gemma4:e4b` at the 8gb general tier
 - themes: `emerald`, `cyan`, and `mono` added alongside `purple`, `amber`, `slate`, `rose` (cycle with `[t]`)
+- chat view: spinner shows `loading <model>...` while inarid cold-loads the assigned model into backend memory, switching to `thinking...` once generation begins
 
 ### changed
 - modal overlays (model selector, agents) share one capped inner width; wide terminals no longer stretch popups past the 100-col budget
