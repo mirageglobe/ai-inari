@@ -135,6 +135,7 @@ The TUI is inspired by `k9s` and is entirely keyboard-driven.
 **agents (main screen)**
 - `s`: new session | `m`: assign model
 - `c` / `enter`: open chat | `x`: delete session | `d`: describe
+- `/`: filter sessions (type to narrow, `esc` clears)
 - `l`: view logs | `r`: refresh | `q`: quit
 
 **model selector** (opened with `m` or `ctrl+o`)

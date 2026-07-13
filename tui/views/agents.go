@@ -34,7 +34,10 @@ type Agents struct {
 	spinner         spinner.Model
 	loading         bool
 	status          string
-	sessions        []ipc.SessionInfo
+	sessions        []ipc.SessionInfo // filtered view shown in the table; indexed by the cursor
+	allSessions     []ipc.SessionInfo // full unfiltered set; source for applyFilter
+	filter          string            // active name/model substring filter (case-insensitive); "" = show all
+	filtering       bool              // true while the filter input is focused and capturing typed keys
 	runningInfo     map[string]runningMeta
 	width           int
 	height          int

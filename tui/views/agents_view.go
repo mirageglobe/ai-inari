@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -10,16 +11,39 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-// agentsHints returns the command hint list for the agents view.
-// the view is hotkey-only: model selection, export, logs, and describe all live in
-// chat, so this list is just the session-table actions.
-func agentsHints(hasSession, offline bool) []HintCmd {
+// agentsHints returns the command hint list for the agents view. while the
+// filter input is focused the hints switch to filter-editing keys; otherwise
+// they are the session-table actions plus the [/] filter entry.
+func agentsHints(hasSession, offline, filtering bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
+	if filtering {
+		return []HintCmd{
+			hc("type to filter", true),
+			hc("[enter] apply", true),
+			hc("[esc] clear", true),
+		}
+	}
 	return []HintCmd{
 		hc("[a] add", !offline),
 		hc("[enter] chat", hasSession && !offline),
 		hc("[x] delete", hasSession && !offline),
+		hc("[/] filter", true),
 	}
+}
+
+// renderFilterLine renders the footer filter row: the current query (with a
+// block cursor while focused) and an "N of M" count. returns "" when no filter
+// is active and the input is not focused, so the footer slot stays blank.
+func renderFilterLine(filter string, filtering bool, shown, total int) string {
+	if !filtering && filter == "" {
+		return ""
+	}
+	labelStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
+	txt := filter
+	if filtering {
+		txt += "█" // block cursor while focused; avoids ANSI cursor-shape juggling
+	}
+	return labelStyle.Render("[filter]") + " " + txt + "  " + labelStyle.Render(fmt.Sprintf("(%d of %d)", shown, total))
 }
 
 // RenderModal renders the agents popup as a centred overlay, matching the
@@ -32,7 +56,7 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
 
-	hints := agentsHints(hasSession, h.offline)
+	hints := agentsHints(hasSession, h.offline, h.filtering)
 	hints = append(hints, HS(), H("[q/esc] back to chat"))
 	hint := RenderHint(hints, modalInnerWidth(h.width))
 
@@ -43,6 +67,9 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 		lines = append(lines, pad.Render(h.spinner.View()+" fetching agents..."))
 	} else {
 		lines = append(lines, h.table.View())
+	}
+	if fl := renderFilterLine(h.filter, h.filtering, len(h.sessions), len(h.allSessions)); fl != "" {
+		lines = append(lines, fl)
 	}
 	lines = append(lines, hint)
 
@@ -94,16 +121,17 @@ func (h Agents) View() string {
 	}
 	statusLine := renderStatusLine(statusContent)
 
-	hintLine := RenderHint(agentsHints(hasSession, h.offline), h.width)
+	hintLine := RenderHint(agentsHints(hasSession, h.offline, h.filtering), h.width)
+	filterLine := renderFilterLine(h.filter, h.filtering, len(h.sessions), len(h.allSessions))
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
 		body := agentsStyle.Render(pad.Render(h.spinner.View() + " fetching agents..."))
-		return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, "", hintLine)
+		return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, filterLine, hintLine)
 	}
 
 	body := agentsStyle.Render(h.table.View())
-	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, "", hintLine)
+	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, filterLine, hintLine)
 }
 
 func (h *Agents) rebuildTable() {
@@ -161,15 +189,17 @@ func (h Agents) SelectedSession() (ipc.SessionInfo, int64, bool) {
 // table is sorted alphabetically), used by chat's /chat command to jump back
 // to the default agent regardless of which session is currently active.
 func (h Agents) DefaultSession() (ipc.SessionInfo, bool) {
-	if len(h.sessions) == 0 {
+	if len(h.allSessions) == 0 {
 		return ipc.SessionInfo{}, false
 	}
-	return h.sessions[0], true
+	return h.allSessions[0], true
 }
 
+// usedNames returns every session name (the full set, not the filtered view) so
+// pickAgentName never collides with a name hidden behind an active filter.
 func (h Agents) usedNames() []string {
-	names := make([]string, len(h.sessions))
-	for i, s := range h.sessions {
+	names := make([]string, len(h.allSessions))
+	for i, s := range h.allSessions {
 		names[i] = s.Name
 	}
 	return names
