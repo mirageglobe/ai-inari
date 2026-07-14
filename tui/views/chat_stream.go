@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
@@ -62,12 +63,15 @@ func (c Chat) onStatus(msg ChatStatusMsg) (tea.Model, tea.Cmd) {
 }
 
 // onDone finalises a stream: on success the buffered text is committed to
-// history and display; either way the stream channels are cleared.
+// history and display; either way the stream channels are cleared. when the turn
+// pushes context past the auto-compact threshold it fires the same summarisation
+// pipeline /compact uses, without the user asking.
 func (c Chat) onDone(msg ChatDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.SessionID != c.sessionID {
 		return c, nil
 	}
 	c.waiting = false
+	autoCompact := false
 	if msg.Err != nil {
 		c.status = "[warn] " + msg.Err.Error()
 	} else {
@@ -75,6 +79,7 @@ func (c Chat) onDone(msg ChatDoneMsg) (tea.Model, tea.Cmd) {
 		c.messages = append(c.messages, provider.Message{Role: "assistant", Content: c.streamBuf})
 		c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+c.streamBuf)
 		c.ctxChars += len(c.streamBuf)
+		autoCompact = shouldAutoCompact(c.ctxChars, c.maxCtx)
 	}
 	c.streamBuf = ""
 	c.streamTokens = nil
@@ -86,7 +91,35 @@ func (c Chat) onDone(msg ChatDoneMsg) (tea.Model, tea.Cmd) {
 	c.loadingModel = ""
 	setViewportContent(&c.viewport, c.viewportContent())
 	c.viewport.GotoBottom()
+	if autoCompact {
+		id := c.sessionID
+		c.waiting = true
+		c.status = "auto-compacting…"
+		return c, tea.Batch(c.spinner.Tick, func() tea.Msg {
+			summary, err := c.client.CompactHistory(id)
+			return compactHistoryResultMsg{summary: summary, err: err}
+		})
+	}
 	return c, nil
+}
+
+// autoCompactFraction is the share of the effective context window at which a
+// session auto-compacts after a turn, keeping usage clear of the window without
+// the user issuing /compact. a package const for now; daemon-configurable wiring
+// is a follow-up (see SPEC roadmap).
+const autoCompactFraction = 0.8
+
+// shouldAutoCompact reports whether the running token estimate (ctxChars/4, the
+// same estimate the footer shows) has reached autoCompactFraction of the effective
+// context window for a model whose max window is maxCtx. false when the window is
+// unknown (maxCtx <= 0), so a model with no detected window never auto-compacts.
+func shouldAutoCompact(ctxChars, maxCtx int) bool {
+	window := ipc.DefaultNumCtx(maxCtx)
+	if window <= 0 {
+		return false
+	}
+	estTokens := ctxChars / 4
+	return float64(estTokens) >= autoCompactFraction*float64(window)
 }
 
 // onTick advances the thinking spinner while a response is awaited.

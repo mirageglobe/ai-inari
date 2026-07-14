@@ -185,6 +185,8 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c.onExportResult(msg)
 	case setCwdResultMsg:
 		return c.onSetCwd(msg)
+	case renameResultMsg:
+		return c.onRename(msg)
 	case unassignModelResultMsg:
 		return c.onUnassign(msg)
 	case clearHistoryResultMsg:

@@ -39,6 +39,8 @@ func (s *Server) dispatch(req Request) Response {
 		return s.handleSessionCreate(req)
 	case "session.delete":
 		return s.handleSessionDelete(req)
+	case "session.rename":
+		return s.handleSessionRename(req)
 	case "session.unassign":
 		return s.handleSessionUnassign(req)
 	case "session.assign":

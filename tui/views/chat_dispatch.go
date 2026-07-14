@@ -28,6 +28,19 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			return setCwdResultMsg{info: info, err: err}
 		}
 	}
+	// /rename takes a name argument, so match it by prefix before the exact switch.
+	if cmd == "/rename" || strings.HasPrefix(cmd, "/rename ") {
+		name := strings.TrimSpace(strings.TrimPrefix(cmd, "/rename"))
+		if name == "" {
+			c.status = "[warn] usage: /rename <name>"
+			return c, nil
+		}
+		id := c.sessionID
+		return c, func() tea.Msg {
+			info, err := c.client.Rename(id, name)
+			return renameResultMsg{info: info, err: err}
+		}
+	}
 	switch cmd {
 	case "/clear":
 		id := c.sessionID

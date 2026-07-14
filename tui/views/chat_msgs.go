@@ -39,6 +39,21 @@ func (c Chat) onSetCwd(msg setCwdResultMsg) (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
+// onRename applies a /rename result: on success it adopts the new session name,
+// refreshes the input placeholder, and rebuilds the display (assistant lines are
+// prefixed with the session name); on failure it surfaces the error in the status.
+func (c Chat) onRename(msg renameResultMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		c.status = "[warn] rename: " + msg.err.Error()
+		return c, nil
+	}
+	c.sessionName = msg.info.Name
+	c.input.Placeholder = "message " + c.sessionName + " (" + c.model + ")..."
+	c.rebuildDisplay()
+	c.status = "[info] renamed -> " + c.sessionName
+	return c, nil
+}
+
 // onExportResult reports where the session context was written, or why it failed.
 func (c Chat) onExportResult(msg exportChatResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {

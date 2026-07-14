@@ -156,6 +156,61 @@ func TestInterruptNoActiveStream(t *testing.T) {
 	}
 }
 
+// fakeLoopProvider streams a short sequence over and over, then blocks on ctx,
+// so a test can drive the runaway-loop detector: handleStream should cancel the
+// stream once the repetition is detected. embeds fakeStreamProvider for stubs.
+type fakeLoopProvider struct {
+	*fakeStreamProvider
+}
+
+func (f *fakeLoopProvider) ChatStream(ctx context.Context, _ provider.ChatRequest, chunks chan<- provider.ChatResponse) error {
+	for range 50 {
+		select {
+		case chunks <- provider.ChatResponse{Message: provider.Message{Role: "assistant", Content: "for_"}}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// TestStreamLoopDetection asserts that a model stuck emitting a repeated sequence
+// is cancelled by the n-gram detector, the stream ends cleanly (done, not error),
+// and the partial reply generated up to the cancel is persisted to history.
+func TestStreamLoopDetection(t *testing.T) {
+	fake := &fakeLoopProvider{
+		fakeStreamProvider: &fakeStreamProvider{running: []provider.RunningModel{{Name: "gemma4:e2b"}}},
+	}
+	_, sess := newStreamTestServer(t, "/tmp/inari-test-stream-loop.sock", fake)
+
+	client := NewClient("/tmp/inari-test-stream-loop.sock")
+	defer client.Close()
+
+	tokens := make(chan string, 64)
+	statuses := make(chan string, 8)
+	toolReqs := make(chan ToolRequestMsg, 1)
+	approvals := make(chan bool, 1)
+
+	if err := client.ChatStream(sess.ID, "loop please", tokens, statuses, toolReqs, approvals); err != nil {
+		t.Fatalf("ChatStream should end cleanly on loop detection, got: %v", err)
+	}
+	close(tokens)
+	var got string
+	for tk := range tokens {
+		got += tk
+	}
+	if got == "" {
+		t.Fatal("expected some looping tokens forwarded before cancel, got none")
+	}
+
+	hist := sess.ChatHistory()
+	last := hist[len(hist)-1]
+	if last.Role != "assistant" || last.Content == "" {
+		t.Fatalf("expected partial looping reply persisted, got %+v", last)
+	}
+}
+
 // TestStreamSignalsLoadingWhenModelNotResident asserts that handleStream emits a
 // "loading" status followed by "thinking" when the assigned model is absent from
 // the backend's currently-loaded models, since the next request will cold-load it.

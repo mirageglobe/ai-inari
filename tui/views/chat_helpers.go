@@ -25,6 +25,13 @@ type compactHistoryResultMsg struct {
 	err     error
 }
 
+// renameResultMsg carries the outcome of a /rename command: the updated session
+// info (new name) on success, or an error.
+type renameResultMsg struct {
+	info ipc.SessionInfo
+	err  error
+}
+
 // toolApprovalRequestMsg is emitted when the server wants to run a tool and needs user approval.
 type toolApprovalRequestMsg struct {
 	SessionID string
