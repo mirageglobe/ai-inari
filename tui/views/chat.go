@@ -7,52 +7,10 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/internal/provider"
 )
-
-var (
-	userStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("99"))
-	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	thinkingStyle  = lipgloss.NewStyle().Faint(true)
-)
-
-// ChatTokenMsg is sent for each streamed token from inarid.
-// SessionID routes it to the correct Chat view regardless of which view is active.
-type ChatTokenMsg struct {
-	SessionID string
-	Token     string
-}
-
-// ChatDoneMsg is sent when the stream ends (success or error).
-type ChatDoneMsg struct {
-	SessionID string
-	Err       error
-}
-
-// ChatStatusMsg carries a coarse phase signal from inarid: "loading" while the
-// model is being cold-loaded into backend memory, "thinking" once generation
-// has actually begun. absent entirely when the model was already resident.
-type ChatStatusMsg struct {
-	SessionID string
-	Status    string
-}
-
-type chatHistoryMsg struct {
-	messages []provider.Message
-	err      error
-}
-
-// modelContextMsg carries the assigned model's maximum context window (tokens),
-// fetched once on chat open; 0 when unknown.
-type modelContextMsg struct{ max int }
-
-// recapMsg carries a one-line "where you left off" summary for an idle session,
-// fetched on open; empty when the session is not idle or has nothing to recap.
-type recapMsg struct{ text string }
 
 // Chat is the interactive conversation view for a session.
 // display holds the rendered lines shown in the viewport — local to this inari instance.
@@ -171,90 +129,4 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 		inputFocused:   true,
 		lastActivity:   time.Now(), // opening the chat counts as activity
 	}
-}
-
-// Update is the top-level message dispatcher for the chat view. each message
-// type is handled by a dedicated method (see chat_stream.go, chat_msgs.go,
-// chat_keys.go, chat_mouse.go); key and mouse handlers may decline a message so
-// that normal typing and wheel scrolling fall through to the shared tail below.
-func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case ThemeChangedMsg:
-		return c.onThemeChanged()
-	case ThemeSaveErrMsg:
-		return c.onThemeSaveErr(msg)
-	case exportChatResultMsg:
-		return c.onExportResult(msg)
-	case setCwdResultMsg:
-		return c.onSetCwd(msg)
-	case renameResultMsg:
-		return c.onRename(msg)
-	case tagResultMsg:
-		return c.onTag(msg)
-	case setNumCtxResultMsg:
-		return c.onSetNumCtx(msg)
-	case unassignModelResultMsg:
-		return c.onUnassign(msg)
-	case clearHistoryResultMsg:
-		return c.onClear(msg)
-	case compactHistoryResultMsg:
-		return c.onCompact(msg)
-	case chatHistoryMsg:
-		return c.onHistory(msg)
-	case modelContextMsg:
-		c.maxCtx = msg.max
-		return c, nil
-	case recapMsg:
-		// show the recap in the status line when reopening an idle session; skip
-		// if empty or a stream/response is already underway so it never clobbers it.
-		if msg.text != "" && !c.waiting && c.status == "" {
-			c.status = "[recap] " + msg.text
-		}
-		return c, nil
-	case toolApprovalRequestMsg:
-		return c.onToolApproval(msg)
-	case ChatTokenMsg:
-		return c.onToken(msg)
-	case ChatStatusMsg:
-		return c.onStatus(msg)
-	case ChatDoneMsg:
-		return c.onDone(msg)
-	case spinner.TickMsg:
-		return c.onTick(msg)
-	case IdleHintTickMsg:
-		return c.onIdleHintTick()
-	case tea.WindowSizeMsg:
-		return c.onWindowSize(msg)
-	case tea.KeyMsg:
-		// any keypress is activity: reset the idle timer and drop the current hint.
-		c.lastActivity = time.Now()
-		c.idleHint = ""
-		var cmd tea.Cmd
-		var handled bool
-		c, cmd, handled = c.handleKey(msg)
-		if handled {
-			return c, cmd
-		}
-	case tea.MouseMsg:
-		var cmd tea.Cmd
-		var handled bool
-		c, cmd, handled = c.handleMouse(msg)
-		if handled {
-			return c, cmd
-		}
-	}
-
-	// fall-through for normal typing and unhandled mouse events: keep the input
-	// focused and forward the message to the textarea and viewport.
-	var (
-		vpCmd    tea.Cmd
-		taCmd    tea.Cmd
-		focusCmd tea.Cmd
-	)
-	if c.inputFocused && !c.input.Focused() {
-		focusCmd = c.input.Focus()
-	}
-	c.viewport, vpCmd = c.viewport.Update(msg)
-	c.input, taCmd = c.input.Update(msg)
-	return c, tea.Batch(vpCmd, taCmd, focusCmd)
 }

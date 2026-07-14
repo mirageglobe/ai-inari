@@ -1,7 +1,7 @@
 // chat_keys.go owns keyboard handling for the chat view: the tool-approval
-// prompt, ctrl-prefixed shortcuts, input-history navigation, tab completion,
-// and message send. it does NOT own the top-level Update dispatch (chat.go) or
-// mouse handling (chat_mouse.go).
+// prompt, ctrl-prefixed shortcuts, input-history navigation, and tab completion.
+// on [enter] it delegates the actual send to chat_send.go. it does NOT own the
+// top-level Update dispatch (chat_update.go) or mouse handling (chat_mouse.go).
 
 package views
 
@@ -9,9 +9,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 // handleKey processes a key message. it returns the updated chat, an optional
@@ -133,39 +130,9 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 		if c.offline {
 			return c, nil, true
 		}
-		c.inputHistory = append(c.inputHistory, text)
-		c.historyIdx = -1
-		c.historyDraft = ""
-		c.messages = append(c.messages, provider.Message{Role: "user", Content: text})
-		c.display = append(c.display, userStyle.Render("you: ")+text)
-		c.ctxChars += len(text)
-		c.input.Reset()
-		c.status = ""
-		c.waiting = true
-		c.loadingModel = ""
-		// start stream goroutine; store channels on the struct so ChatTokenMsg
-		// handlers can schedule the next readNextToken without carrying them in the message.
-		tokens := make(chan string, 64)
-		statuses := make(chan string, 4)
-		errc := make(chan error, 1)
-		toolReqs := make(chan ipc.ToolRequestMsg, 1)
-		approvals := make(chan bool, 1)
-		go func() {
-			err := c.client.ChatStream(c.sessionID, text, tokens, statuses, toolReqs, approvals)
-			errc <- err
-			close(tokens)
-			close(statuses)
-			close(toolReqs)
-		}()
-		c.streamTokens = tokens
-		c.streamStatus = statuses
-		c.streamErrc = errc
-		c.toolReqs = toolReqs
-		c.toolApprovals = approvals
-
-		setViewportContent(&c.viewport, c.viewportContent())
-		c.viewport.GotoBottom()
-		return c, tea.Batch(readNextToken(c.sessionID, tokens, statuses, errc, toolReqs), c.spinner.Tick), true
+		// hand off to sendChat, which records the message and starts the stream.
+		c, cmd := c.sendChat(text)
+		return c, cmd, true
 	}
 	return c, nil, false
 }

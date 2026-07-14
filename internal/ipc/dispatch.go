@@ -25,6 +25,7 @@ func toInfo(sess *session.Session) SessionInfo {
 		CWD:            sess.CWD,
 		ContextChars:   ctxChars,
 		Tags:           sess.Tags,
+		Role:           sess.Role,
 		NumCtxOverride: sess.NumCtxOverride,
 	}
 }
@@ -45,6 +46,8 @@ func (s *Server) dispatch(req Request) Response {
 		return s.handleSessionRename(req)
 	case "session.tag":
 		return s.handleSessionTag(req)
+	case "session.setrole":
+		return s.handleSessionSetRole(req)
 	case "session.setnumctx":
 		return s.handleSessionSetNumCtx(req)
 	case "session.unassign":

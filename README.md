@@ -111,6 +111,11 @@ only needed to end it immediately.
   },
   "shell": {
     "allowlist": ["go", "make", "git", "ls", "cat", "find"]
+  },
+  "ollama": {
+    "keep_alive": "5m",
+    "max_loaded_models": 3,
+    "num_parallel": 1
   }
 }
 ```
@@ -118,6 +123,8 @@ only needed to end it immediately.
 `idle_shutdown_mins` is how long the daemon may sit with no client activity before it shuts itself down (default `30`). set it to `0` to use the default, or a negative value to keep the daemon running indefinitely.
 
 `endpoints` lets you name inference backends (an ollama-compatible server each) with a `base_url` and optional `api_key`. set `provider` to the name of the profile you want active; leave it empty to use `ollama_base_url`. this lets you switch between local backends (ollama, lm studio, llama.cpp) without editing the base url each time.
+
+`ollama` tunes the ollama backend. `keep_alive` (e.g. `5m`) is how long an idle model stays loaded; inari applies it on every request. `max_loaded_models` and `num_parallel` are server-start settings inari cannot set on a running `ollama serve`; `inari doctor` surfaces them as the `OLLAMA_MAX_LOADED_MODELS` / `OLLAMA_NUM_PARALLEL` env vars to export before starting ollama.
 
 `shell.allowlist` lists the commands the assistant may run without asking you first. anything on the list runs straight away; anything else pauses for your `[y]`/`[n]` before it runs. leave it empty to use the built-in default set (common read and build commands; network tools like `curl` are deliberately left off so they always ask). add a command here only if you are happy for the assistant to run it unattended.
 

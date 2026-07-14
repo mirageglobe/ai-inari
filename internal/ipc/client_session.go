@@ -222,6 +222,12 @@ func (c *Client) Tag(sessionID, tag string) (SessionInfo, error) {
 	return c.sessionInfoCall("session.tag", map[string]string{"id": sessionID, "tag": tag})
 }
 
+// SetRole records the session's task role ("general"/"coding", or "" to clear)
+// via session.setrole and returns the updated session info.
+func (c *Client) SetRole(sessionID, role string) (SessionInfo, error) {
+	return c.sessionInfoCall("session.setrole", map[string]string{"id": sessionID, "role": role})
+}
+
 // SetNumCtx sets a per-session num_ctx override via session.setnumctx (0 clears
 // it) and returns the updated session info so the caller can refresh its display.
 func (c *Client) SetNumCtx(sessionID string, numCtx int) (SessionInfo, error) {

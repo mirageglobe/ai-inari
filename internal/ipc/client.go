@@ -20,6 +20,8 @@ type SessionInfo struct {
 	ContextChars int    `json:"context_chars,omitempty"`
 	// Tags are free-form labels for grouping/filtering in the agents view.
 	Tags []string `json:"tags,omitempty"`
+	// Role is the session's task role ("general"/"coding"), or empty.
+	Role string `json:"role,omitempty"`
 	// NumCtxOverride mirrors the session's num_ctx override (0 = computed default).
 	NumCtxOverride int `json:"num_ctx_override,omitempty"`
 }

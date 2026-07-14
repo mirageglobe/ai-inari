@@ -90,6 +90,28 @@ func (c Chat) onSetNumCtx(msg setNumCtxResultMsg) (tea.Model, tea.Cmd) {
 	return c, nil
 }
 
+// onRole applies a /role result: on a successful auto-assign it adopts the
+// recommended model (updating the placeholder and refetching its context window);
+// otherwise it reports the role was set and names the model to pull.
+func (c Chat) onRole(msg roleResultMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		c.status = "[warn] role: " + msg.err.Error()
+		return c, nil
+	}
+	if msg.assigned {
+		c = c.WithModel(msg.model)
+		c.input.Placeholder = "message " + c.sessionName + " (" + c.model + ")..."
+		c.status = "[info] role " + msg.role + " -> model " + msg.model
+		return c, fetchModelContext(c.client, c.model)
+	}
+	if msg.model == "" {
+		c.status = "[info] role " + msg.role + " set (no curated model for this hardware tier)"
+	} else {
+		c.status = "[info] role " + msg.role + " set; recommended " + msg.model + " not pulled (use /model)"
+	}
+	return c, nil
+}
+
 // onExportResult reports where the session context was written, or why it failed.
 func (c Chat) onExportResult(msg exportChatResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {

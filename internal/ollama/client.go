@@ -20,9 +20,10 @@ var _ provider.Provider = (*Client)(nil)
 
 // Client talks to the Ollama HTTP API.
 type Client struct {
-	baseURL string
-	http    *http.Client
-	verbose bool
+	baseURL   string
+	http      *http.Client
+	verbose   bool
+	keepAlive string // applied as keep_alive on chat requests; "" uses Ollama's default
 }
 
 func NewClient(baseURL string) *Client {
@@ -63,6 +64,23 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (c *Client) SetVerbose(v bool) { c.verbose = v }
+
+// SetKeepAlive sets the keep_alive value sent on every chat request (e.g. "5m"),
+// controlling how long an idle model stays resident. "" reverts to Ollama's default.
+func (c *Client) SetKeepAlive(s string) { c.keepAlive = s }
+
+// chatBody wraps a provider.ChatRequest with ollama-specific request fields
+// (keep_alive) so the provider type stays backend-agnostic; the embedded fields
+// marshal inline alongside keep_alive.
+type chatBody struct {
+	provider.ChatRequest
+	KeepAlive string `json:"keep_alive,omitempty"`
+}
+
+// withKeepAlive wraps req for marshaling, attaching the client's keep_alive.
+func (c *Client) withKeepAlive(req provider.ChatRequest) chatBody {
+	return chatBody{ChatRequest: req, KeepAlive: c.keepAlive}
+}
 
 // ollamaError reads the response body and returns a descriptive error that
 // includes the ollama message when available (e.g. "model not found").
