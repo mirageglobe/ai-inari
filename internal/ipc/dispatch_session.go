@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/config"
+	"github.com/mirageglobe/ai-inari/internal/provider"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -261,6 +262,17 @@ func (s *Server) handleSessionSetCwd(req Request) Response {
 	}
 	sess.CWD = cwd
 	sess.SetSystemPrompt(buildCWDSystemPrompt(cwd))
+	// when a session already has conversation, its prior tool results (file listings,
+	// file contents) describe the OLD cwd and are now stale; a model can regurgitate
+	// them for the new directory instead of re-running tools. drop a marker into
+	// history so it treats them as stale and re-reads. this must live in history near
+	// the stale results (not in the system prompt) - recency is what makes the model
+	// re-call the tool. the system role is not rendered by the TUI, so it stays
+	// invisible to the user while still reaching the model. len>1 skips the marker on
+	// a session that has only the system prompt (nothing stale yet).
+	if len(sess.ChatHistory()) > 1 {
+		sess.AppendMessage(provider.Message{Role: "system", Content: "working directory changed to " + cwd + "; previous file listings and file contents are stale, use the tools to read the new directory."})
+	}
 	s.store.Persist(sess.ID)
 	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
 }
