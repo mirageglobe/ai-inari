@@ -7,6 +7,9 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [unreleased]
 
+### fixed
+- tool calling: the cwd system prompt injected the file tree with a `name(args)` prose tool list, which let the model answer file/dir questions from the tree in text and modelled a text-shaped call; a small model (e.g. gemma4:e2b) then few-shot off its own text turns and stopped emitting native `tool_calls`, printing ` ```bash ls``` ` instead of running it. the tree is now framed as a stale orientation snapshot with an explicit "never answer from it, always call a tool" directive, and the prose signatures are dropped (the native tool schema is the real declaration). measured: on the exact failure sequence, native tool-call rate went from 0/3 (old prompt) to 3/3 (new prompt). note: gemma4:e2b runs at temperature 1.0, so this raises the odds strongly but is not a per-run guarantee; a prompt-based tool-call fallback is the hard guarantee (see SPEC roadmap).
+
 ### added
 - config: per-project overlay `.inari/config.json` in a session's working directory; a restricted overlay honoring only `context.system_prompt` (replaces the global prompt for sessions in that dir) and `exclude_dirs` (extra file-tree skips). infra/security fields (socket, endpoints, provider, `shell.allowlist`, models, ...) are deliberately never read from a project file, so an untrusted cloned repo cannot widen the shell allowlist or redirect the backend.
 - chat: `/cwd <path>` switches a session's working directory on the fly; inarid validates the path, rebuilds the file-tree + project-context system prompt for the new tree, and re-points the tool sandbox. the `[context]` line and builtin-tool availability update immediately.

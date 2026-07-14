@@ -64,7 +64,8 @@ func expandUserPath(p string) string {
 
 // buildCWDSystemPrompt builds the filesystem-context system prompt for a session
 // whose working directory is cwd: a concise-response instruction, the working dir
-// and its shallow file tree, the builtin tool descriptions, and (when present) the
+// and its shallow file tree (framed as a stale snapshot with a "call a tool, do
+// not answer from it" directive), the tool-usage guidance, and (when present) the
 // project-level context file. shared by session.create and session.setcwd so both
 // entry points inject identical context. cwd must be non-empty.
 func buildCWDSystemPrompt(cwd string) string {
@@ -76,15 +77,23 @@ func buildCWDSystemPrompt(cwd string) string {
 	// omit "respond in plain text only" from the default prompt because it conflicts
 	// with structured function calling and causes the model to output tool invocations
 	// as text rather than structured tool_calls.
+	//
+	// the tree below is framed as a stale orientation snapshot with an explicit
+	// "do not answer from it, always call a tool" directive. earlier phrasing let
+	// the model answer file/dir questions straight from the injected tree in text,
+	// which trained a text-narration pattern that then self-reinforced across the
+	// session (the model few-shots off its own prior text turns and stops emitting
+	// native tool_calls). the tool names are listed plainly, without the previous
+	// `name(args): ...` signatures, since that call-shaped prose nudged the model to
+	// reproduce it as text; the native tool schema (filesystemTools) is the real
+	// declaration the model calls against.
 	combined := "keep all responses concise and short." +
 		"\n\nworking directory: " + cwd + "\n" + tree +
-		"\n\nyou have access to the following tools to explore the working directory:\n" +
-		"- read_file(path): read the full text of a file\n" +
-		"- list_dir(path): list files and directories inside a path\n" +
-		"- grep_file(path, pattern): search for a regex pattern across files, returns matching lines\n" +
-		"- stat_file(path): return size, modification time, and type for a file or directory\n" +
-		"- execute_shell_command(command, args): run a command in the working directory; these run without asking: " + sortedAllowedCommands() + "; any other command asks the user first\n" +
-		"use these tools whenever the user asks about files, code, or the project structure."
+		"\n\nthe file tree above is a point-in-time snapshot for orientation only and may be stale. " +
+		"never answer questions about files, directories, or file contents from it or from memory; " +
+		"always call a tool to read live data. use read_file, list_dir, grep_file, and stat_file to " +
+		"inspect the working directory, and execute_shell_command to run a command " +
+		"(these run without asking: " + sortedAllowedCommands() + "; any other command asks the user first)."
 	// inject a project-level context file (AGENTS.md / .inari/context.md) so the
 	// model picks up local conventions without manual copy-paste; absent file is fine.
 	if ctx := readAgentContext(cwd); ctx != "" {
