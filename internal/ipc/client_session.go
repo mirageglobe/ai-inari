@@ -194,6 +194,28 @@ func (c *Client) SetCwd(sessionID, cwd string) (SessionInfo, error) {
 	return sess, nil
 }
 
+// Rename changes a session's display name via session.rename and returns the
+// updated session info so the caller can refresh its label. errors on an empty
+// name or an unknown session.
+func (c *Client) Rename(sessionID, name string) (SessionInfo, error) {
+	resp, err := c.Call("session.rename", map[string]string{"id": sessionID, "name": name})
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	if resp.Error != nil {
+		return SessionInfo{}, fmt.Errorf("%s", resp.Error.Message)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	var sess SessionInfo
+	if err := json.Unmarshal(b, &sess); err != nil {
+		return SessionInfo{}, err
+	}
+	return sess, nil
+}
+
 // Chat sends a single user message to the session identified by sessionID.
 // inarid owns the message history; it appends the message, sends the full
 // history to Ollama, stores the reply, and returns the assistant's text.

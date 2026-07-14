@@ -60,13 +60,18 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	// "loading <model>..." state for round 0 instead of "thinking...".
 	loading := s.modelNotResident(model)
 
+	// repeat_penalty discourages the token-level repetition that drives runaway
+	// generation loops; the n-gram tail detector in the stream loop below is the
+	// hard backstop when a penalty alone does not break the cycle.
+	opts := map[string]any{"repeat_penalty": 1.3}
 	// request a sensible num_ctx derived from the model's declared context window
 	// so small models get a larger-than-default window, capped to avoid OOM. a 0
 	// (unknown) result omits the option so Ollama falls back to its own default.
-	var opts map[string]any
 	if maxCtx, err := s.provider.ModelContextLength(model); err == nil {
 		if nc := DefaultNumCtx(maxCtx); nc > 0 {
-			opts = map[string]any{"num_ctx": nc}
+			opts["num_ctx"] = nc
+			// cap a single reply to the window so a loop cannot generate past it.
+			opts["num_predict"] = nc
 		}
 	}
 
@@ -96,6 +101,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		// model is resident before it emits anything.
 		var textBuf strings.Builder
 		var toolCalls []provider.ToolCall
+		var loopDetected bool
 		for chunk := range chunks {
 			if loading {
 				enc.Encode(map[string]string{"status": "thinking"})
@@ -107,6 +113,14 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 			if chunk.Message.Content != "" {
 				textBuf.WriteString(chunk.Message.Content)
 				enc.Encode(map[string]string{"token": chunk.Message.Content})
+				// a short sequence repeating at the tail means the model is stuck in a
+				// generation loop; cancel so the ctx.Err() path below keeps the partial
+				// reply and ends the turn cleanly instead of exhausting the context.
+				if hasRepeatedTail(textBuf.String()) {
+					loopDetected = true
+					cancel()
+					break
+				}
 			}
 		}
 
@@ -120,7 +134,11 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 				s.store.Persist(sess.ID)
 				enc.Encode(map[string]bool{"done": true})
 				if s.verbose {
-					log.Printf("[inarid->inariui] session.stream interrupted (%d chars)", textBuf.Len())
+					reason := "interrupted"
+					if loopDetected {
+						reason = "loop detected, stream cancelled"
+					}
+					log.Printf("[inarid->inariui] session.stream %s (%d chars)", reason, textBuf.Len())
 				}
 				return
 			}

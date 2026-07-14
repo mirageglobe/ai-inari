@@ -1,6 +1,7 @@
 // dispatch_session.go owns the session lifecycle/config handlers: list, create,
-// delete, assign/unassign, setcontext, and setcwd. it does NOT own conversation
-// ops (dispatch_chat.go), ollama.* (dispatch_ollama.go), or the switch (dispatch.go).
+// delete, rename, assign/unassign, setcontext, and setcwd. it does NOT own
+// conversation ops (dispatch_chat.go), ollama.* (dispatch_ollama.go), or the
+// switch (dispatch.go).
 
 package ipc
 
@@ -110,6 +111,27 @@ func (s *Server) handleSessionAssign(req Request) Response {
 	sess.UpdatedAt = time.Now()
 	s.store.Persist(sess.ID)
 	return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
+}
+
+// session.rename changes a session's display name in place, preserving its model,
+// history, and cwd. mirrors setcwd/setcontext: validate, mutate, persist, and
+// return the updated info so any open view can refresh its label.
+func (s *Server) handleSessionRename(req Request) Response {
+	var params struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil || params.Name == "" {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: name required"}, ID: req.ID}
+	}
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	}
+	sess.Name = params.Name
+	sess.UpdatedAt = time.Now()
+	s.store.Persist(sess.ID)
+	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
 }
 
 // session.setcontext sets the system prompt for a session.
