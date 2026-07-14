@@ -62,7 +62,7 @@ func TestModelPullStreamsProgress(t *testing.T) {
 		{Status: "success"},
 	}}
 
-	srv, err := NewServer(sock, store, sched, host, auditor, fake, false, 0, "")
+	srv, err := NewServer(sock, store, sched, host, auditor, fake, false, 0, "", "")
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestModelPullMissingModel(t *testing.T) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "")
+	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "", "")
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

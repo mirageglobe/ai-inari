@@ -41,6 +41,10 @@ type Server struct {
 	// for chat/stream/compact when a session has no model explicitly assigned.
 	defaultModel string
 
+	// globalSystemPrompt (config.json's context.system_prompt) is prepended to
+	// every new session's system prompt; empty means no global prompt.
+	globalSystemPrompt string
+
 	// idleTimeout is how long the daemon may sit with no client activity before
 	// shutting itself down; zero disables the watchdog. lastActive holds the unix
 	// nano of the most recent RPC and is read by monitorIdle.
@@ -48,7 +52,7 @@ type Server struct {
 	lastActive  atomic.Int64
 }
 
-func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool, idleTimeout time.Duration, defaultModel string) (*Server, error) {
+func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool, idleTimeout time.Duration, defaultModel, globalSystemPrompt string) (*Server, error) {
 	// remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
 	os.Remove(socket)
 
@@ -73,8 +77,9 @@ func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, 
 		verbose:  verbose,
 		streams:  make(map[string]context.CancelFunc),
 
-		defaultModel: defaultModel,
-		idleTimeout:  idleTimeout,
+		defaultModel:       defaultModel,
+		globalSystemPrompt: globalSystemPrompt,
+		idleTimeout:        idleTimeout,
 	}
 	s.touch()     // seed the idle clock so the daemon does not shut down before its first call
 	go s.accept() // accept loop runs in background; NewServer returns immediately
