@@ -93,7 +93,7 @@ func (h Agents) handleKey(msg tea.KeyMsg) (Agents, tea.Cmd, bool) {
 			if idx >= 0 && idx < len(h.sessions) {
 				sess := h.sessions[idx]
 				return h, func() tea.Msg {
-					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, SystemPrompt: sess.SystemPrompt}
+					return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, NumCtxOverride: sess.NumCtxOverride, SystemPrompt: sess.SystemPrompt}
 				}, true
 			}
 		}

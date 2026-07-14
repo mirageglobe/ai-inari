@@ -29,6 +29,39 @@ func NewClient(baseURL string) *Client {
 	return &Client{baseURL: baseURL, http: &http.Client{}}
 }
 
+// NewClientWithAuth builds a client whose every request carries an optional
+// Authorization bearer token and any extra static headers, so inarid can talk to
+// an authenticated or non-default backend (LM Studio, llama.cpp, a cloud proxy)
+// selected via a config endpoint profile. an empty apiKey and nil headers behave
+// exactly like NewClient.
+func NewClientWithAuth(baseURL, apiKey string, headers map[string]string) *Client {
+	if apiKey == "" && len(headers) == 0 {
+		return NewClient(baseURL)
+	}
+	return &Client{
+		baseURL: baseURL,
+		http:    &http.Client{Transport: &authTransport{apiKey: apiKey, headers: headers, base: http.DefaultTransport}},
+	}
+}
+
+// authTransport injects auth/static headers on every outbound request, so the
+// header logic lives in one place rather than at each Get/Post call site.
+type authTransport struct {
+	apiKey  string
+	headers map[string]string
+	base    http.RoundTripper
+}
+
+func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+t.apiKey)
+	}
+	for k, v := range t.headers {
+		req.Header.Set(k, v)
+	}
+	return t.base.RoundTrip(req)
+}
+
 func (c *Client) SetVerbose(v bool) { c.verbose = v }
 
 // ollamaError reads the response body and returns a descriptive error that

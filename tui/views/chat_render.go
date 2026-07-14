@@ -7,8 +7,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-
-	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
 // viewportContent returns the string to show in the viewport.
@@ -157,9 +155,15 @@ func (c Chat) View() string {
 		tokens = "-"
 	}
 	// append the effective context window (num_ctx inarid requests) over the
-	// model's max, once detected: e.g. "~500 tokens  ctx 8192/40960".
-	if c.maxCtx > 0 {
-		tokens += fmt.Sprintf("  ctx %d/%d", ipc.DefaultNumCtx(c.maxCtx), c.maxCtx)
+	// model's max, once known: e.g. "~500 tokens  ctx 8192/40960". a per-session
+	// override wins over the computed default and is shown even before the model's
+	// max window is detected.
+	if eff := effectiveNumCtx(c.numCtxOverride, c.maxCtx); eff > 0 {
+		if c.maxCtx > 0 {
+			tokens += fmt.Sprintf("  ctx %d/%d", eff, c.maxCtx)
+		} else {
+			tokens += fmt.Sprintf("  ctx %d", eff)
+		}
 	}
 	sessionLine := RenderSessionLine("chat", c.sessionName, model, tokens)
 	cwdLine := renderCWDLine(c.cwd)

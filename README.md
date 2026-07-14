@@ -93,6 +93,11 @@ only needed to end it immediately.
   "socket": "/tmp/inari.sock",
   "memory_budget_mb": 8192,
   "ollama_base_url": "http://localhost:11434",
+  "provider": "",
+  "endpoints": {
+    "ollama":   { "base_url": "http://localhost:11434" },
+    "lmstudio": { "base_url": "http://localhost:1234/v1", "api_key": "" }
+  },
   "data_dir": "~/.local/share/inari/sessions",
   "idle_shutdown_mins": 30,
   "mcp_connectors": [
@@ -111,6 +116,8 @@ only needed to end it immediately.
 ```
 
 `idle_shutdown_mins` is how long the daemon may sit with no client activity before it shuts itself down (default `30`). set it to `0` to use the default, or a negative value to keep the daemon running indefinitely.
+
+`endpoints` lets you name inference backends (an ollama-compatible server each) with a `base_url` and optional `api_key`. set `provider` to the name of the profile you want active; leave it empty to use `ollama_base_url`. this lets you switch between local backends (ollama, lm studio, llama.cpp) without editing the base url each time.
 
 `shell.allowlist` lists the commands the assistant may run without asking you first. anything on the list runs straight away; anything else pauses for your `[y]`/`[n]` before it runs. leave it empty to use the built-in default set (common read and build commands; network tools like `curl` are deliberately left off so they always ask). add a command here only if you are happy for the assistant to run it unattended.
 

@@ -18,12 +18,14 @@ func toInfo(sess *session.Session) SessionInfo {
 		ctxChars += len(m.Content)
 	}
 	return SessionInfo{
-		ID:           sess.ID,
-		Name:         sess.Name,
-		Model:        sess.Model,
-		SystemPrompt: sess.SystemPrompt,
-		CWD:          sess.CWD,
-		ContextChars: ctxChars,
+		ID:             sess.ID,
+		Name:           sess.Name,
+		Model:          sess.Model,
+		SystemPrompt:   sess.SystemPrompt,
+		CWD:            sess.CWD,
+		ContextChars:   ctxChars,
+		Tags:           sess.Tags,
+		NumCtxOverride: sess.NumCtxOverride,
 	}
 }
 
@@ -41,6 +43,10 @@ func (s *Server) dispatch(req Request) Response {
 		return s.handleSessionDelete(req)
 	case "session.rename":
 		return s.handleSessionRename(req)
+	case "session.tag":
+		return s.handleSessionTag(req)
+	case "session.setnumctx":
+		return s.handleSessionSetNumCtx(req)
 	case "session.unassign":
 		return s.handleSessionUnassign(req)
 	case "session.assign":

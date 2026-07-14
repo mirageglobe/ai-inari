@@ -6,6 +6,7 @@
 package views
 
 import (
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,6 +40,42 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 		return c, func() tea.Msg {
 			info, err := c.client.Rename(id, name)
 			return renameResultMsg{info: info, err: err}
+		}
+	}
+	// /tag takes a label argument, so match it by prefix before the exact switch.
+	if cmd == "/tag" || strings.HasPrefix(cmd, "/tag ") {
+		tag := strings.TrimSpace(strings.TrimPrefix(cmd, "/tag"))
+		if tag == "" {
+			c.status = "[warn] usage: /tag <label>"
+			return c, nil
+		}
+		id := c.sessionID
+		return c, func() tea.Msg {
+			info, err := c.client.Tag(id, tag)
+			return tagResultMsg{info: info, err: err}
+		}
+	}
+	// /numctx [n]: no arg shows the current window; a number sets the override; 0
+	// or "auto" clears it (revert to the model-derived default).
+	if cmd == "/numctx" || strings.HasPrefix(cmd, "/numctx ") {
+		arg := strings.TrimSpace(strings.TrimPrefix(cmd, "/numctx"))
+		if arg == "" {
+			c.status = "[info] ctx window: " + strconv.Itoa(effectiveNumCtx(c.numCtxOverride, c.maxCtx))
+			return c, nil
+		}
+		n := 0
+		if arg != "auto" {
+			parsed, err := strconv.Atoi(arg)
+			if err != nil || parsed < 0 {
+				c.status = "[warn] usage: /numctx <tokens> | 0 | auto"
+				return c, nil
+			}
+			n = parsed
+		}
+		id := c.sessionID
+		return c, func() tea.Msg {
+			info, err := c.client.SetNumCtx(id, n)
+			return setNumCtxResultMsg{info: info, err: err}
 		}
 	}
 	switch cmd {

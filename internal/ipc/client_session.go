@@ -216,6 +216,49 @@ func (c *Client) Rename(sessionID, name string) (SessionInfo, error) {
 	return sess, nil
 }
 
+// Tag toggles a label on a session via session.tag (adds if absent, removes if
+// present) and returns the updated session info so the caller can refresh.
+func (c *Client) Tag(sessionID, tag string) (SessionInfo, error) {
+	return c.sessionInfoCall("session.tag", map[string]string{"id": sessionID, "tag": tag})
+}
+
+// SetNumCtx sets a per-session num_ctx override via session.setnumctx (0 clears
+// it) and returns the updated session info so the caller can refresh its display.
+func (c *Client) SetNumCtx(sessionID string, numCtx int) (SessionInfo, error) {
+	resp, err := c.Call("session.setnumctx", map[string]any{"id": sessionID, "num_ctx": numCtx})
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	return decodeSessionInfo(resp)
+}
+
+// sessionInfoCall issues an RPC with string params and decodes a SessionInfo
+// result, the shared shape of the rename/tag/setcwd handlers.
+func (c *Client) sessionInfoCall(method string, params map[string]string) (SessionInfo, error) {
+	resp, err := c.Call(method, params)
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	return decodeSessionInfo(resp)
+}
+
+// decodeSessionInfo turns a Response carrying a SessionInfo result into the typed
+// value, surfacing any JSON-RPC error as a Go error.
+func decodeSessionInfo(resp *Response) (SessionInfo, error) {
+	if resp.Error != nil {
+		return SessionInfo{}, fmt.Errorf("%s", resp.Error.Message)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return SessionInfo{}, err
+	}
+	var sess SessionInfo
+	if err := json.Unmarshal(b, &sess); err != nil {
+		return SessionInfo{}, err
+	}
+	return sess, nil
+}
+
 // Chat sends a single user message to the session identified by sessionID.
 // inarid owns the message history; it appends the message, sends the full
 // history to Ollama, stores the reply, and returns the assistant's text.

@@ -79,7 +79,7 @@ func (c Chat) onDone(msg ChatDoneMsg) (tea.Model, tea.Cmd) {
 		c.messages = append(c.messages, provider.Message{Role: "assistant", Content: c.streamBuf})
 		c.display = append(c.display, assistantStyle.Render(c.sessionName+": ")+c.streamBuf)
 		c.ctxChars += len(c.streamBuf)
-		autoCompact = shouldAutoCompact(c.ctxChars, c.maxCtx)
+		autoCompact = shouldAutoCompact(c.ctxChars, effectiveNumCtx(c.numCtxOverride, c.maxCtx))
 	}
 	c.streamBuf = ""
 	c.streamTokens = nil
@@ -111,15 +111,24 @@ const autoCompactFraction = 0.8
 
 // shouldAutoCompact reports whether the running token estimate (ctxChars/4, the
 // same estimate the footer shows) has reached autoCompactFraction of the effective
-// context window for a model whose max window is maxCtx. false when the window is
-// unknown (maxCtx <= 0), so a model with no detected window never auto-compacts.
-func shouldAutoCompact(ctxChars, maxCtx int) bool {
-	window := ipc.DefaultNumCtx(maxCtx)
+// context window. false when the window is unknown (<= 0), so a session with no
+// detected window and no override never auto-compacts.
+func shouldAutoCompact(ctxChars, window int) bool {
 	if window <= 0 {
 		return false
 	}
 	estTokens := ctxChars / 4
 	return float64(estTokens) >= autoCompactFraction*float64(window)
+}
+
+// effectiveNumCtx is the context window inarid will actually request for a
+// session: the per-session override when set (> 0), otherwise the model-derived
+// capped default. mirrors the daemon's own precedence in handleStream.
+func effectiveNumCtx(numCtxOverride, maxCtx int) int {
+	if numCtxOverride > 0 {
+		return numCtxOverride
+	}
+	return ipc.DefaultNumCtx(maxCtx)
 }
 
 // onTick advances the thinking spinner while a response is awaited.

@@ -19,6 +19,15 @@ type Models struct {
 	Sensor  string `json:"sensor"`
 }
 
+// Endpoint is a named inference-backend profile: the base URL of an OpenAI/Ollama
+// compatible server plus optional auth. Headers are sent on every request, so an
+// api_key can also be supplied there if a backend expects a non-standard header.
+type Endpoint struct {
+	BaseURL string            `json:"base_url"`
+	APIKey  string            `json:"api_key,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+}
+
 // Shell configures the execute_shell_command tool gate.
 type Shell struct {
 	// Allowlist holds command binaries that execute_shell_command runs without a
@@ -37,6 +46,11 @@ type Config struct {
 	Models         Models         `json:"models"`
 	Shell          Shell          `json:"shell"`
 	Theme          string         `json:"theme,omitempty"`
+	// Provider names the active entry in Endpoints; empty falls back to the legacy
+	// single OllamaBaseURL. lets a user switch local backends without rebuilding.
+	Provider string `json:"provider,omitempty"`
+	// Endpoints holds named backend profiles (e.g. "ollama", "lmstudio", "llamacpp").
+	Endpoints map[string]Endpoint `json:"endpoints,omitempty"`
 	// idle_shutdown_mins: minutes of no client activity after which the daemon
 	// exits on its own. 0 falls back to the 30 min default; a negative value
 	// disables auto-shutdown entirely.
@@ -82,6 +96,24 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// ActiveEndpoint resolves the backend the daemon should talk to. it prefers the
+// profile named by Provider; if Provider is empty or names a missing profile it
+// falls back to the legacy single OllamaBaseURL. a profile with an empty base_url
+// inherits OllamaBaseURL, so partial profiles still work. found reports whether a
+// named profile actually matched (false on fallback), so the caller can warn on a
+// dangling Provider name.
+func (c *Config) ActiveEndpoint() (Endpoint, bool) {
+	if c.Provider != "" {
+		if ep, ok := c.Endpoints[c.Provider]; ok {
+			if ep.BaseURL == "" {
+				ep.BaseURL = c.OllamaBaseURL
+			}
+			return ep, true
+		}
+	}
+	return Endpoint{BaseURL: c.OllamaBaseURL}, false
 }
 
 // Save writes the config back to path with indented JSON.

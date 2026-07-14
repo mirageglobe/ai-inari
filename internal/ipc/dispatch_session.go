@@ -1,7 +1,7 @@
 // dispatch_session.go owns the session lifecycle/config handlers: list, create,
-// delete, rename, assign/unassign, setcontext, and setcwd. it does NOT own
-// conversation ops (dispatch_chat.go), ollama.* (dispatch_ollama.go), or the
-// switch (dispatch.go).
+// delete, rename, assign/unassign, setcontext, setcwd, tag, and setnumctx. it does
+// NOT own conversation ops (dispatch_chat.go), ollama.* (dispatch_ollama.go), or
+// the switch (dispatch.go).
 
 package ipc
 
@@ -130,6 +130,45 @@ func (s *Server) handleSessionRename(req Request) Response {
 	}
 	sess.Name = params.Name
 	sess.UpdatedAt = time.Now()
+	s.store.Persist(sess.ID)
+	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
+}
+
+// session.tag toggles a label on a session (adds if absent, removes if present)
+// for grouping and filtering. returns the updated info so open views refresh.
+func (s *Server) handleSessionTag(req Request) Response {
+	var params struct {
+		ID  string `json:"id"`
+		Tag string `json:"tag"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil || params.Tag == "" {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: tag required"}, ID: req.ID}
+	}
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	}
+	sess.ToggleTag(params.Tag)
+	s.store.Persist(sess.ID)
+	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
+}
+
+// session.setnumctx sets a per-session num_ctx override the daemon requests on
+// each chat instead of the model-derived default; 0 clears it. returns the
+// updated info so the client can refresh its context-window display.
+func (s *Server) handleSessionSetNumCtx(req Request) Response {
+	var params struct {
+		ID     string `json:"id"`
+		NumCtx int    `json:"num_ctx"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	}
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	}
+	sess.SetNumCtx(params.NumCtx)
 	s.store.Persist(sess.ID)
 	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
 }
