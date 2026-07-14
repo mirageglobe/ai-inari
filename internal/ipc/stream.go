@@ -41,6 +41,22 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 
 	sess.AppendMessage(provider.Message{Role: "user", Content: params.Text})
 
+	// pre-send intercept: short-circuit empty/low-effort input (no alphanumeric
+	// content, e.g. "?" or whitespace) with a local reply instead of a full model
+	// round-trip. this is a latency/cost optimisation only; the tool-call safety
+	// tiers still gate any actual execution for real messages.
+	if !hasAlnum([]byte(params.Text)) {
+		reply := "i didn't catch a question there; could you rephrase?"
+		sess.AppendMessage(provider.Message{Role: "assistant", Content: reply})
+		s.store.Persist(sess.ID)
+		enc.Encode(map[string]string{"token": reply})
+		enc.Encode(map[string]bool{"done": true})
+		if s.verbose {
+			log.Printf("[inarid->inariui] session.stream short-circuited low-effort input")
+		}
+		return
+	}
+
 	// a cancellable context spans every tool round so a session.interrupt RPC can
 	// abort the in-flight generation; registered under the session ID for lookup.
 	ctx, cancel := context.WithCancel(context.Background())

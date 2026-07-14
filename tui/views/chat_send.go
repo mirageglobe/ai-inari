@@ -24,6 +24,12 @@ func (c Chat) sendChat(text string) (Chat, tea.Cmd) {
 	c.ctxChars += len(text)
 	c.input.Reset()
 	c.status = ""
+	// soft, non-blocking heads-up if the outgoing message looks like it carries a
+	// secret; the message is still sent (the user's call). shown through streaming
+	// until the reply completes.
+	if looksLikeSecret(text) {
+		c.status = "[warn] this message may contain a secret; sending anyway"
+	}
 	c.waiting = true
 	c.loadingModel = ""
 	tokens := make(chan string, 64)

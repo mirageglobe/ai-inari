@@ -37,10 +37,19 @@ func (s *Server) handleSessionCreate(req Request) Response {
 	}
 	sess := session.New(params.Name)
 	sess.Model = defaultNewAgentModel
+	// base prompt: the cwd file-tree/AGENTS.md context when a cwd is given, else
+	// the session's default concise-response prompt set by session.New.
+	base := sess.SystemPrompt
 	if params.CWD != "" {
 		sess.CWD = params.CWD
-		sess.SetSystemPrompt(buildCWDSystemPrompt(params.CWD))
+		base = buildCWDSystemPrompt(params.CWD)
 	}
+	// prepend the global system prompt (config.json context.system_prompt) so it
+	// applies to every session without per-session setup.
+	if s.globalSystemPrompt != "" {
+		base = s.globalSystemPrompt + "\n\n" + base
+	}
+	sess.SetSystemPrompt(base)
 	s.store.Add(sess)
 	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
 }

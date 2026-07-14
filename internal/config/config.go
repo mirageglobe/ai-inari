@@ -28,6 +28,14 @@ type Endpoint struct {
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
+// Context holds global context applied to every session at creation. SystemPrompt
+// is prepended to each session's own prompt (the default concise-response prompt,
+// or the cwd file-tree/AGENTS.md context), so it applies across all Inari launches
+// without per-session setup. default model settings live in the Models block.
+type Context struct {
+	SystemPrompt string `json:"system_prompt,omitempty"`
+}
+
 // Ollama holds runtime tuning for the Ollama backend. KeepAlive is applied by
 // inarid on every chat request (how long an idle model stays loaded, e.g. "5m";
 // empty uses Ollama's own default). MaxLoadedModels and NumParallel are
@@ -59,6 +67,7 @@ type Config struct {
 	Models         Models         `json:"models"`
 	Shell          Shell          `json:"shell"`
 	Ollama         Ollama         `json:"ollama,omitempty"`
+	Context        Context        `json:"context,omitempty"`
 	Theme          string         `json:"theme,omitempty"`
 	// Provider names the active entry in Endpoints; empty falls back to the legacy
 	// single OllamaBaseURL. lets a user switch local backends without rebuilding.

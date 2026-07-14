@@ -54,7 +54,7 @@ func TestPingPong(t *testing.T) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "")
+	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "", "")
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestSessionList(t *testing.T) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "")
+	srv, err := NewServer(sock, store, sched, host, auditor, nil, false, 0, "", "")
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestSessionAssign(t *testing.T) {
 		sched := scheduler.New(8192)
 		host := mcp.NewHost(nil, auditor)
 
-		srv, err := NewServer(sock, store, sched, host, auditor, fake, false, 0, "")
+		srv, err := NewServer(sock, store, sched, host, auditor, fake, false, 0, "", "")
 		if err != nil {
 			t.Fatalf("NewServer: %v", err)
 		}

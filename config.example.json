@@ -22,5 +22,8 @@
     "max_loaded_models": 3,
     "num_parallel": 1
   },
+  "context": {
+    "system_prompt": ""
+  },
   "theme": "slate"
 }
