@@ -46,6 +46,16 @@ type setNumCtxResultMsg struct {
 	err  error
 }
 
+// roleResultMsg carries the outcome of a /role command: the role set, the model
+// recommended for it, and whether that model was successfully assigned (false
+// when it is not pulled yet). err is set only when setting the role itself failed.
+type roleResultMsg struct {
+	role     string
+	model    string
+	assigned bool
+	err      error
+}
+
 // toolApprovalRequestMsg is emitted when the server wants to run a tool and needs user approval.
 type toolApprovalRequestMsg struct {
 	SessionID string

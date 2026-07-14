@@ -1,7 +1,7 @@
 // dispatch_session.go owns the session lifecycle/config handlers: list, create,
-// delete, rename, assign/unassign, setcontext, setcwd, tag, and setnumctx. it does
-// NOT own conversation ops (dispatch_chat.go), ollama.* (dispatch_ollama.go), or
-// the switch (dispatch.go).
+// delete, rename, assign/unassign, setcontext, setcwd, tag, setrole, and
+// setnumctx. it does NOT own conversation ops (dispatch_chat.go), ollama.*
+// (dispatch_ollama.go), or the switch (dispatch.go).
 
 package ipc
 
@@ -149,6 +149,33 @@ func (s *Server) handleSessionTag(req Request) Response {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
 	}
 	sess.ToggleTag(params.Tag)
+	s.store.Persist(sess.ID)
+	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
+}
+
+// validRoles are the task roles a session may be assigned; mirrors the curated
+// model table's Role values. an empty role (clearing) is always allowed.
+var validRoles = map[string]bool{"general": true, "coding": true}
+
+// session.setrole records a session's task role ("general"/"coding"), used by the
+// client to default to the recommended model for that role. an empty role clears
+// it. returns the updated info so open views refresh.
+func (s *Server) handleSessionSetRole(req Request) Response {
+	var params struct {
+		ID   string `json:"id"`
+		Role string `json:"role"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	}
+	if params.Role != "" && !validRoles[params.Role] {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid role: " + params.Role}, ID: req.ID}
+	}
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	}
+	sess.SetRole(params.Role)
 	s.store.Persist(sess.ID)
 	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
 }

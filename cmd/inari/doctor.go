@@ -54,6 +54,10 @@ func cmdDoctor(cfgPath string) {
 		line("warn", "models", "skipped (ollama unreachable)")
 	}
 
+	// ollama tuning: advisory. keep_alive is applied by inarid per request; the
+	// other two are server-start settings the user must set on `ollama serve`.
+	reportOllamaTuning(cfg.Ollama)
+
 	// daemon: informational; "not running" is a valid state, not a failure.
 	if pid, err := readPID(); err == nil && alive(pid) {
 		line("ok", "daemon", fmt.Sprintf("running (pid %d)", pid))
@@ -107,6 +111,24 @@ func checkModels(client *ollama.Client, m config.Models) bool {
 		}
 	}
 	return base
+}
+
+// reportOllamaTuning prints the configured Ollama runtime tuning. keep_alive is
+// applied by inarid on each request; max_loaded_models / num_parallel cannot be
+// set on an external `ollama serve`, so they are surfaced as the host env vars the
+// user should export. lines are advisory and never fail the command.
+func reportOllamaTuning(o config.Ollama) {
+	if o.KeepAlive != "" {
+		line("ok", "keep_alive", o.KeepAlive+"  (applied per request)")
+	} else {
+		line("ok", "keep_alive", "ollama default  (set ollama.keep_alive to override)")
+	}
+	if o.MaxLoadedModels > 0 {
+		line("warn", "ollama env", fmt.Sprintf("export OLLAMA_MAX_LOADED_MODELS=%d on `ollama serve`", o.MaxLoadedModels))
+	}
+	if o.NumParallel > 0 {
+		line("warn", "ollama env", fmt.Sprintf("export OLLAMA_NUM_PARALLEL=%d on `ollama serve`", o.NumParallel))
+	}
 }
 
 // checkSocket reports the daemon socket exists with the expected 0600 mode; only

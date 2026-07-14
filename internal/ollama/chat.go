@@ -21,7 +21,7 @@ func (c *Client) Chat(model string, messages []provider.Message) (string, error)
 		log.Printf("[inarid→ollama] chat model=%s msgs=%d", model, len(messages))
 	}
 	req := provider.ChatRequest{Model: model, Messages: messages, Stream: false}
-	body, err := json.Marshal(req)
+	body, err := json.Marshal(c.withKeepAlive(req))
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +79,7 @@ func (c *Client) ChatStream(ctx context.Context, req provider.ChatRequest, out c
 		log.Printf("[inarid→ollama] chat.stream model=%s msgs=%d", req.Model, len(req.Messages))
 	}
 	req.Stream = true
-	body, err := json.Marshal(req)
+	body, err := json.Marshal(c.withKeepAlive(req))
 	if err != nil {
 		return err
 	}

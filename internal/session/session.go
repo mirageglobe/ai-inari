@@ -47,6 +47,9 @@ type Session struct {
 	CWD          string             `json:"cwd,omitempty"`
 	// Tags are free-form labels for grouping and filtering sessions in the UI.
 	Tags []string `json:"tags,omitempty"`
+	// Role is the session's task role ("general"/"coding"); drives the default
+	// recommended model. empty means no role assigned.
+	Role string `json:"role,omitempty"`
 	// NumCtxOverride, when > 0, is the num_ctx the daemon requests for this session
 	// instead of the model-derived default; 0 means "use the computed default".
 	NumCtxOverride int       `json:"num_ctx_override,omitempty"`
@@ -130,6 +133,14 @@ func (s *Session) ToggleTag(tag string) bool {
 	sort.Strings(s.Tags)
 	s.UpdatedAt = time.Now()
 	return true
+}
+
+// SetRole sets the session's task role (e.g. "general"/"coding"); "" clears it.
+func (s *Session) SetRole(role string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Role = role
+	s.UpdatedAt = time.Now()
 }
 
 // SetNumCtx sets the per-session num_ctx override; 0 clears it (revert to the

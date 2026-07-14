@@ -39,6 +39,7 @@ var chatCommandTable = []ChatCommand{
 	{"/cwd", "change working directory (/cwd <path>)", nil},
 	{"/rename", "rename this session (/rename <name>)", nil},
 	{"/tag", "toggle a label on this session (/tag <label>)", nil},
+	{"/role", "set task role + default model (/role <general|coding>)", nil},
 	{"/numctx", "view/set context window (/numctx [tokens|auto])", nil},
 	{"/tools", "toggle builtin tools panel", func(c Chat) bool { return c.cwd != "" }},
 	{"/agents", "open agents as a popup ([q] to close)", nil},

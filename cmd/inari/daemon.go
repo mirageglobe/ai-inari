@@ -45,6 +45,7 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	}
 	ollamaClient := ollama.NewClientWithAuth(endpoint.BaseURL, endpoint.APIKey, endpoint.Headers)
 	ollamaClient.SetVerbose(verbose)
+	ollamaClient.SetKeepAlive(cfg.Ollama.KeepAlive) // "" leaves Ollama's own default
 	if err := ollamaClient.Ping(); err != nil {
 		log.Printf("ollama not reachable: %v", err)
 		log.Printf("expected at: %s", endpoint.BaseURL)

@@ -17,5 +17,10 @@
   "shell": {
     "allowlist": ["go", "make", "git", "ls", "cat", "find", "pwd", "whoami", "uname", "wc", "date", "echo", "which", "df", "du", "uptime", "ps"]
   },
+  "ollama": {
+    "keep_alive": "5m",
+    "max_loaded_models": 3,
+    "num_parallel": 1
+  },
   "theme": "slate"
 }

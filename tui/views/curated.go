@@ -46,6 +46,24 @@ func DetectTier(totalBytes uint64) int {
 	return curatedTiers[len(curatedTiers)-1]
 }
 
+// recommendedModel returns the curated model for role at the highest tier at or
+// below tierGB (the detected hardware bucket), or "" when the role has no curated
+// entry that fits. this is the model a session defaults to when its role is set.
+func recommendedModel(role string, tierGB int) string {
+	best := ""
+	bestTier := -1
+	for _, m := range CuratedModels {
+		if m.Role != role || m.TierGB > tierGB {
+			continue
+		}
+		if m.TierGB > bestTier {
+			bestTier = m.TierGB
+			best = m.Model
+		}
+	}
+	return best
+}
+
 // curatedNotes returns the §6.1 Notes for a model name, or "" when the model
 // is not in the curated table (e.g. a locally-pulled model outside the list).
 func curatedNotes(name string) string {

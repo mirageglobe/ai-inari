@@ -28,6 +28,19 @@ type Endpoint struct {
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
+// Ollama holds runtime tuning for the Ollama backend. KeepAlive is applied by
+// inarid on every chat request (how long an idle model stays loaded, e.g. "5m";
+// empty uses Ollama's own default). MaxLoadedModels and NumParallel are
+// server-start settings inarid cannot set on an external `ollama serve`; they are
+// recorded here so `inari doctor` can surface them as the host env vars
+// OLLAMA_MAX_LOADED_MODELS / OLLAMA_NUM_PARALLEL to set for the desired
+// memory/throughput trade-off.
+type Ollama struct {
+	KeepAlive       string `json:"keep_alive,omitempty"`
+	MaxLoadedModels int    `json:"max_loaded_models,omitempty"`
+	NumParallel     int    `json:"num_parallel,omitempty"`
+}
+
 // Shell configures the execute_shell_command tool gate.
 type Shell struct {
 	// Allowlist holds command binaries that execute_shell_command runs without a
@@ -45,6 +58,7 @@ type Config struct {
 	MCPConnectors  []MCPConnector `json:"mcp_connectors"`
 	Models         Models         `json:"models"`
 	Shell          Shell          `json:"shell"`
+	Ollama         Ollama         `json:"ollama,omitempty"`
 	Theme          string         `json:"theme,omitempty"`
 	// Provider names the active entry in Endpoints; empty falls back to the legacy
 	// single OllamaBaseURL. lets a user switch local backends without rebuilding.

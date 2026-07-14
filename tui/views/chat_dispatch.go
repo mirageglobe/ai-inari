@@ -78,6 +78,27 @@ func (c Chat) handleSlashCommand(cmd string) (tea.Model, tea.Cmd) {
 			return setNumCtxResultMsg{info: info, err: err}
 		}
 	}
+	// /role <general|coding>: record the role and default to the recommended model
+	// for it at the detected hardware tier, assigning it when already pulled.
+	if cmd == "/role" || strings.HasPrefix(cmd, "/role ") {
+		role := strings.TrimSpace(strings.TrimPrefix(cmd, "/role"))
+		if role != "general" && role != "coding" {
+			c.status = "[warn] usage: /role <general|coding>"
+			return c, nil
+		}
+		id := c.sessionID
+		rec := recommendedModel(role, DetectTier(TotalMemBytes()))
+		client := c.client
+		return c, func() tea.Msg {
+			info, err := client.SetRole(id, role)
+			if err != nil {
+				return roleResultMsg{err: err}
+			}
+			// default to the recommended model; ok if it is not pulled yet.
+			assigned := rec != "" && client.AssignModel(id, rec) == nil
+			return roleResultMsg{role: info.Role, model: rec, assigned: assigned}
+		}
+	}
 	switch cmd {
 	case "/clear":
 		id := c.sessionID
