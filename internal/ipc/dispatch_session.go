@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/mirageglobe/ai-inari/internal/config"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -44,10 +45,18 @@ func (s *Server) handleSessionCreate(req Request) Response {
 		sess.CWD = params.CWD
 		base = buildCWDSystemPrompt(params.CWD)
 	}
-	// prepend the global system prompt (config.json context.system_prompt) so it
-	// applies to every session without per-session setup.
-	if s.globalSystemPrompt != "" {
-		base = s.globalSystemPrompt + "\n\n" + base
+	// prepend the effective context prompt: a project overlay's context.system_prompt
+	// (.inari/config.json in the session cwd) replaces the global one when set, since
+	// the more-specific project prompt wins; otherwise the global prompt applies. the
+	// base cwd/tree/AGENTS.md context is retained either way.
+	prompt := s.globalSystemPrompt
+	if params.CWD != "" {
+		if proj := config.LoadProject(params.CWD); proj.Context.SystemPrompt != "" {
+			prompt = proj.Context.SystemPrompt
+		}
+	}
+	if prompt != "" {
+		base = prompt + "\n\n" + base
 	}
 	sess.SetSystemPrompt(base)
 	s.store.Add(sess)

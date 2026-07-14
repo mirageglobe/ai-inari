@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mirageglobe/ai-inari/internal/config"
 )
 
 // skipDirs are directory names that are always excluded from the file tree.
@@ -66,7 +68,11 @@ func expandUserPath(p string) string {
 // project-level context file. shared by session.create and session.setcwd so both
 // entry points inject identical context. cwd must be non-empty.
 func buildCWDSystemPrompt(cwd string) string {
-	tree := buildFileTree(cwd, 3)
+	// project overlay (.inari/config.json): its exclude_dirs extend the built-in
+	// file-tree skip set for this session only. the overlay's system_prompt is
+	// applied by the caller (handleSessionCreate), not here.
+	proj := config.LoadProject(cwd)
+	tree := buildFileTree(cwd, 3, proj.ExcludeDirs)
 	// omit "respond in plain text only" from the default prompt because it conflicts
 	// with structured function calling and causes the model to output tool invocations
 	// as text rather than structured tool_calls.
@@ -88,14 +94,27 @@ func buildCWDSystemPrompt(cwd string) string {
 }
 
 // buildFileTree returns a compact file tree of dir up to maxDepth levels deep.
-// directories in skipDirs are pruned. the result is suitable for injection into a system prompt.
-func buildFileTree(dir string, maxDepth int) string {
+// directories in skipDirs, plus any names in extraSkip (the project overlay's
+// exclude_dirs), are pruned. the result is suitable for injection into a system prompt.
+func buildFileTree(dir string, maxDepth int, extraSkip []string) string {
+	skip := skipDirs
+	if len(extraSkip) > 0 {
+		// merge built-in and project skips into a fresh set so the package global
+		// is never mutated across sessions.
+		skip = make(map[string]bool, len(skipDirs)+len(extraSkip))
+		for k := range skipDirs {
+			skip[k] = true
+		}
+		for _, name := range extraSkip {
+			skip[name] = true
+		}
+	}
 	var sb strings.Builder
-	walkTree(&sb, dir, dir, 0, maxDepth)
+	walkTree(&sb, skip, dir, dir, 0, maxDepth)
 	return sb.String()
 }
 
-func walkTree(sb *strings.Builder, root, current string, depth, maxDepth int) {
+func walkTree(sb *strings.Builder, skip map[string]bool, root, current string, depth, maxDepth int) {
 	if depth > maxDepth {
 		return
 	}
@@ -105,12 +124,12 @@ func walkTree(sb *strings.Builder, root, current string, depth, maxDepth int) {
 	}
 	indent := strings.Repeat("  ", depth)
 	for _, e := range entries {
-		if skipDirs[e.Name()] {
+		if skip[e.Name()] {
 			continue
 		}
 		if e.IsDir() {
 			fmt.Fprintf(sb, "%s%s/\n", indent, e.Name())
-			walkTree(sb, root, filepath.Join(current, e.Name()), depth+1, maxDepth)
+			walkTree(sb, skip, root, filepath.Join(current, e.Name()), depth+1, maxDepth)
 		} else {
 			fmt.Fprintf(sb, "%s%s\n", indent, e.Name())
 		}
