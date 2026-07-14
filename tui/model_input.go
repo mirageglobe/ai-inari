@@ -7,10 +7,37 @@
 package tui
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/mirageglobe/ai-inari/tui/views"
 )
+
+// activeViewInputFocused reports whether the currently active view is capturing
+// text input (chat message box, agents filter, describe context editor). when
+// true, unmodified keys belong to that input, not to global hotkeys.
+func (m Model) activeViewInputFocused() bool {
+	switch m.current {
+	case viewChat:
+		chat, ok := m.chats[m.activeSession]
+		return ok && chat.InputFocused()
+	case viewAgents:
+		return m.agents.Filtering()
+	case viewDescribe:
+		return m.describe.IsEditing()
+	default:
+		return false
+	}
+}
+
+// isBareKey reports whether k is an unmodified key (no ctrl/alt chord). bare keys
+// are the ones a focused text input would consume, so global handling of them is
+// suppressed while an input is focused; modifier chords never collide with typing.
+func isBareKey(k tea.KeyMsg) bool {
+	s := k.String()
+	return !strings.HasPrefix(s, "ctrl+") && !strings.HasPrefix(s, "alt+")
+}
 
 // updateModal captures all remaining messages while a modal is active, and
 // routes theme-save failures to the active view's status bar.
@@ -53,6 +80,15 @@ func (m Model) updateModal(msg tea.Msg) (Model, tea.Cmd, bool) {
 func (m Model) updateKeys(msg tea.Msg) (Model, tea.Cmd, bool) {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
+		return m, nil, false
+	}
+	// general focus-aware suppression: with no global overlay active, when the
+	// active view is capturing text input, unmodified keys belong to that input, so
+	// fall through to the view rather than matching any global bare-key hotkey.
+	// modifier chords (ctrl/alt) never collide with typing and still work. this is
+	// the general guard the ad-hoc ?/t workaround lacked; a future bare-key global
+	// binding cannot shadow typing while an input is focused.
+	if !m.showThemePicker && !m.showHelp && m.activeViewInputFocused() && isBareKey(key) {
 		return m, nil, false
 	}
 	if m.showThemePicker {

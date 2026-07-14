@@ -86,6 +86,10 @@ func (h Agents) Init() tea.Cmd {
 	return tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
 }
 
+// Filtering reports whether the agents filter input is focused and capturing
+// typed keys, so the root model can suppress global bare-key hotkeys.
+func (h Agents) Filtering() bool { return h.filtering }
+
 func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ThemeChangedMsg:
