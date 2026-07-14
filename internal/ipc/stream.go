@@ -103,6 +103,11 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	}
 
 	const maxToolRounds = 10
+	// tool output accumulated across this turn's rounds. some models (e.g.
+	// gemma4:e2b) reliably return an empty final answer after a tool result; when
+	// that happens we surface this so the user sees the data they asked for rather
+	// than a blank reply.
+	var turnToolOutput strings.Builder
 	for round := range maxToolRounds {
 		if round == 0 && loading {
 			enc.Encode(map[string]string{"status": "loading"})
@@ -194,6 +199,14 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 			} else {
 				// text response: tokens already streamed above; persist and signal done.
 				reply := textBuf.String()
+				// some models return an empty final answer after a tool ran (they treat
+				// the tool result as the answer). surface the accumulated tool output so
+				// the user sees the data they asked for instead of a blank reply; the
+				// tokens were never streamed (tool rounds are silent), so stream them now.
+				if reply == "" && turnToolOutput.Len() > 0 {
+					reply = turnToolOutput.String()
+					enc.Encode(map[string]string{"token": reply})
+				}
 				sess.AppendMessage(provider.Message{Role: "assistant", Content: reply})
 				s.store.Persist(sess.ID)
 				enc.Encode(map[string]bool{"done": true})
@@ -235,6 +248,10 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 			if s.verbose {
 				log.Printf("[inarid->builtin] %s(%v) -> %d chars", tc.Function.Name, tc.Function.Arguments, len(result))
 			}
+			if turnToolOutput.Len() > 0 {
+				turnToolOutput.WriteString("\n")
+			}
+			turnToolOutput.WriteString(result)
 			sess.AppendMessage(provider.Message{Role: "tool", Content: result})
 		}
 	}
