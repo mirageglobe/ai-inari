@@ -37,14 +37,20 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	auditor := audit.New("inari-audit.log")
 	defer auditor.Close()
 
-	ollamaClient := ollama.NewClient(cfg.OllamaBaseURL)
+	// resolve the active backend from a named endpoint profile, falling back to the
+	// legacy single ollama_base_url when no provider is selected.
+	endpoint, named := cfg.ActiveEndpoint()
+	if cfg.Provider != "" && !named {
+		log.Printf("provider %q not found in endpoints; falling back to %s", cfg.Provider, endpoint.BaseURL)
+	}
+	ollamaClient := ollama.NewClientWithAuth(endpoint.BaseURL, endpoint.APIKey, endpoint.Headers)
 	ollamaClient.SetVerbose(verbose)
 	if err := ollamaClient.Ping(); err != nil {
 		log.Printf("ollama not reachable: %v", err)
-		log.Printf("expected at: %s", cfg.OllamaBaseURL)
+		log.Printf("expected at: %s", endpoint.BaseURL)
 		log.Fatal("hint: run `ollama serve` then retry")
 	}
-	log.Printf("ollama ready: %s", cfg.OllamaBaseURL)
+	log.Printf("ollama ready: %s", endpoint.BaseURL)
 
 	sched := scheduler.New(cfg.MemoryBudgetMB)
 

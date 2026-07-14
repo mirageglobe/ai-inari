@@ -18,6 +18,10 @@ type SessionInfo struct {
 	SystemPrompt string `json:"system_prompt,omitempty"`
 	CWD          string `json:"cwd,omitempty"`
 	ContextChars int    `json:"context_chars,omitempty"`
+	// Tags are free-form labels for grouping/filtering in the agents view.
+	Tags []string `json:"tags,omitempty"`
+	// NumCtxOverride mirrors the session's num_ctx override (0 = computed default).
+	NumCtxOverride int `json:"num_ctx_override,omitempty"`
 }
 
 // Client connects to inarid over a Unix Domain Socket.

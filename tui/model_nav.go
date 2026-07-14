@@ -122,7 +122,7 @@ func (m Model) updateNav(msg tea.Msg) (Model, tea.Cmd, bool) {
 			}
 		}
 		if _, exists := m.chats[sel.SessionID]; !exists {
-			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.CWD, sel.ContextChars, sel.SystemPrompt)
+			chat := views.NewChat(m.client, sel.SessionID, sel.SessionName, sel.ModelName, sel.CWD, sel.ContextChars, sel.NumCtxOverride, sel.SystemPrompt)
 			// size the viewport immediately with the known terminal dimensions so the
 			// chat is ready before it ever receives a WindowSizeMsg.
 			if m.termWidth > 0 && m.termHeight > 0 {

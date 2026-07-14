@@ -93,7 +93,7 @@ func (h Agents) onSessions(msg sessionsMsg) (tea.Model, tea.Cmd) {
 				if s.Model != "" {
 					sess := s
 					return h, func() tea.Msg {
-						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, SystemPrompt: sess.SystemPrompt}
+						return SelectModelMsg{SessionID: sess.ID, SessionName: sess.Name, ModelName: sess.Model, CWD: sess.CWD, ContextChars: sess.ContextChars, NumCtxOverride: sess.NumCtxOverride, SystemPrompt: sess.SystemPrompt}
 					}
 				}
 			}
@@ -126,7 +126,9 @@ func (h *Agents) applyFilter() {
 	q := strings.ToLower(h.filter)
 	var out []ipc.SessionInfo
 	for _, s := range h.allSessions {
-		if strings.Contains(strings.ToLower(s.Name), q) || strings.Contains(strings.ToLower(s.Model), q) {
+		if strings.Contains(strings.ToLower(s.Name), q) ||
+			strings.Contains(strings.ToLower(s.Model), q) ||
+			strings.Contains(strings.ToLower(strings.Join(s.Tags, " ")), q) {
 			out = append(out, s)
 		}
 	}

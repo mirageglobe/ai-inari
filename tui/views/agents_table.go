@@ -7,6 +7,7 @@ package views
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
 
@@ -48,7 +49,13 @@ func (h *Agents) rebuildTable() {
 		if s.ID == h.activeSessionID {
 			indicator = ">"
 		}
-		rows[i] = table.Row{indicator, s.Name, model, vram, status, ctx}
+		// append tags after the name so they are visible for grouping, e.g.
+		// "jade fox [work urgent]".
+		name := s.Name
+		if len(s.Tags) > 0 {
+			name += " [" + strings.Join(s.Tags, " ") + "]"
+		}
+		rows[i] = table.Row{indicator, name, model, vram, status, ctx}
 	}
 	h.table.SetRows(rows)
 }

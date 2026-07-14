@@ -76,43 +76,44 @@ type recapMsg struct{ text string }
 // contextLine is a one-line summary of the injected file-tree/project-context system
 // prompt, rendered as the first line of display so the user can see what was loaded.
 type Chat struct {
-	client        *ipc.Client
-	sessionID     string
-	sessionName   string
-	model         string // display only
-	cwd           string
-	contextLine   string
-	messages      []provider.Message
-	display       []string
-	viewport      viewport.Model
-	input         textarea.Model
-	spinner       spinner.Model
-	waiting       bool
-	ready         bool
-	historyLoaded bool
-	offline       bool
-	showBuiltin   bool
-	ctxChars      int
-	maxCtx        int      // model's max context window (tokens); 0 until fetched / unknown
-	status        string   // transient status/warn message shown in the status line
-	inputHistory  []string // sent user messages, oldest first
-	historyIdx    int      // index into inputHistory during navigation; -1 = not navigating
-	historyDraft  string   // saves the in-progress input when history navigation starts
-	inputFocused  bool
-	streamBuf     string
-	streamTokens  <-chan string
-	streamStatus  <-chan string
-	streamErrc    <-chan error
-	toolReqs      <-chan ipc.ToolRequestMsg
-	toolApprovals chan<- bool
-	pendingTool   *toolApprovalRequestMsg
-	runningTool   string // name of the tool currently executing after approval
-	loadingModel  string // non-empty while inarid reports the assigned model is cold-loading
-	selActive     bool
-	selStartLine  int       // absolute content line (post-hardwrap) where drag started
-	selEndLine    int       // absolute content line where drag currently ends
-	lastActivity  time.Time // last keypress or stream token; drives the idle-hint timer
-	idleHint      string    // rotating usage hint shown after idleHintDelay of inactivity
+	client         *ipc.Client
+	sessionID      string
+	sessionName    string
+	model          string // display only
+	cwd            string
+	contextLine    string
+	messages       []provider.Message
+	display        []string
+	viewport       viewport.Model
+	input          textarea.Model
+	spinner        spinner.Model
+	waiting        bool
+	ready          bool
+	historyLoaded  bool
+	offline        bool
+	showBuiltin    bool
+	ctxChars       int
+	maxCtx         int      // model's max context window (tokens); 0 until fetched / unknown
+	numCtxOverride int      // per-session num_ctx override (tokens); 0 = use computed default
+	status         string   // transient status/warn message shown in the status line
+	inputHistory   []string // sent user messages, oldest first
+	historyIdx     int      // index into inputHistory during navigation; -1 = not navigating
+	historyDraft   string   // saves the in-progress input when history navigation starts
+	inputFocused   bool
+	streamBuf      string
+	streamTokens   <-chan string
+	streamStatus   <-chan string
+	streamErrc     <-chan error
+	toolReqs       <-chan ipc.ToolRequestMsg
+	toolApprovals  chan<- bool
+	pendingTool    *toolApprovalRequestMsg
+	runningTool    string // name of the tool currently executing after approval
+	loadingModel   string // non-empty while inarid reports the assigned model is cold-loading
+	selActive      bool
+	selStartLine   int       // absolute content line (post-hardwrap) where drag started
+	selEndLine     int       // absolute content line where drag currently ends
+	lastActivity   time.Time // last keypress or stream token; drives the idle-hint timer
+	idleHint       string    // rotating usage hint shown after idleHintDelay of inactivity
 }
 
 // WithOffline returns a copy of the chat with the offline flag set.
@@ -142,7 +143,7 @@ func (c Chat) SessionName() string { return c.sessionName }
 func (c Chat) Model() string       { return c.model }
 func (c Chat) InputFocused() bool  { return c.inputFocused }
 
-func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars int, systemPrompt string) Chat {
+func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxChars, numCtxOverride int, systemPrompt string) Chat {
 	ta := textarea.New()
 	ta.Placeholder = "message " + sessionName + " (" + model + ")..."
 	ta.Focus()
@@ -156,18 +157,19 @@ func NewChat(client *ipc.Client, sessionID, sessionName, model, cwd string, ctxC
 	sp.Style = thinkingStyle
 
 	return Chat{
-		client:       client,
-		sessionID:    sessionID,
-		sessionName:  sessionName,
-		model:        model,
-		cwd:          cwd,
-		contextLine:  buildContextLine(cwd, systemPrompt),
-		input:        ta,
-		spinner:      sp,
-		ctxChars:     ctxChars,
-		historyIdx:   -1,
-		inputFocused: true,
-		lastActivity: time.Now(), // opening the chat counts as activity
+		client:         client,
+		sessionID:      sessionID,
+		sessionName:    sessionName,
+		model:          model,
+		cwd:            cwd,
+		contextLine:    buildContextLine(cwd, systemPrompt),
+		input:          ta,
+		spinner:        sp,
+		ctxChars:       ctxChars,
+		numCtxOverride: numCtxOverride,
+		historyIdx:     -1,
+		inputFocused:   true,
+		lastActivity:   time.Now(), // opening the chat counts as activity
 	}
 }
 
@@ -187,6 +189,10 @@ func (c Chat) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c.onSetCwd(msg)
 	case renameResultMsg:
 		return c.onRename(msg)
+	case tagResultMsg:
+		return c.onTag(msg)
+	case setNumCtxResultMsg:
+		return c.onSetNumCtx(msg)
 	case unassignModelResultMsg:
 		return c.onUnassign(msg)
 	case clearHistoryResultMsg:

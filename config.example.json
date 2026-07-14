@@ -2,6 +2,11 @@
   "socket": "/tmp/inari.sock",
   "memory_budget_mb": 8192,
   "ollama_base_url": "http://localhost:11434",
+  "provider": "",
+  "endpoints": {
+    "ollama": { "base_url": "http://localhost:11434" },
+    "lmstudio": { "base_url": "http://localhost:1234/v1", "api_key": "" }
+  },
   "data_dir": "",
   "mcp_connectors": [],
   "models": {

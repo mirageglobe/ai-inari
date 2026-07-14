@@ -30,12 +30,13 @@ func fetchModels(client *ipc.Client) tea.Cmd {
 
 // SelectModelMsg is emitted when the user opens a session for chat.
 type SelectModelMsg struct {
-	SessionID    string
-	SessionName  string // display name shown in the chat header
-	ModelName    string
-	CWD          string // non-empty when builtin tools are active for this session
-	ContextChars int    // total message chars at open time, for token estimation
-	SystemPrompt string // injected file-tree/project-context text, for the chat pre-context line
+	SessionID      string
+	SessionName    string // display name shown in the chat header
+	ModelName      string
+	CWD            string // non-empty when builtin tools are active for this session
+	ContextChars   int    // total message chars at open time, for token estimation
+	NumCtxOverride int    // per-session num_ctx override (0 = computed default)
+	SystemPrompt   string // injected file-tree/project-context text, for the chat pre-context line
 }
 
 // BackToAgentsMsg is emitted to return to the agents view.

@@ -32,6 +32,20 @@ type renameResultMsg struct {
 	err  error
 }
 
+// tagResultMsg carries the outcome of a /tag command: the updated session info
+// (new tag set) on success, or an error.
+type tagResultMsg struct {
+	info ipc.SessionInfo
+	err  error
+}
+
+// setNumCtxResultMsg carries the outcome of a /numctx command: the updated
+// session info (new num_ctx override) on success, or an error.
+type setNumCtxResultMsg struct {
+	info ipc.SessionInfo
+	err  error
+}
+
 // toolApprovalRequestMsg is emitted when the server wants to run a tool and needs user approval.
 type toolApprovalRequestMsg struct {
 	SessionID string

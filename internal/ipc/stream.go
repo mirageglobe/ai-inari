@@ -64,15 +64,20 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	// generation loops; the n-gram tail detector in the stream loop below is the
 	// hard backstop when a penalty alone does not break the cycle.
 	opts := map[string]any{"repeat_penalty": 1.3}
-	// request a sensible num_ctx derived from the model's declared context window
-	// so small models get a larger-than-default window, capped to avoid OOM. a 0
-	// (unknown) result omits the option so Ollama falls back to its own default.
-	if maxCtx, err := s.provider.ModelContextLength(model); err == nil {
-		if nc := DefaultNumCtx(maxCtx); nc > 0 {
-			opts["num_ctx"] = nc
-			// cap a single reply to the window so a loop cannot generate past it.
-			opts["num_predict"] = nc
+	// prefer a per-session num_ctx override; otherwise derive a sensible window
+	// from the model's declared context length (capped) so small models get a
+	// larger-than-default window without risking OOM. a 0/unknown result omits the
+	// option so Ollama falls back to its own default.
+	nc := sess.NumCtxOverride
+	if nc <= 0 {
+		if maxCtx, err := s.provider.ModelContextLength(model); err == nil {
+			nc = DefaultNumCtx(maxCtx)
 		}
+	}
+	if nc > 0 {
+		opts["num_ctx"] = nc
+		// cap a single reply to the window so a loop cannot generate past it.
+		opts["num_predict"] = nc
 	}
 
 	const maxToolRounds = 10

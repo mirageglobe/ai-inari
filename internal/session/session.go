@@ -3,6 +3,7 @@ package session
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"sort"
 	"sync"
 	"time"
 
@@ -44,8 +45,13 @@ type Session struct {
 	Messages     []provider.Message `json:"messages"`
 	SystemPrompt string             `json:"system_prompt,omitempty"`
 	CWD          string             `json:"cwd,omitempty"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
+	// Tags are free-form labels for grouping and filtering sessions in the UI.
+	Tags []string `json:"tags,omitempty"`
+	// NumCtxOverride, when > 0, is the num_ctx the daemon requests for this session
+	// instead of the model-derived default; 0 means "use the computed default".
+	NumCtxOverride int       `json:"num_ctx_override,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // defaultSystemPrompt is injected into every new session so responses stay concise out of the box.
@@ -101,6 +107,40 @@ func (s *Session) AppendMessage(msg provider.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Messages = append(s.Messages, msg)
+	s.UpdatedAt = time.Now()
+}
+
+// ToggleTag adds tag if absent or removes it if present, keeping Tags sorted and
+// deduped. it reports whether the tag is present after the toggle (true = added).
+// an empty tag is a no-op returning false.
+func (s *Session) ToggleTag(tag string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if tag == "" {
+		return false
+	}
+	for i, t := range s.Tags {
+		if t == tag {
+			s.Tags = append(s.Tags[:i], s.Tags[i+1:]...)
+			s.UpdatedAt = time.Now()
+			return false
+		}
+	}
+	s.Tags = append(s.Tags, tag)
+	sort.Strings(s.Tags)
+	s.UpdatedAt = time.Now()
+	return true
+}
+
+// SetNumCtx sets the per-session num_ctx override; 0 clears it (revert to the
+// model-derived default). negative values are clamped to 0.
+func (s *Session) SetNumCtx(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n < 0 {
+		n = 0
+	}
+	s.NumCtxOverride = n
 	s.UpdatedAt = time.Now()
 }
 

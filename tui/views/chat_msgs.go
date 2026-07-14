@@ -6,6 +6,9 @@
 package views
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -51,6 +54,39 @@ func (c Chat) onRename(msg renameResultMsg) (tea.Model, tea.Cmd) {
 	c.input.Placeholder = "message " + c.sessionName + " (" + c.model + ")..."
 	c.rebuildDisplay()
 	c.status = "[info] renamed -> " + c.sessionName
+	return c, nil
+}
+
+// onTag applies a /tag result: on success it reports the session's current tag
+// set in the status line; on failure it surfaces the error. tags themselves are
+// displayed in the agents view, which refreshes on its next list.
+func (c Chat) onTag(msg tagResultMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		c.status = "[warn] tag: " + msg.err.Error()
+		return c, nil
+	}
+	if len(msg.info.Tags) == 0 {
+		c.status = "[info] tags cleared"
+	} else {
+		c.status = "[info] tags: " + strings.Join(msg.info.Tags, " ")
+	}
+	return c, nil
+}
+
+// onSetNumCtx applies a /numctx result: adopts the new override so the footer
+// window updates immediately, and reports the effective window in the status.
+func (c Chat) onSetNumCtx(msg setNumCtxResultMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		c.status = "[warn] numctx: " + msg.err.Error()
+		return c, nil
+	}
+	c.numCtxOverride = msg.info.NumCtxOverride
+	setViewportContent(&c.viewport, c.viewportContent())
+	if c.numCtxOverride > 0 {
+		c.status = "[info] num_ctx override -> " + strconv.Itoa(c.numCtxOverride)
+	} else {
+		c.status = "[info] num_ctx override cleared (using default)"
+	}
 	return c, nil
 }
 
