@@ -70,6 +70,12 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	if sess.CWD != "" {
 		builtin = filesystemTools()
 	}
+	// names of the tools actually offered this stream, for the text-based fallback
+	// below. empty when no cwd is set, so the fallback dispatches nothing.
+	knownTools := make(map[string]bool, len(builtin))
+	for _, t := range builtin {
+		knownTools[t.Function.Name] = true
+	}
 
 	// Ollama cold-loads a model into memory before it can generate; if the model
 	// is not already resident, signal the load phase so inari can show a distinct
@@ -172,15 +178,30 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		}
 
 		if len(toolCalls) == 0 {
-			// text response: tokens already streamed above; persist and signal done.
-			reply := textBuf.String()
-			sess.AppendMessage(provider.Message{Role: "assistant", Content: reply})
-			s.store.Persist(sess.ID)
-			enc.Encode(map[string]bool{"done": true})
-			if s.verbose {
-				log.Printf("[inarid->inariui] session.stream ok (%d chars)", len(reply))
+			// prompt-based tool-call fallback: a model (esp. a small one at high
+			// temperature) sometimes writes a tool call as text instead of emitting a
+			// native tool_call. if the text carries a recognised invocation, dispatch it
+			// through the normal path below so approval + sandbox still apply. persisting
+			// the structured call (not the raw text) also heals the history, so the model
+			// stops few-shotting off its own narration. the raw text was already streamed
+			// to the UI this turn; the real answer follows in the next round.
+			if tc, ok := parseTextToolCall(textBuf.String(), knownTools); ok {
+				toolCalls = []provider.ToolCall{tc}
+				if s.verbose {
+					log.Printf("[inarid] text tool-call fallback: %s(%v)", tc.Function.Name, tc.Function.Arguments)
+				}
+				// fall through to the tool-call dispatch below.
+			} else {
+				// text response: tokens already streamed above; persist and signal done.
+				reply := textBuf.String()
+				sess.AppendMessage(provider.Message{Role: "assistant", Content: reply})
+				s.store.Persist(sess.ID)
+				enc.Encode(map[string]bool{"done": true})
+				if s.verbose {
+					log.Printf("[inarid->inariui] session.stream ok (%d chars)", len(reply))
+				}
+				return
 			}
-			return
 		}
 
 		// tool-call round: append assistant message with calls, execute each, append results.
