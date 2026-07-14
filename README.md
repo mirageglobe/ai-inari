@@ -131,6 +131,22 @@ only needed to end it immediately.
 
 `context.system_prompt` is a global instruction prepended to every new session, on top of its own context (working-directory file tree, `AGENTS.md`). leave it empty for none.
 
+### per-project overlay (`.inari/config.json`)
+
+drop a `.inari/config.json` in a project directory to tailor sessions opened there:
+
+```json
+{
+  "context": { "system_prompt": "you are reviewing a payments service; be strict about money handling." },
+  "exclude_dirs": ["testdata", "fixtures"]
+}
+```
+
+- `context.system_prompt` replaces the global prompt for sessions in that directory (the more specific project prompt wins); the working-directory file tree and `AGENTS.md` context are kept.
+- `exclude_dirs` adds extra directory names to prune from the injected file tree, on top of the built-in skips (`.git`, `node_modules`, ...).
+
+only these two fields are honored. infra and security settings (socket, endpoints, provider, `shell.allowlist`, models, ...) are deliberately never read from a project file, so opening a session inside a cloned repo you do not fully trust cannot widen the shell allowlist or redirect the inference backend.
+
 `shell.allowlist` lists the commands the assistant may run without asking you first. anything on the list runs straight away; anything else pauses for your `[y]`/`[n]` before it runs. leave it empty to use the built-in default set (common read and build commands; network tools like `curl` are deliberately left off so they always ask). add a command here only if you are happy for the assistant to run it unattended.
 
 ---
