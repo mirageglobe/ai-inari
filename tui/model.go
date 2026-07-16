@@ -19,8 +19,6 @@ type view int
 
 const (
 	viewAgents view = iota
-	viewLogs
-	viewDescribe
 	viewChat
 )
 
@@ -47,6 +45,8 @@ type Model struct {
 	showThemePicker   bool // true while the /theme modal is visible
 	showModelSelector bool // true while the model selector modal is overlaid on agents
 	showAgents        bool // true while agents is overlaid on chat as a popup modal (opened via /agents)
+	showLogs          bool // true while logs is overlaid as a popup modal (opened via /logs or [l])
+	showDescribe      bool // true while describe is overlaid as a popup modal (opened via /describe or [d])
 	themePickerIdx    int  // cursor position in the theme picker
 	themeIdx          int  // index into views.Themes; current active theme
 	configPath        string
@@ -57,10 +57,6 @@ func (m Model) currentViewName() string {
 	switch m.current {
 	case viewChat:
 		return "chat"
-	case viewLogs:
-		return "logs"
-	case viewDescribe:
-		return "describe"
 	default:
 		return "agents"
 	}

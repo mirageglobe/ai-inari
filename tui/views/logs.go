@@ -77,6 +77,31 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return l, nil
 }
 
+// RenderModal renders logs as a centred popup modal over the current view;
+// q/esc (handled in the root model) close it and reveal the view underneath.
+func (l Logs) RenderModal(termWidth, termHeight int) string {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+	hint := RenderHint([]HintCmd{H("[r] refresh"), HS(), H("[q/esc] close")}, modalInnerWidth(l.width))
+
+	var content string
+	switch {
+	case !l.ready:
+		content = lipgloss.NewStyle().Faint(true).Render("loading…")
+	case strings.TrimSpace(l.content) == "":
+		content = lipgloss.NewStyle().Faint(true).Render("(no log entries yet)")
+	default:
+		content = l.viewport.View()
+	}
+
+	lines := []string{titleStyle.Render("logs"), content, hint}
+	boxStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(ActiveTheme.Primary).
+		Padding(0, 1)
+	box := boxStyle.Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
+}
+
 func (l Logs) View() string {
 	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("logs")
 	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back"), HS(), H("[?] help")}, l.width-6)

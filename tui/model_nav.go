@@ -55,14 +55,14 @@ func (m Model) updateNav(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return m, nil, true
 	}
 	if _, ok := msg.(views.OpenLogsMsg); ok {
-		m.current = viewLogs
+		m.showLogs = true
 		return m, m.logs.Init(), true
 	}
 	if _, ok := msg.(views.OpenDescribeMsg); ok {
 		if sess, vram, ok := m.agents.SelectedSession(); ok {
 			m.describe = m.describe.ForSession(sess, vram, m.client)
 		}
-		m.current = viewDescribe
+		m.showDescribe = true
 		return m, m.describe.Init(), true
 	}
 	if _, ok := msg.(views.CycleThemeMsg); ok {

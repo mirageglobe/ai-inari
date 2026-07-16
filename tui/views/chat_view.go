@@ -27,26 +27,50 @@ func (c Chat) inputPrompt() string {
 	}
 }
 
+// toolsModal renders the builtin-tools list as a centred popup over the chat body.
+// it lists each tool with a one-line description; q/esc (chat_keys) close it.
+func (c Chat) toolsModal(width, height int) string {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+	nameStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
+	descStyle := lipgloss.NewStyle().Faint(true)
+
+	tools := []struct{ name, desc string }{
+		{"read_file", "read a file's contents"},
+		{"list_dir", "list a directory"},
+		{"grep_file", "search files for a pattern"},
+		{"stat_file", "file metadata (size, mtime)"},
+		{"execute_shell_command", "run an allowlisted command"},
+	}
+	lines := []string{titleStyle.Render("builtin tools"), ""}
+	for _, t := range tools {
+		lines = append(lines, nameStyle.Render(fmt.Sprintf("%-22s", t.name))+descStyle.Render(t.desc))
+	}
+	lines = append(lines, "", descStyle.Render("sandboxed to the session cwd    [q/esc] close"))
+
+	boxStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(ActiveTheme.Primary).
+		Padding(0, 1)
+	box := boxStyle.Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
+}
+
 func (c Chat) View() string {
 	// +2 accounts for the left+right border columns so the hint aligns with the body border.
 	c.input.Prompt = c.inputPrompt()
 	var hintLine string
 	if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin && c.pendingTool == nil {
 		hintLine = c.renderChatSuggestions(inputVal, c.viewport.Width+2)
-	} else if c.showBuiltin {
-		builtinStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)
-		dimStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Faint(true)
-		hintLine = builtinStyle.Render("tools") + "  " +
-			dimStyle.Render("read_file") + "  " +
-			dimStyle.Render("list_dir") + "  " +
-			dimStyle.Render("grep_file") + "  " +
-			dimStyle.Render("stat_file") + "  " +
-			dimStyle.Render("execute_shell_command") + "  " +
-			dimStyle.Render("(sandboxed to cwd)")
 	}
 	chatBoxStyle := agentsStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)
 	rightEdge := RenderRightEdge(c.viewport)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, chatBoxStyle.Render(c.viewport.View()), rightEdge)
+	// while the tools modal is open it replaces the transcript body (centred popup);
+	// q/esc close it (handled in chat_keys).
+	viewportBody := c.viewport.View()
+	if c.showBuiltin {
+		viewportBody = c.toolsModal(c.viewport.Width, c.viewport.Height)
+	}
+	body := lipgloss.JoinHorizontal(lipgloss.Top, chatBoxStyle.Render(viewportBody), rightEdge)
 
 	model := c.model
 	if model == "" {

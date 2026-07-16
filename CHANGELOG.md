@@ -20,6 +20,9 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - chat: `esc` interrupts an in-flight response (while waiting or mid-stream); the daemon cancels the Ollama generation via a new `session.interrupt` RPC, keeps whatever text streamed so far, and ends the turn cleanly. frees the model immediately instead of waiting for the full reply.
 - chat: `!<command>` runs a real shell command in the session's working directory, bypassing the model (e.g. `!git status`, `!ls | wc -l`). a real `sh -c` shell so pipes/globs/redirects work; output shows in the chat and is recorded in history so the model sees the result. safe because the command is user-authored, not model-authored: it keeps the cwd lock, 30s timeout, and 64KB output cap, and skips the allowlist prompt the model's `execute_shell_command` uses (the user typing the command is the approval). requires a cwd; runs even while offline.
 
+### changed
+- tui: `/help`, `/describe`, `/logs`, and the `/tools` panel now open as centered pop-up modals over the current screen, instead of full-screen view swaps (`describe`/`logs`) or an inline footer hint (`tools`); the chat or agents view stays underneath and is revealed on close. every pop-up modal (also the model selector and theme picker) now closes on both `q` and `esc` and returns to the view it was opened from.
+
 ## [v0.3.0] - 2026-07-13
 
 ### added

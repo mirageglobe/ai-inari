@@ -73,7 +73,7 @@ func RenderHelpOverlay(viewName string, termWidth, termHeight int) string {
 	}
 
 	sb.WriteString("\n")
-	sb.WriteString(helpFootStyle.Render("[?] or [esc] to close"))
+	sb.WriteString(helpFootStyle.Render("[q] or [esc] to close"))
 
 	box := helpBoxStyle.Render(sb.String())
 	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)

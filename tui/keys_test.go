@@ -46,11 +46,4 @@ func TestFocusAwareKeySuppression(t *testing.T) {
 	if _, _, handled := m.updateKeys(tea.KeyMsg{Type: tea.KeyCtrlO}); !handled {
 		t.Fatal("ctrl+o should still be handled while the chat input is focused")
 	}
-
-	// in a view with no text input (logs), a global bare key is handled normally.
-	m2 := New(nil, "", 0)
-	m2.current = viewLogs
-	if _, _, handled := m2.updateKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")}); !handled {
-		t.Fatal("'?' should toggle help in a view with no focused input")
-	}
 }
