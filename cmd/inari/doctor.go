@@ -36,13 +36,15 @@ func cmdDoctor(cfgPath string) {
 		line("warn", "config", "created with defaults at "+cfgPath)
 	}
 
-	// ollama reachable at the configured base url.
-	client := ollama.NewClient(cfg.OllamaBaseURL)
+	// ollama reachable at the ACTIVE endpoint (the selected provider profile), not
+	// the legacy top-level url, so doctor health-checks the backend actually in use.
+	ep, _ := cfg.ActiveEndpoint()
+	client := ollama.NewClient(ep.BaseURL)
 	ollamaUp := client.Ping() == nil
 	if ollamaUp {
-		line("ok", "ollama", cfg.OllamaBaseURL)
+		line("ok", "ollama", ep.BaseURL)
 	} else {
-		line("fail", "ollama", cfg.OllamaBaseURL+"  (hint: run `ollama serve`)")
+		line("fail", "ollama", ep.BaseURL+"  (hint: run `ollama serve`)")
 		ok = false
 	}
 

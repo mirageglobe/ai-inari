@@ -86,7 +86,10 @@ type PullProgress struct {
 }
 
 // Provider is the interface inarid's core uses to talk to any inference backend.
-// the concrete implementation is selected at startup via config.json "provider" field.
+// the concrete implementation is constructed at startup in cmd/inari (currently
+// always the Ollama client); config.json's "provider" field selects an endpoint
+// URL profile, not the implementation. a real impl-selection factory is tracked in
+// docs/architecture-review.md (S6).
 type Provider interface {
 	// Ping checks that the backend is reachable.
 	Ping() error

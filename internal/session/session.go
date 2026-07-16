@@ -113,6 +113,19 @@ func (s *Session) AppendMessage(msg provider.Message) {
 	s.UpdatedAt = time.Now()
 }
 
+// RemoveLast drops the final message under the session lock; a no-op on an empty
+// history. mirrors AppendMessage so callers never mutate Messages without the lock
+// (a direct slice truncation races with ChatHistory/persist readers on other RPCs).
+func (s *Session) RemoveLast() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.Messages) == 0 {
+		return
+	}
+	s.Messages = s.Messages[:len(s.Messages)-1]
+	s.UpdatedAt = time.Now()
+}
+
 // ToggleTag adds tag if absent or removes it if present, keeping Tags sorted and
 // deduped. it reports whether the tag is present after the toggle (true = added).
 // an empty tag is a no-op returning false.

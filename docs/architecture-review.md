@@ -26,7 +26,7 @@ profile; they are strictly-cheaper or strictly-safer with identical behaviour.
 tags: `[component]` per SPEC convention (`inarid` daemon, `inarit` tui, `inari` both);
 `[easy|medium|hard]` effort; severity is `bug` (correctness) / `perf` / `structure`.
 
-## 1. verified correctness issues (do first; small, high-confidence)
+## 1. verified correctness issues (do first; small, high-confidence) [landed]
 
 each was verified by reading the exact code, not just the reviewer's report.
 
@@ -92,7 +92,7 @@ refactor just landed in PR #74 and are called out honestly:**
 
 small, separately-reviewable, ordered so each de-risks the next:
 
-1. **correctness batch** (C1-C4): one small PR; locked `RemoveLast`, doctor endpoint, assign guard, doc fix. tests per fix.
+1. **correctness batch** (C1-C4): **[done]** locked `RemoveLast`, doctor endpoint, assign guard, doc fix; tests per fix.
 2. **P1 + P3**: trivial perf wins (loopguard slice-before-convert; memoize `/api/show`); no profile needed.
 3. **S12 + S13**: tui modal-box helper + delete dead `View()` paths; cleans up after #74.
 4. **S1 + S10**: `ServerConfig` struct then `ipc` consumer-side interface seams (do together; both touch the constructor).
