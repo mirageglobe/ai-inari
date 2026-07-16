@@ -142,6 +142,31 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 	}
 }
 
+// runUserShell runs a user-authored `!` command line via `sh -c` inside cwd and
+// returns combined stdout+stderr. unlike execTool's execute_shell_command (word-split,
+// no shell), this is a REAL shell so pipes/globs/redirects work. it is safe because the
+// command is typed by the user at their own terminal, not authored by the model, so the
+// §8.3 model-injection concern does not apply and no allowlist gate is imposed (the user
+// typing the command is the approval). the cwd lock, 30s timeout, and 64KB cap still hold.
+func runUserShell(cwd, line string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), runCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sh", "-c", line)
+	cmd.Dir = cwd
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	runErr := cmd.Run()
+	result := out.Bytes()
+	if len(result) > runCommandMaxBytes {
+		result = append(result[:runCommandMaxBytes], []byte("\n(truncated)")...)
+	}
+	if runErr != nil {
+		return fmt.Sprintf("exit error: %v\n%s", runErr, result)
+	}
+	return string(result)
+}
+
 // sandboxPath resolves p relative to cwd and rejects any path that escapes the root.
 func sandboxPath(cwd, p string) (string, error) {
 	if p == "" {

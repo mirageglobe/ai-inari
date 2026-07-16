@@ -282,3 +282,28 @@ func (c *Client) Chat(sessionID, text string) (string, error) {
 	}
 	return reply, nil
 }
+
+// Shell runs a user-authored `!` command in the session cwd via session.shell and
+// returns its combined stdout+stderr. inarid runs it through a real shell (sh -c)
+// and records the command + output in history so the model sees the result. errors
+// on an empty command, an unknown session, or a session with no cwd set.
+func (c *Client) Shell(sessionID, command string) (string, error) {
+	resp, err := c.Call("session.shell", map[string]string{"id": sessionID, "command": command})
+	if err != nil {
+		return "", err
+	}
+	if resp.Error != nil {
+		return "", fmt.Errorf("%s", resp.Error.Message)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Output string `json:"output"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return "", err
+	}
+	return out.Output, nil
+}

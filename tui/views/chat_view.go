@@ -18,6 +18,8 @@ func (c Chat) inputPrompt() string {
 	switch {
 	case strings.HasPrefix(c.input.Value(), "/"):
 		return "[cmd] ❯ "
+	case strings.HasPrefix(c.input.Value(), "!"):
+		return "[sh] ❯ "
 	case c.showBuiltin:
 		return "[tool] ❯ "
 	default:

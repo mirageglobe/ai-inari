@@ -179,6 +179,7 @@ The TUI is inspired by `k9s` and is entirely keyboard-driven.
 
 **chat**
 - `enter`: send message | `ctrl+o`: change model
+- `!<cmd>`: run a shell command in the session directory, skipping the model (e.g. `!git status`, `!ls | wc -l`); the output shows in the chat and the model sees it too
 - `ctrl+t`: tools panel | `ctrl+p`: command palette | `ctrl+g`: help
 - `↑` / `↓`: input history | `esc`: stop response / exit tools panel / clear slash input
 

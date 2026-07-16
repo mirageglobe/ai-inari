@@ -54,3 +54,21 @@ func (c Chat) sendChat(text string) (Chat, tea.Cmd) {
 	c.viewport.GotoBottom()
 	return c, tea.Batch(readNextToken(c.sessionID, tokens, statuses, errc, toolReqs), c.spinner.Tick)
 }
+
+// runShell handles a `!`-prefixed line: it echoes the command to the transcript and
+// dispatches session.shell to the daemon, which runs it via a real shell (sh -c) in
+// the session cwd and records the output in history. the result returns as a
+// shellResultMsg (onShell appends the output). the command echo mirrors the daemon's
+// framing so a re-attach renders consistently.
+func (c Chat) runShell(line string) (Chat, tea.Cmd) {
+	c.display = append(c.display, userStyle.Render("$ ")+line)
+	c.status = "running: " + line
+	setViewportContent(&c.viewport, c.viewportContent())
+	c.viewport.GotoBottom()
+	id := c.sessionID
+	client := c.client
+	return c, func() tea.Msg {
+		out, err := client.Shell(id, line)
+		return shellResultMsg{command: line, output: out, err: err}
+	}
+}
