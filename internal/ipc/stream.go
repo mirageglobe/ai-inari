@@ -174,7 +174,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 				}
 				return
 			}
-			sess.Messages = sess.Messages[:len(sess.Messages)-1]
+			sess.RemoveLast()
 			enc.Encode(map[string]string{"error": err.Error()})
 			if s.verbose {
 				log.Printf("[inarid->inariui] session.stream error: %v", err)

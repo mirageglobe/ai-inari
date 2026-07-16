@@ -99,6 +99,12 @@ func (s *Server) handleSessionUnassign(req Request) Response {
 // session.assign attaches a model to an existing session.
 // chat history from any prior model is preserved and will be sent as context.
 func (s *Server) handleSessionAssign(req Request) Response {
+	// assign validates the model against the backend's list, so it needs a provider;
+	// guard like every other provider-touching handler so a nil provider returns a
+	// clean error instead of panicking on the ListModels call below.
+	if r, ok := s.providerErr(req); !ok {
+		return r
+	}
 	var params struct {
 		ID    string `json:"id"`
 		Model string `json:"model"`
