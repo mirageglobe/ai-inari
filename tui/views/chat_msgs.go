@@ -11,6 +11,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/mirageglobe/ai-inari/internal/provider"
 )
 
 // onThemeChanged restyles the spinner and rebuilds the rendered display so the
@@ -39,6 +41,27 @@ func (c Chat) onSetCwd(msg setCwdResultMsg) (tea.Model, tea.Cmd) {
 	c.contextLine = buildContextLine(msg.info.CWD, msg.info.SystemPrompt)
 	c.rebuildDisplay()
 	c.status = "[info] cwd -> " + msg.info.CWD
+	return c, nil
+}
+
+// onShell applies a `!` shell result: on success it appends the command output to the
+// transcript and mirrors the command+output into the local history as a single message
+// (matching what the daemon recorded, so the model-visible context and the client
+// agree); on failure it surfaces the error in the status line.
+func (c Chat) onShell(msg shellResultMsg) (tea.Model, tea.Cmd) {
+	c.status = ""
+	if msg.err != nil {
+		c.status = "[warn] shell: " + msg.err.Error()
+		return c, nil
+	}
+	if out := strings.TrimRight(msg.output, "\n"); out != "" {
+		c.display = append(c.display, out)
+	}
+	combined := "$ " + msg.command + "\n" + msg.output
+	c.messages = append(c.messages, provider.Message{Role: "user", Content: combined})
+	c.ctxChars += len(combined)
+	setViewportContent(&c.viewport, c.viewportContent())
+	c.viewport.GotoBottom()
 	return c, nil
 }
 

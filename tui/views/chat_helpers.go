@@ -14,6 +14,14 @@ import (
 
 type clearHistoryResultMsg struct{ err error }
 
+// shellResultMsg carries the outcome of a `!` shell command: the command line, its
+// combined stdout+stderr output, and an error if the RPC failed.
+type shellResultMsg struct {
+	command string
+	output  string
+	err     error
+}
+
 // setCwdResultMsg carries the outcome of a /cwd command: the updated session info
 // (new cwd + rebuilt system prompt) on success, or an error.
 type setCwdResultMsg struct {

@@ -127,6 +127,20 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 			m, cmd := c.handleSlashCommand(text)
 			return m.(Chat), cmd, true
 		}
+		// `!` escape-hatch: run the rest of the line as a real shell command via the
+		// daemon, bypassing the model. runs even while offline (shell exec is local to
+		// the daemon, independent of the model backend).
+		if strings.HasPrefix(text, "!") {
+			line := strings.TrimSpace(text[1:])
+			c.input.Reset()
+			c.status = ""
+			if line == "" {
+				c.status = "[warn] usage: !<shell command>"
+				return c, nil, true
+			}
+			nc, cmd := c.runShell(line)
+			return nc, cmd, true
+		}
 		if c.offline {
 			return c, nil, true
 		}

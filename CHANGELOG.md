@@ -18,6 +18,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 - chat: `/cwd <path>` switches a session's working directory on the fly; inarid validates the path, rebuilds the file-tree + project-context system prompt for the new tree, and re-points the tool sandbox. the `[context]` line and builtin-tool availability update immediately.
 - chat: after 60s idle the status line shows a rotating `hint:` usage tip (e.g. `try /compact to summarise a long chat`), cycling every 60s; any keypress or streamed token clears it and resets the timer. hints never override a recap, error, or live reply.
 - chat: `esc` interrupts an in-flight response (while waiting or mid-stream); the daemon cancels the Ollama generation via a new `session.interrupt` RPC, keeps whatever text streamed so far, and ends the turn cleanly. frees the model immediately instead of waiting for the full reply.
+- chat: `!<command>` runs a real shell command in the session's working directory, bypassing the model (e.g. `!git status`, `!ls | wc -l`). a real `sh -c` shell so pipes/globs/redirects work; output shows in the chat and is recorded in history so the model sees the result. safe because the command is user-authored, not model-authored: it keeps the cwd lock, 30s timeout, and 64KB output cap, and skips the allowlist prompt the model's `execute_shell_command` uses (the user typing the command is the approval). requires a cwd; runs even while offline.
 
 ## [v0.3.0] - 2026-07-13
 

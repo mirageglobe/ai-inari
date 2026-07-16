@@ -8,6 +8,7 @@ package ipc
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/config"
@@ -275,4 +276,33 @@ func (s *Server) handleSessionSetCwd(req Request) Response {
 	}
 	s.store.Persist(sess.ID)
 	return Response{JSONRPC: "2.0", Result: toInfo(sess), ID: req.ID}
+}
+
+// handleSessionShell runs a user-authored `!` shell command in the session cwd and
+// records the command + its output in history so the next model turn sees it as
+// context. it bypasses the allowlist (§8.3's gate is for model-authored commands; a
+// user typing `!` is the approval) but keeps the cwd lock, timeout, and output cap.
+// a cwd must be set, since a shell command outside a working directory is meaningless.
+func (s *Server) handleSessionShell(req Request) Response {
+	var params struct {
+		ID      string `json:"id"`
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil || strings.TrimSpace(params.Command) == "" {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: command required"}, ID: req.ID}
+	}
+	sess, ok := s.store.Get(params.ID)
+	if !ok {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	}
+	if sess.CWD == "" {
+		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no working directory set; use /cwd first"}, ID: req.ID}
+	}
+	output := runUserShell(sess.CWD, params.Command)
+	// record for model context: frame it as a user-run command + output so the next
+	// turn can use the result. role "user" keeps the chat format valid (a "tool"
+	// message would need a preceding tool_call the model never made).
+	sess.AppendMessage(provider.Message{Role: "user", Content: "$ " + params.Command + "\n" + output})
+	s.store.Persist(sess.ID)
+	return Response{JSONRPC: "2.0", Result: map[string]string{"output": output}, ID: req.ID}
 }
