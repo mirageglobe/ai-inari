@@ -24,8 +24,6 @@ func (m Model) activeViewInputFocused() bool {
 		return ok && chat.InputFocused()
 	case viewAgents:
 		return m.agents.Filtering()
-	case viewDescribe:
-		return m.describe.IsEditing()
 	default:
 		return false
 	}
@@ -56,6 +54,28 @@ func (m Model) updateModal(msg tea.Msg) (Model, tea.Cmd, bool) {
 	if m.showAgents {
 		updated, cmd := m.agents.Update(msg)
 		m.agents = updated.(views.Agents)
+		return m, cmd, true
+	}
+	// route to the describe overlay while it is open. q/esc close it and reveal the
+	// view underneath - except while editing the context field, where those keys
+	// belong to the editor (esc exits edit mode), so the overlay stays open.
+	if m.showDescribe {
+		if key, ok := msg.(tea.KeyMsg); ok && !m.describe.IsEditing() && (key.String() == "q" || key.String() == "esc") {
+			m.showDescribe = false
+			return m, nil, true
+		}
+		updated, cmd := m.describe.Update(msg)
+		m.describe = updated.(views.Describe)
+		return m, cmd, true
+	}
+	// route to the logs overlay while it is open; q/esc close it and reveal the view underneath.
+	if m.showLogs {
+		if key, ok := msg.(tea.KeyMsg); ok && (key.String() == "q" || key.String() == "esc") {
+			m.showLogs = false
+			return m, nil, true
+		}
+		updated, cmd := m.logs.Update(msg)
+		m.logs = updated.(views.Logs)
 		return m, cmd, true
 	}
 	// route a theme-save failure to the active view so it shows in the status bar.
@@ -106,43 +126,28 @@ func (m Model) updateKeys(msg tea.Msg) (Model, tea.Cmd, bool) {
 			m.themeIdx = m.themePickerIdx
 			mm, cmd := m.applyTheme(m.themeIdx)
 			return mm.(Model), cmd, true
-		case "esc":
+		case "esc", "q":
 			m.showThemePicker = false
 		}
 		return m, nil, true
 	}
 
-	// [?] toggles help from non-agents, non-chat views; agents uses /help slash command.
-	if key.String() == "?" && m.current != viewChat && m.current != viewAgents {
-		m.showHelp = !m.showHelp
-		return m, nil, true
-	}
-
-	// while help is open, only [esc] (or a second [?] in a secondary view) closes it;
-	// all other keys are consumed.
+	// while help is open, q or esc closes it; all other keys are consumed.
 	if m.showHelp {
-		if key.String() == "esc" {
+		if key.String() == "esc" || key.String() == "q" {
 			m.showHelp = false
 		}
 		return m, nil, true
 	}
 
-	switch m.current {
-	case viewChat:
-		switch key.String() {
-		case "ctrl+o":
+	if m.current == viewChat {
+		if key.String() == "ctrl+o" {
 			if chat, ok := m.chats[m.activeSession]; ok {
 				m.models = m.models.ForSession(chat.SessionID(), chat.SessionName(), chat.Model())
 			}
 			m.showModelSelector = true
 			m.models = m.models.WithModalDimensions()
 			return m, m.models.Init(), true
-		}
-	default:
-		// esc from secondary views returns to agents, except when describe is in edit mode
-		if key.String() == "esc" && !(m.current == viewDescribe && m.describe.IsEditing()) {
-			m.current = viewAgents
-			return m, m.agents.Init(), true
 		}
 	}
 	return m, nil, false
@@ -155,14 +160,6 @@ func (m Model) updateActiveView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewAgents:
 		updated, cmd := m.agents.Update(msg)
 		m.agents = updated.(views.Agents)
-		return m, cmd
-	case viewLogs:
-		updated, cmd := m.logs.Update(msg)
-		m.logs = updated.(views.Logs)
-		return m, cmd
-	case viewDescribe:
-		updated, cmd := m.describe.Update(msg)
-		m.describe = updated.(views.Describe)
 		return m, cmd
 	case viewChat:
 		updated, cmd := m.chats[m.activeSession].Update(msg)

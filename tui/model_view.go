@@ -18,6 +18,10 @@ func (m Model) View() string {
 		body = m.models.RenderModal(m.termWidth, m.termHeight-1)
 	} else if m.showAgents {
 		body = m.agents.RenderModal(m.termWidth, m.termHeight-1)
+	} else if m.showDescribe {
+		body = m.describe.RenderModal(m.termWidth, m.termHeight-1)
+	} else if m.showLogs {
+		body = m.logs.RenderModal(m.termWidth, m.termHeight-1)
 	} else if m.showThemePicker {
 		body = views.RenderThemeOverlay(m.themePickerIdx, m.termWidth, m.termHeight-1)
 	} else if m.showHelp {
@@ -25,10 +29,6 @@ func (m Model) View() string {
 		body = views.RenderHelpOverlay(m.currentViewName(), m.termWidth, m.termHeight-1)
 	} else {
 		switch m.current {
-		case viewLogs:
-			body = m.logs.View()
-		case viewDescribe:
-			body = m.describe.View()
 		case viewChat:
 			body = m.chats[m.activeSession].View()
 		default:
@@ -44,7 +44,8 @@ func (m Model) View() string {
 	// emit cursor shape once here; views no longer emit escape sequences themselves.
 	// the agents view has no text input, so it never shows the blinking bar cursor.
 	cursorEsc := views.ResetCursor
-	if m.current == viewChat {
+	overlayOpen := m.showModelSelector || m.showAgents || m.showDescribe || m.showLogs || m.showThemePicker || m.showHelp
+	if !overlayOpen && m.current == viewChat {
 		if chat, ok := m.chats[m.activeSession]; ok && chat.InputFocused() {
 			cursorEsc = views.BlinkBarCursor
 		}

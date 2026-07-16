@@ -6,6 +6,7 @@ package views
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -51,6 +52,41 @@ func (d Describe) buildContent() string {
 		row("vram", vramStr) + "\n" +
 		row("history", msgCountStr) + "\n" +
 		behaviorBlock
+}
+
+// RenderModal renders describe as a centred popup modal over the current view
+// (chat or agents). the metadata/editor content matches View, wrapped in a
+// bordered box. when not editing, the hint advertises the q/esc close; while
+// editing, ctrl+s saves and esc exits edit mode (handled in describe_update).
+func (d Describe) RenderModal(termWidth, termHeight int) string {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
+
+	var lines []string
+	if d.editing {
+		editLabel := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Render("editing behavior")
+		hintCmds := []HintCmd{H("[ctrl+s] save"), H("[esc] done")}
+		if d.saving {
+			hintCmds[0] = HD("[ctrl+s] saving…")
+		}
+		if d.saveErr != "" {
+			hintCmds = append(hintCmds, HS(), HD(d.saveErr))
+		}
+		lines = []string{titleStyle.Render("describe") + "  " + editLabel, d.input.View(), RenderHint(hintCmds, modalInnerWidth(d.width))}
+	} else {
+		editHint := H("[e] edit behavior")
+		if d.offline {
+			editHint = HD("[e] edit behavior")
+		}
+		hint := RenderHint([]HintCmd{editHint, HS(), H("[q/esc] close")}, modalInnerWidth(d.width))
+		lines = []string{titleStyle.Render("describe"), d.buildContent(), hint}
+	}
+
+	boxStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(ActiveTheme.Primary).
+		Padding(0, 1)
+	box := boxStyle.Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
 func (d Describe) View() string {

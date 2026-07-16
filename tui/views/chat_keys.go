@@ -39,6 +39,13 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 		}
 		return c, nil, true // absorb other keys while approval is pending
 	}
+	// the tools modal captures q and esc to close: it overlays the chat input, so a
+	// plain q would otherwise type into the message box. must sit before the input
+	// focus mark and the ctrl switch so both keys reliably dismiss the modal.
+	if c.showBuiltin && (msg.String() == "q" || msg.String() == "esc") {
+		c.showBuiltin = false
+		return c, nil, true
+	}
 	// mark input as focused on any keypress; the actual Focus() cmd is issued by
 	// the caller after this returns.
 	if !c.inputFocused {
@@ -57,12 +64,8 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 		c.input.CursorEnd()
 		return c, nil, true
 	case "esc":
-		// esc exits the active entry mode: dismiss the tools panel or clear an
-		// in-progress slash command, returning to plain chat entry.
-		if c.showBuiltin {
-			c.showBuiltin = false
-			return c, nil, true
-		}
+		// esc clears an in-progress slash command, returning to plain chat entry.
+		// (the tools modal's own q/esc close is handled earlier.)
 		if strings.HasPrefix(c.input.Value(), "/") {
 			c.input.Reset()
 			return c, nil, true
