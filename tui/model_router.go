@@ -16,50 +16,42 @@ import (
 
 // updateBroadcast handles messages that must reach every view regardless of
 // which one is active: terminal resize and theme changes.
+// broadcast fans msg out to every sub-view (agents, model selector, describe, logs,
+// and each chat), returning the accumulated commands. the single fan-out point, so a
+// new view is wired here once instead of in each broadcast handler. note: the offline
+// fan-out in updateSystem stays separate; it calls WithOffline, not Update.
+func (m Model) broadcast(msg tea.Msg) (Model, []tea.Cmd) {
+	var cmds []tea.Cmd
+	a, c := m.agents.Update(msg)
+	m.agents = a.(views.Agents)
+	cmds = append(cmds, c)
+	ms, c := m.models.Update(msg)
+	m.models = ms.(views.ModelSelector)
+	cmds = append(cmds, c)
+	d, c := m.describe.Update(msg)
+	m.describe = d.(views.Describe)
+	cmds = append(cmds, c)
+	l, c := m.logs.Update(msg)
+	m.logs = l.(views.Logs)
+	cmds = append(cmds, c)
+	for id, chat := range m.chats {
+		u, cc := chat.Update(msg)
+		m.chats[id] = u.(views.Chat)
+		cmds = append(cmds, cc)
+	}
+	return m, cmds
+}
+
 func (m Model) updateBroadcast(msg tea.Msg) (Model, tea.Cmd, bool) {
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
 		m.termWidth = ws.Width
 		m.termHeight = ws.Height
-		var cmds []tea.Cmd
-		updated, cmd := m.agents.Update(ws)
-		m.agents = updated.(views.Agents)
-		cmds = append(cmds, cmd)
-		updated2, cmd2 := m.models.Update(ws)
-		m.models = updated2.(views.ModelSelector)
-		cmds = append(cmds, cmd2)
-		updated3, cmd3 := m.describe.Update(ws)
-		m.describe = updated3.(views.Describe)
-		cmds = append(cmds, cmd3)
-		updated4, cmd4 := m.logs.Update(ws)
-		m.logs = updated4.(views.Logs)
-		cmds = append(cmds, cmd4)
-		for id, chat := range m.chats {
-			updated, cmd := chat.Update(ws)
-			m.chats[id] = updated.(views.Chat)
-			cmds = append(cmds, cmd)
-		}
-		return m, tea.Batch(cmds...), true
+		mm, cmds := m.broadcast(ws)
+		return mm, tea.Batch(cmds...), true
 	}
-	if themeMsg, ok := msg.(views.ThemeChangedMsg); ok {
-		var cmds []tea.Cmd
-		updated, cmd := m.agents.Update(themeMsg)
-		m.agents = updated.(views.Agents)
-		cmds = append(cmds, cmd)
-		updated2, cmd2 := m.models.Update(themeMsg)
-		m.models = updated2.(views.ModelSelector)
-		cmds = append(cmds, cmd2)
-		updated3, cmd3 := m.describe.Update(themeMsg)
-		m.describe = updated3.(views.Describe)
-		cmds = append(cmds, cmd3)
-		updated4, cmd4 := m.logs.Update(themeMsg)
-		m.logs = updated4.(views.Logs)
-		cmds = append(cmds, cmd4)
-		for id, chat := range m.chats {
-			updated, cmd := chat.Update(themeMsg)
-			m.chats[id] = updated.(views.Chat)
-			cmds = append(cmds, cmd)
-		}
-		return m, tea.Batch(cmds...), true
+	if _, ok := msg.(views.ThemeChangedMsg); ok {
+		mm, cmds := m.broadcast(msg)
+		return mm, tea.Batch(cmds...), true
 	}
 	return m, nil, false
 }

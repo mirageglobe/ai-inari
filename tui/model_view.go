@@ -14,20 +14,21 @@ func (m Model) View() string {
 	topBar := views.RenderTopBar(m.connErr, m.sysStats, m.termWidth, m.titleColorIdx) + "\n"
 
 	var body string
-	if m.showModelSelector {
+	switch m.topOverlay() {
+	case overlayModelSelector:
 		body = m.models.RenderModal(m.termWidth, m.termHeight-1)
-	} else if m.showAgents {
+	case overlayAgents:
 		body = m.agents.RenderModal(m.termWidth, m.termHeight-1)
-	} else if m.showDescribe {
+	case overlayDescribe:
 		body = m.describe.RenderModal(m.termWidth, m.termHeight-1)
-	} else if m.showLogs {
+	case overlayLogs:
 		body = m.logs.RenderModal(m.termWidth, m.termHeight-1)
-	} else if m.showThemePicker {
+	case overlayThemePicker:
 		body = views.RenderThemeOverlay(m.themePickerIdx, m.termWidth, m.termHeight-1)
-	} else if m.showHelp {
+	case overlayHelp:
 		// -1 to leave the top bar row; Place fills the remaining rows.
 		body = views.RenderHelpOverlay(m.currentViewName(), m.termWidth, m.termHeight-1)
-	} else {
+	default:
 		switch m.current {
 		case viewChat:
 			body = m.chats[m.activeSession].View()
@@ -44,7 +45,7 @@ func (m Model) View() string {
 	// emit cursor shape once here; views no longer emit escape sequences themselves.
 	// the agents view has no text input, so it never shows the blinking bar cursor.
 	cursorEsc := views.ResetCursor
-	overlayOpen := m.showModelSelector || m.showAgents || m.showDescribe || m.showLogs || m.showThemePicker || m.showHelp
+	overlayOpen := m.topOverlay() != overlayNone
 	if !overlayOpen && m.current == viewChat {
 		if chat, ok := m.chats[m.activeSession]; ok && chat.InputFocused() {
 			cursorEsc = views.BlinkBarCursor
