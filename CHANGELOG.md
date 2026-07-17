@@ -25,6 +25,8 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### changed
 - tui: `/help`, `/describe`, `/logs`, and the `/tools` panel now open as centered pop-up modals over the current screen, instead of full-screen view swaps (`describe`/`logs`) or an inline footer hint (`tools`); the chat or agents view stays underneath and is revealed on close. every pop-up modal (also the model selector and theme picker) now closes on both `q` and `esc` and returns to the view it was opened from.
+- perf: the runaway-loop detector (`hasRepeatedTail`) no longer copies the entire accumulated reply to `[]byte` on every streamed token; it slices the 128-byte tail first, turning an O(reply-length) per-token copy into a constant one. (arch-review P1)
+- perf: the model context window (`/api/show`) is now memoised per model instead of refetched on every turn; it is a static model property, so this removes a blocking HTTP round-trip from first-token latency on each stream. (arch-review P3)
 
 ## [v0.3.0] - 2026-07-13
 

@@ -19,10 +19,14 @@ func hasRepeatedTail(s string) bool {
 		minPeriod  = 3
 		minRepeats = 3
 	)
-	b := []byte(s)
-	if len(b) > window {
-		b = b[len(b)-window:]
+	// slice the string tail BEFORE converting to []byte: only the last `window`
+	// bytes are inspected, so converting the whole (possibly huge) reply-so-far
+	// would be an O(len) copy on every streamed chunk. slicing a string is a
+	// header-only op, so the []byte copy is bounded to `window`.
+	if len(s) > window {
+		s = s[len(s)-window:]
 	}
+	b := []byte(s)
 	n := len(b)
 	for p := minPeriod; p <= maxPeriod; p++ {
 		if p*minRepeats > n {

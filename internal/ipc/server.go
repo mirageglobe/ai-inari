@@ -28,6 +28,14 @@ type Server struct {
 	mcpHost  *mcp.Host
 	auditor  *audit.Auditor
 	provider provider.Provider
+
+	// ctxLen memoises ModelContextLength per model name. the context window is a
+	// static property of a model, so the per-turn /api/show round-trip it replaces
+	// is pure redundant first-token latency. process-lifetime cache keyed by model
+	// name; a re-pull under the same name would keep a stale value, an accepted
+	// tradeoff for taking a blocking call off every stream.
+	ctxLen sync.Map
+
 	quit     chan struct{}
 	quitOnce sync.Once
 	verbose  bool
