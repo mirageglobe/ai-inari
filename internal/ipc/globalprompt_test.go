@@ -25,8 +25,15 @@ func TestSessionCreateGlobalPrompt(t *testing.T) {
 
 	store := session.NewStore()
 	sock := "/tmp/inari-test-globalprompt.sock"
-	srv, err := NewServer(sock, store, scheduler.New(8192), mcp.NewHost(nil, auditor), auditor,
-		&fakeAssignProvider{}, false, 0, "", "GLOBAL RULES: be terse.")
+	srv, err := NewServer(ServerConfig{
+		Socket:             sock,
+		Store:              store,
+		Scheduler:          scheduler.New(8192),
+		MCPHost:            mcp.NewHost(nil, auditor),
+		Auditor:            auditor,
+		Provider:           &fakeAssignProvider{},
+		GlobalSystemPrompt: "GLOBAL RULES: be terse.",
+	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

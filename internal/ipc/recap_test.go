@@ -44,8 +44,14 @@ func newRecapServer(t *testing.T, sock string) (*Server, *Client) {
 	auditor := audit.New(af.Name())
 	t.Cleanup(func() { auditor.Close() })
 
-	srv, err := NewServer(sock, session.NewStore(), scheduler.New(8192),
-		mcp.NewHost(nil, auditor), auditor, fakeRecapProvider{}, false, 0, "", "")
+	srv, err := NewServer(ServerConfig{
+		Socket:    sock,
+		Store:     session.NewStore(),
+		Scheduler: scheduler.New(8192),
+		MCPHost:   mcp.NewHost(nil, auditor),
+		Auditor:   auditor,
+		Provider:  fakeRecapProvider{},
+	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

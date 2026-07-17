@@ -29,7 +29,7 @@ func newSetCwdServer(t *testing.T, sock string) (*Server, *Client) {
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor, &fakeAssignProvider{}, false, 0, "", "")
+	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Scheduler: sched, MCPHost: host, Auditor: auditor, Provider: &fakeAssignProvider{}})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

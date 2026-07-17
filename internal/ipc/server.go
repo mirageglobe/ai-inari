@@ -60,38 +60,56 @@ type Server struct {
 	lastActive  atomic.Int64
 }
 
-func NewServer(socket string, store *session.Store, sched *scheduler.Scheduler, mcpHost *mcp.Host, auditor *audit.Auditor, p provider.Provider, verbose bool, idleTimeout time.Duration, defaultModel, globalSystemPrompt string) (*Server, error) {
-	// remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
-	os.Remove(socket)
+// ServerConfig carries the daemon's collaborators and tunables. zero values are
+// valid: a nil Provider degrades to "provider not configured", a zero IdleTimeout
+// disables the watchdog, and empty DefaultModel/GlobalSystemPrompt mean "none".
+// keyed literals at the call site keep the (formerly 10-positional) args readable
+// and make adjacent same-typed fields impossible to transpose.
+type ServerConfig struct {
+	Socket             string
+	Store              *session.Store
+	Scheduler          *scheduler.Scheduler
+	MCPHost            *mcp.Host
+	Auditor            *audit.Auditor
+	Provider           provider.Provider
+	Verbose            bool
+	IdleTimeout        time.Duration
+	DefaultModel       string
+	GlobalSystemPrompt string
+}
 
-	l, err := net.Listen("unix", socket)
+func NewServer(cfg ServerConfig) (*Server, error) {
+	// remove stale socket left by a previous unclean shutdown; Listen fails if the file exists.
+	os.Remove(cfg.Socket)
+
+	l, err := net.Listen("unix", cfg.Socket)
 	if err != nil {
 		return nil, err
 	}
 	// restrict to the owning user; the socket carries unencrypted prompts and session data.
-	if err := os.Chmod(socket, 0600); err != nil {
+	if err := os.Chmod(cfg.Socket, 0600); err != nil {
 		l.Close()
 		return nil, err
 	}
 
 	s := &Server{
 		listener: l,
-		store:    store,
-		sched:    sched,
-		mcpHost:  mcpHost,
-		auditor:  auditor,
-		provider: p,
+		store:    cfg.Store,
+		sched:    cfg.Scheduler,
+		mcpHost:  cfg.MCPHost,
+		auditor:  cfg.Auditor,
+		provider: cfg.Provider,
 		quit:     make(chan struct{}),
-		verbose:  verbose,
+		verbose:  cfg.Verbose,
 		streams:  make(map[string]context.CancelFunc),
 
-		defaultModel:       defaultModel,
-		globalSystemPrompt: globalSystemPrompt,
-		idleTimeout:        idleTimeout,
+		defaultModel:       cfg.DefaultModel,
+		globalSystemPrompt: cfg.GlobalSystemPrompt,
+		idleTimeout:        cfg.IdleTimeout,
 	}
 	s.touch()     // seed the idle clock so the daemon does not shut down before its first call
 	go s.accept() // accept loop runs in background; NewServer returns immediately
-	if idleTimeout > 0 {
+	if cfg.IdleTimeout > 0 {
 		go s.monitorIdle()
 	}
 	return s, nil

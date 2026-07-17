@@ -56,7 +56,7 @@ and per-round not per-token; the roadmap's own suspicion here is unfounded, leav
 
 ### rpc / server surface (`inarid`)
 
-- **S1 `[medium]` `NewServer` has 10 positional params**, including two adjacent same-typed strings (`defaultModel`, `globalSystemPrompt`) that transpose silently at the call site (`server.go:55`, called `daemon.go:91`). refactor to a `ServerConfig` struct (keyed literals, impossible transposition, non-breaking future knobs). this is the refactor the roadmap explicitly names.
+- **S1 `[medium]` [done] `NewServer` has 10 positional params**, including two adjacent same-typed strings (`defaultModel`, `globalSystemPrompt`) that transpose silently at the call site (`server.go:55`, called `daemon.go:91`). refactor to a `ServerConfig` struct (keyed literals, impossible transposition, non-breaking future knobs). this is the refactor the roadmap explicitly names.
 - **S2 `[medium]` client discards JSON-RPC error codes**: every client method collapses `resp.Error` to a bare message string (`client_session.go`, `client_model.go`, ~18 sites), so callers cannot distinguish `session not found` (-32602) from `provider not configured` (-32603). this makes any server-side error-code cleanup cosmetic until the client preserves codes; do S2 before S3.
 - **S3 `[easy]` bad-params error code is split -32600 vs -32602** for the identical "unmarshal failed" event across handlers (see `dispatch_session.go` create/delete/setrole/chat vs rename/tag/setcwd/interrupt/shell). pick one (JSON-RPC says -32602 for invalid params) and make it uniform.
 - **S4 `[medium]` decode + "session not found" ritual repeated ~15x** across handlers; a generic `decodeParams[T]` + `getSession(req,id)` collapses each handler 6-8 lines and removes the soil S3 grew in.
@@ -95,7 +95,7 @@ small, separately-reviewable, ordered so each de-risks the next:
 1. **correctness batch** (C1-C4): **[done]** locked `RemoveLast`, doctor endpoint, assign guard, doc fix; tests per fix.
 2. **P1 + P3**: **[done]** trivial perf wins (loopguard slice-before-convert; memoize `/api/show`); no profile needed.
 3. **S12 + S13**: **[done]** tui modal-box helper + retire dead `View()` paths; cleans up after #74. (S13 note: the views must satisfy `tea.Model` since their own `Update` returns it, so the dead full-screen bodies were replaced with thin stubs, matching the selector, not deleted outright.)
-4. **S1 + S10**: `ServerConfig` struct then `ipc` consumer-side interface seams (do together; both touch the constructor).
+4. **S1 + S10**: S1 (`ServerConfig` struct) **[done]**; S10 (`ipc` consumer-side interface seams) next.
 5. **S5 + S3 + S2 + S4**: client/handler dedup and error-code consistency, in that dependency order (S2 before S3 or S3 is cosmetic).
 6. **S14 + S15**: tui `activeOverlay` enum then broadcast helper (after the state settles).
 7. **profile P2/P4/P5** before touching them; then the streaming-render cache if the profile justifies it.
