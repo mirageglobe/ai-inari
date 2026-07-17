@@ -22,6 +22,22 @@ const (
 	viewChat
 )
 
+// overlay identifies the active pop-up overlay. the six showX bools stay the source
+// of truth (the model selector can sit ON TOP of the agents popup, so two may be set
+// at once, which a single flat field could not represent); overlay + topOverlay just
+// define the render/priority order in ONE place so it cannot drift across sites.
+type overlay int
+
+const (
+	overlayNone overlay = iota
+	overlayModelSelector
+	overlayAgents
+	overlayDescribe
+	overlayLogs
+	overlayThemePicker
+	overlayHelp
+)
+
 // Model is the root Bubble Tea model.
 // activeSession holds the session ID (not name) of the currently open chat.
 // chats is keyed by session ID so each session retains its display history across view switches.
@@ -59,6 +75,30 @@ func (m Model) currentViewName() string {
 		return "chat"
 	default:
 		return "agents"
+	}
+}
+
+// topOverlay reports the highest-priority overlay currently active (or overlayNone).
+// this is the single definition of overlay priority; model_view's render and the
+// overlay-open check both consult it so the order can never disagree across sites.
+// the order preserves the prior render precedence (selector sits over the agents
+// popup, etc.).
+func (m Model) topOverlay() overlay {
+	switch {
+	case m.showModelSelector:
+		return overlayModelSelector
+	case m.showAgents:
+		return overlayAgents
+	case m.showDescribe:
+		return overlayDescribe
+	case m.showLogs:
+		return overlayLogs
+	case m.showThemePicker:
+		return overlayThemePicker
+	case m.showHelp:
+		return overlayHelp
+	default:
+		return overlayNone
 	}
 }
 
