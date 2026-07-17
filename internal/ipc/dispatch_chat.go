@@ -5,7 +5,6 @@
 package ipc
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
@@ -22,8 +21,11 @@ func (s *Server) handleSessionInterrupt(req Request) Response {
 	var params struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil || params.ID == "" {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
+	}
+	if params.ID == "" {
+		return badParams(req, "invalid params")
 	}
 	interrupted := s.interruptStream(params.ID)
 	return Response{JSONRPC: "2.0", Result: map[string]bool{"interrupted": interrupted}, ID: req.ID}
@@ -35,12 +37,12 @@ func (s *Server) handleSessionHistory(req Request) Response {
 	var params struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	// filter system messages; inari display shows only user/assistant turns.
 	all := sess.ChatHistory()
@@ -58,12 +60,12 @@ func (s *Server) handleSessionClear(req Request) Response {
 	var params struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	sess.ClearHistory()
 	s.store.Persist(params.ID)
@@ -79,12 +81,12 @@ func (s *Server) handleSessionCompact(req Request) Response {
 	var params struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	model := s.modelFor(sess)
 	if model == "" {
@@ -115,12 +117,12 @@ func (s *Server) handleSessionRecap(req Request) Response {
 	var params struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	// gate: only recap a session that has gone quiet and has an exchange to recap.
 	convo := 0
@@ -154,12 +156,12 @@ func (s *Server) handleSessionChat(req Request) Response {
 		ID   string `json:"id"`
 		Text string `json:"text"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	model := s.modelFor(sess)
 	if model == "" {

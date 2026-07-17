@@ -6,7 +6,6 @@
 package ipc
 
 import (
-	"encoding/json"
 	"os"
 	"strings"
 	"time"
@@ -35,8 +34,11 @@ func (s *Server) handleSessionCreate(req Request) Response {
 		Name string `json:"name"`
 		CWD  string `json:"cwd,omitempty"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil || params.Name == "" {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
+	}
+	if params.Name == "" {
+		return badParams(req, "invalid params")
 	}
 	sess := session.New(params.Name)
 	sess.Model = defaultNewAgentModel
@@ -70,8 +72,8 @@ func (s *Server) handleSessionDelete(req Request) Response {
 	var params struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
 	s.store.Remove(params.ID)
 	return Response{JSONRPC: "2.0", Result: "ok", ID: req.ID}
@@ -83,12 +85,12 @@ func (s *Server) handleSessionUnassign(req Request) Response {
 	var params struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	sess.Model = ""
 	sess.UpdatedAt = time.Now()
@@ -109,12 +111,12 @@ func (s *Server) handleSessionAssign(req Request) Response {
 		ID    string `json:"id"`
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	// a model-name mismatch (e.g. missing tag) reaches Ollama as an opaque
 	// error later in the chat loop; check against the backend's own list now
@@ -147,12 +149,15 @@ func (s *Server) handleSessionRename(req Request) Response {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil || params.Name == "" {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: name required"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	if params.Name == "" {
+		return badParams(req, "invalid params: name required")
+	}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	sess.Name = params.Name
 	sess.UpdatedAt = time.Now()
@@ -167,12 +172,15 @@ func (s *Server) handleSessionTag(req Request) Response {
 		ID  string `json:"id"`
 		Tag string `json:"tag"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil || params.Tag == "" {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: tag required"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	if params.Tag == "" {
+		return badParams(req, "invalid params: tag required")
+	}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	sess.ToggleTag(params.Tag)
 	s.store.Persist(sess.ID)
@@ -191,15 +199,15 @@ func (s *Server) handleSessionSetRole(req Request) Response {
 		ID   string `json:"id"`
 		Role string `json:"role"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
 	if params.Role != "" && !validRoles[params.Role] {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid role: " + params.Role}, ID: req.ID}
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	sess.SetRole(params.Role)
 	s.store.Persist(sess.ID)
@@ -214,12 +222,12 @@ func (s *Server) handleSessionSetNumCtx(req Request) Response {
 		ID     string `json:"id"`
 		NumCtx int    `json:"num_ctx"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	sess.SetNumCtx(params.NumCtx)
 	s.store.Persist(sess.ID)
@@ -234,12 +242,12 @@ func (s *Server) handleSessionSetContext(req Request) Response {
 		ID     string `json:"id"`
 		Prompt string `json:"prompt"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	sess.SetSystemPrompt(params.Prompt)
 	s.store.Persist(sess.ID)
@@ -256,12 +264,15 @@ func (s *Server) handleSessionSetCwd(req Request) Response {
 		ID  string `json:"id"`
 		CWD string `json:"cwd"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil || params.CWD == "" {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: cwd required"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	if params.CWD == "" {
+		return badParams(req, "invalid params: cwd required")
+	}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	cwd := expandUserPath(params.CWD)
 	if info, err := os.Stat(cwd); err != nil || !info.IsDir() {
@@ -294,12 +305,15 @@ func (s *Server) handleSessionShell(req Request) Response {
 		ID      string `json:"id"`
 		Command string `json:"command"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil || strings.TrimSpace(params.Command) == "" {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "invalid params: command required"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
-	sess, ok := s.store.Get(params.ID)
-	if !ok {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "session not found"}, ID: req.ID}
+	if strings.TrimSpace(params.Command) == "" {
+		return badParams(req, "invalid params: command required")
+	}
+	sess, r := s.getSession(req, params.ID)
+	if r != nil {
+		return *r
 	}
 	if sess.CWD == "" {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32602, Message: "no working directory set; use /cwd first"}, ID: req.ID}
