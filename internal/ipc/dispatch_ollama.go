@@ -4,10 +4,6 @@
 
 package ipc
 
-import (
-	"encoding/json"
-)
-
 func (s *Server) handleOllamaLoad(req Request) Response {
 	if r, ok := s.providerErr(req); !ok {
 		return r
@@ -15,8 +11,8 @@ func (s *Server) handleOllamaLoad(req Request) Response {
 	var params struct {
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
 	if err := s.provider.LoadModel(params.Model); err != nil {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
@@ -31,8 +27,8 @@ func (s *Server) handleOllamaUnload(req Request) Response {
 	var params struct {
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
 	if err := s.provider.UnloadModel(params.Model); err != nil {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
@@ -49,8 +45,8 @@ func (s *Server) handleOllamaDelete(req Request) Response {
 	var params struct {
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
 	if err := s.provider.DeleteModel(params.Model); err != nil {
 		return Response{JSONRPC: "2.0", Error: &Error{Code: -32603, Message: err.Error()}, ID: req.ID}
@@ -87,8 +83,8 @@ func (s *Server) handleOllamaShow(req Request) Response {
 	var params struct {
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
 	caps, err := s.provider.ModelCaps(params.Model)
 	if err != nil {
@@ -105,8 +101,8 @@ func (s *Server) handleOllamaContext(req Request) Response {
 	var params struct {
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return Response{JSONRPC: "2.0", Error: &Error{Code: -32600, Message: "invalid params"}, ID: req.ID}
+	if r := decodeParams(req, &params); r != nil {
+		return *r
 	}
 	n, err := s.provider.ModelContextLength(params.Model)
 	if err != nil {

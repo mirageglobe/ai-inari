@@ -57,10 +57,10 @@ and per-round not per-token; the roadmap's own suspicion here is unfounded, leav
 ### rpc / server surface (`inarid`)
 
 - **S1 `[medium]` [done] `NewServer` has 10 positional params**, including two adjacent same-typed strings (`defaultModel`, `globalSystemPrompt`) that transpose silently at the call site (`server.go:55`, called `daemon.go:91`). refactor to a `ServerConfig` struct (keyed literals, impossible transposition, non-breaking future knobs). this is the refactor the roadmap explicitly names.
-- **S2 `[medium]` client discards JSON-RPC error codes**: every client method collapses `resp.Error` to a bare message string (`client_session.go`, `client_model.go`, ~18 sites), so callers cannot distinguish `session not found` (-32602) from `provider not configured` (-32603). this makes any server-side error-code cleanup cosmetic until the client preserves codes; do S2 before S3.
-- **S3 `[easy]` bad-params error code is split -32600 vs -32602** for the identical "unmarshal failed" event across handlers (see `dispatch_session.go` create/delete/setrole/chat vs rename/tag/setcwd/interrupt/shell). pick one (JSON-RPC says -32602 for invalid params) and make it uniform.
-- **S4 `[medium]` decode + "session not found" ritual repeated ~15x** across handlers; a generic `decodeParams[T]` + `getSession(req,id)` collapses each handler 6-8 lines and removes the soil S3 grew in.
-- **S5 `[easy]` three client methods still inline the `SessionInfo` decode** (`CreateSession:41`, `SetCwd:186`, `Rename:208`) though a shared `sessionInfoCall`/`decodeSessionInfo` pair already exists two functions away (`client_session.go:243`). also `providerErr` prologue is copy-pasted ~10x (ties to C3).
+- **S2 `[medium]` [deferred] client discards JSON-RPC error codes**: every client method collapses `resp.Error` to a bare message string (`client_session.go`, `client_model.go`, ~18 sites), so callers cannot distinguish `session not found` (-32602) from `provider not configured` (-32603). this makes any server-side error-code cleanup cosmetic until the client preserves codes; do S2 before S3.
+- **S3 `[easy]` [done] bad-params error code is split -32600 vs -32602** for the identical "unmarshal failed" event across handlers (see `dispatch_session.go` create/delete/setrole/chat vs rename/tag/setcwd/interrupt/shell). pick one (JSON-RPC says -32602 for invalid params) and make it uniform.
+- **S4 `[medium]` [done] decode + "session not found" ritual repeated ~15x** across handlers; a generic `decodeParams[T]` + `getSession(req,id)` collapses each handler 6-8 lines and removes the soil S3 grew in.
+- **S5 `[easy]` [done] three client methods still inline the `SessionInfo` decode** (`CreateSession:41`, `SetCwd:186`, `Rename:208`) though a shared `sessionInfoCall`/`decodeSessionInfo` pair already exists two functions away (`client_session.go:243`). also `providerErr` prologue is copy-pasted ~10x (ties to C3).
 
 ### provider seam + config (`inarid`)
 
@@ -96,7 +96,7 @@ small, separately-reviewable, ordered so each de-risks the next:
 2. **P1 + P3**: **[done]** trivial perf wins (loopguard slice-before-convert; memoize `/api/show`); no profile needed.
 3. **S12 + S13**: **[done]** tui modal-box helper + retire dead `View()` paths; cleans up after #74. (S13 note: the views must satisfy `tea.Model` since their own `Update` returns it, so the dead full-screen bodies were replaced with thin stubs, matching the selector, not deleted outright.)
 4. **S1 + S10**: **[done]** S1 (`ServerConfig` struct); S10 resolved by *removing* the dead `mcpHost`/`sched` deps from `ipc` (measured: zero usages) rather than interface-izing them, and removing the dead scheduler wiring entirely + correcting the SPEC throttle claims. store/auditor left concrete (tests already use reals; interfaces would be indirection with no consumer).
-5. **S5 + S3 + S2 + S4**: client/handler dedup and error-code consistency, in that dependency order (S2 before S3 or S3 is cosmetic).
+5. **S3 + S4 + S5**: **[done]** shared `decodeParams`/`getSession` helpers dedup ~14 handlers (S4), which unifies bad-params to `-32602` for free (S3), plus the 3 inline client `SessionInfo` decodes (S5). **S2 deferred**: measured no caller branches on error codes, so preserving them client-side is speculative (YAGNI).
 6. **S14 + S15**: tui `activeOverlay` enum then broadcast helper (after the state settles).
 7. **profile P2/P4/P5** before touching them; then the streaming-render cache if the profile justifies it.
 8. **S6 (+S7/S8/S9)**: the second-provider factory; largest scope, best done last as its own milestone once the surface above is clean.

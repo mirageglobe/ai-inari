@@ -31,22 +31,7 @@ func (c *Client) ListSessions() ([]SessionInfo, error) {
 // cwd is optional; when non-empty inarid injects a shallow file tree into the session's
 // system prompt so the model is aware of the project layout from the first message.
 func (c *Client) CreateSession(name, cwd string) (SessionInfo, error) {
-	resp, err := c.Call("session.create", map[string]string{"name": name, "cwd": cwd})
-	if err != nil {
-		return SessionInfo{}, err
-	}
-	if resp.Error != nil {
-		return SessionInfo{}, fmt.Errorf("%s", resp.Error.Message)
-	}
-	b, err := json.Marshal(resp.Result)
-	if err != nil {
-		return SessionInfo{}, err
-	}
-	var sess SessionInfo
-	if err := json.Unmarshal(b, &sess); err != nil {
-		return SessionInfo{}, err
-	}
-	return sess, nil
+	return c.sessionInfoCall("session.create", map[string]string{"name": name, "cwd": cwd})
 }
 
 // DeleteSession removes a session from inarid by ID.
@@ -176,44 +161,14 @@ func (c *Client) SetContext(sessionID, prompt string) error {
 // the updated session info (new cwd + rebuilt system prompt) so the caller can
 // refresh its view. errors when the path is not an existing directory.
 func (c *Client) SetCwd(sessionID, cwd string) (SessionInfo, error) {
-	resp, err := c.Call("session.setcwd", map[string]string{"id": sessionID, "cwd": cwd})
-	if err != nil {
-		return SessionInfo{}, err
-	}
-	if resp.Error != nil {
-		return SessionInfo{}, fmt.Errorf("%s", resp.Error.Message)
-	}
-	b, err := json.Marshal(resp.Result)
-	if err != nil {
-		return SessionInfo{}, err
-	}
-	var sess SessionInfo
-	if err := json.Unmarshal(b, &sess); err != nil {
-		return SessionInfo{}, err
-	}
-	return sess, nil
+	return c.sessionInfoCall("session.setcwd", map[string]string{"id": sessionID, "cwd": cwd})
 }
 
 // Rename changes a session's display name via session.rename and returns the
 // updated session info so the caller can refresh its label. errors on an empty
 // name or an unknown session.
 func (c *Client) Rename(sessionID, name string) (SessionInfo, error) {
-	resp, err := c.Call("session.rename", map[string]string{"id": sessionID, "name": name})
-	if err != nil {
-		return SessionInfo{}, err
-	}
-	if resp.Error != nil {
-		return SessionInfo{}, fmt.Errorf("%s", resp.Error.Message)
-	}
-	b, err := json.Marshal(resp.Result)
-	if err != nil {
-		return SessionInfo{}, err
-	}
-	var sess SessionInfo
-	if err := json.Unmarshal(b, &sess); err != nil {
-		return SessionInfo{}, err
-	}
-	return sess, nil
+	return c.sessionInfoCall("session.rename", map[string]string{"id": sessionID, "name": name})
 }
 
 // Tag toggles a label on a session via session.tag (adds if absent, removes if
