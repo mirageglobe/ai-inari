@@ -26,8 +26,15 @@ func newProjectTestServer(t *testing.T, sock, globalPrompt string) (*Server, *Cl
 	t.Cleanup(func() { auditor.Close() })
 
 	store := session.NewStore()
-	srv, err := NewServer(sock, store, scheduler.New(8192), mcp.NewHost(nil, auditor), auditor,
-		&fakeAssignProvider{}, false, 0, "", globalPrompt)
+	srv, err := NewServer(ServerConfig{
+		Socket:             sock,
+		Store:              store,
+		Scheduler:          scheduler.New(8192),
+		MCPHost:            mcp.NewHost(nil, auditor),
+		Auditor:            auditor,
+		Provider:           &fakeAssignProvider{},
+		GlobalSystemPrompt: globalPrompt,
+	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

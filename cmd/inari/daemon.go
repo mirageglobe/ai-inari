@@ -88,7 +88,18 @@ func runDaemon(cfgPath string, verbose, background bool) {
 		log.Printf("idle auto-shutdown: %s", idleTimeout)
 	}
 
-	srv, err := ipc.NewServer(cfg.Socket, store, sched, mcpHost, auditor, ollamaClient, verbose, idleTimeout, cfg.Models.Thinker, cfg.Context.SystemPrompt)
+	srv, err := ipc.NewServer(ipc.ServerConfig{
+		Socket:             cfg.Socket,
+		Store:              store,
+		Scheduler:          sched,
+		MCPHost:            mcpHost,
+		Auditor:            auditor,
+		Provider:           ollamaClient,
+		Verbose:            verbose,
+		IdleTimeout:        idleTimeout,
+		DefaultModel:       cfg.Models.Thinker,
+		GlobalSystemPrompt: cfg.Context.SystemPrompt,
+	})
 	if err != nil {
 		log.Fatalf("ipc: %v", err)
 	}

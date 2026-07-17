@@ -55,7 +55,7 @@ func newStreamTestServer(t *testing.T, sock string, p provider.Provider) (*Serve
 	sched := scheduler.New(8192)
 	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(sock, store, sched, host, auditor, p, false, 0, "", "")
+	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Scheduler: sched, MCPHost: host, Auditor: auditor, Provider: p})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
