@@ -59,7 +59,9 @@ type Shell struct {
 }
 
 type Config struct {
-	Socket         string         `json:"socket"`
+	Socket string `json:"socket"`
+	// MemoryBudgetMB is reserved for the planned per-tier memory-budget throttle
+	// (SPEC roadmap); it is parsed but not yet wired to any runtime behaviour.
 	MemoryBudgetMB int            `json:"memory_budget_mb"`
 	OllamaBaseURL  string         `json:"ollama_base_url"`
 	DataDir        string         `json:"data_dir"`

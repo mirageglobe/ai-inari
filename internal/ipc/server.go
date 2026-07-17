@@ -14,9 +14,7 @@ import (
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/mcp"
 	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -24,8 +22,6 @@ import (
 type Server struct {
 	listener net.Listener
 	store    *session.Store
-	sched    *scheduler.Scheduler
-	mcpHost  *mcp.Host
 	auditor  *audit.Auditor
 	provider provider.Provider
 
@@ -68,8 +64,6 @@ type Server struct {
 type ServerConfig struct {
 	Socket             string
 	Store              *session.Store
-	Scheduler          *scheduler.Scheduler
-	MCPHost            *mcp.Host
 	Auditor            *audit.Auditor
 	Provider           provider.Provider
 	Verbose            bool
@@ -95,8 +89,6 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	s := &Server{
 		listener: l,
 		store:    cfg.Store,
-		sched:    cfg.Scheduler,
-		mcpHost:  cfg.MCPHost,
 		auditor:  cfg.Auditor,
 		provider: cfg.Provider,
 		quit:     make(chan struct{}),

@@ -13,7 +13,6 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 	"github.com/mirageglobe/ai-inari/internal/mcp"
 	"github.com/mirageglobe/ai-inari/internal/ollama"
-	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -53,8 +52,6 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	}
 	log.Printf("ollama ready: %s", endpoint.BaseURL)
 
-	sched := scheduler.New(cfg.MemoryBudgetMB)
-
 	dataDir := cfg.DataDir
 	if dataDir == "" {
 		home, err := os.UserHomeDir()
@@ -91,8 +88,6 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	srv, err := ipc.NewServer(ipc.ServerConfig{
 		Socket:             cfg.Socket,
 		Store:              store,
-		Scheduler:          sched,
-		MCPHost:            mcpHost,
 		Auditor:            auditor,
 		Provider:           ollamaClient,
 		Verbose:            verbose,
