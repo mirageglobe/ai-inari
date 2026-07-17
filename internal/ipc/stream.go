@@ -92,7 +92,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	// option so Ollama falls back to its own default.
 	nc := sess.NumCtxOverride
 	if nc <= 0 {
-		if maxCtx, err := s.provider.ModelContextLength(model); err == nil {
+		if maxCtx, err := s.modelContextLength(model); err == nil {
 			nc = DefaultNumCtx(maxCtx)
 		}
 	}
@@ -288,4 +288,19 @@ func (s *Server) modelNotResident(model string) bool {
 		}
 	}
 	return true
+}
+
+// modelContextLength returns the model's declared context window, memoised for the
+// process lifetime (see Server.ctxLen). errors are not cached, so a transient
+// backend failure is retried next turn rather than pinned to 0.
+func (s *Server) modelContextLength(model string) (int, error) {
+	if v, ok := s.ctxLen.Load(model); ok {
+		return v.(int), nil
+	}
+	n, err := s.provider.ModelContextLength(model)
+	if err != nil {
+		return 0, err
+	}
+	s.ctxLen.Store(model, n)
+	return n, nil
 }

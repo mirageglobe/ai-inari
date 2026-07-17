@@ -93,7 +93,7 @@ refactor just landed in PR #74 and are called out honestly:**
 small, separately-reviewable, ordered so each de-risks the next:
 
 1. **correctness batch** (C1-C4): **[done]** locked `RemoveLast`, doctor endpoint, assign guard, doc fix; tests per fix.
-2. **P1 + P3**: trivial perf wins (loopguard slice-before-convert; memoize `/api/show`); no profile needed.
+2. **P1 + P3**: **[done]** trivial perf wins (loopguard slice-before-convert; memoize `/api/show`); no profile needed.
 3. **S12 + S13**: tui modal-box helper + delete dead `View()` paths; cleans up after #74.
 4. **S1 + S10**: `ServerConfig` struct then `ipc` consumer-side interface seams (do together; both touch the constructor).
 5. **S5 + S3 + S2 + S4**: client/handler dedup and error-code consistency, in that dependency order (S2 before S3 or S3 is cosmetic).
