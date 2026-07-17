@@ -37,6 +37,18 @@ func modalInnerWidth(termWidth int) int {
 	return ModalInnerW
 }
 
+// renderModalBox wraps content lines in the standard rounded modal box (primary
+// border, 0x1 padding) and centres it in a termWidth x termHeight area. the single
+// definition of modal chrome, shared by every centred overlay renderer.
+func renderModalBox(lines []string, termWidth, termHeight int) string {
+	box := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(ActiveTheme.Primary).
+		Padding(0, 1).
+		Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
+}
+
 var (
 	hintActiveStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	hintDisabledStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))

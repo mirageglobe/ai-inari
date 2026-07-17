@@ -6,7 +6,6 @@ package views
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -81,48 +80,10 @@ func (d Describe) RenderModal(termWidth, termHeight int) string {
 		lines = []string{titleStyle.Render("describe"), d.buildContent(), hint}
 	}
 
-	boxStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(ActiveTheme.Primary).
-		Padding(0, 1)
-	box := boxStyle.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
+	return renderModalBox(lines, termWidth, termHeight)
 }
 
-func (d Describe) View() string {
-	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("describe")
-	labelW := 10 // len("describe") + len("  ")
-
-	if d.editing {
-		editLabel := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary).Render("  editing behavior")
-		var hintCmds []HintCmd
-		if d.saving || d.offline {
-			hintCmds = []HintCmd{HD("[ctrl+s] save"), HD("[esc] cancel")}
-			if d.saving {
-				hintCmds[0] = HD("[ctrl+s] saving…")
-			}
-		} else {
-			hintCmds = []HintCmd{H("[ctrl+s] save"), H("[esc] cancel")}
-		}
-		if d.saveErr != "" {
-			hintCmds = append(hintCmds, HS(), HD(d.saveErr))
-		}
-		hint := viewLabel + editLabel + "  " + RenderHint(hintCmds, d.width-labelW-len("  editing behavior")-2)
-		return d.input.View() + "\n" + hint
-	}
-
-	editHint := H("[e] edit behavior")
-	if d.offline {
-		editHint = HD("[e] edit behavior")
-	}
-	hint := viewLabel + "  " + RenderHint([]HintCmd{editHint, H("[esc] back"), HS(), H("[?] help")}, d.width-labelW)
-
-	var body string
-	if !d.ready {
-		body = agentsStyle.Render(lipgloss.NewStyle().Faint(true).Render("loading…"))
-	} else {
-		body = agentsStyle.Render(d.viewport.View())
-	}
-
-	return body + "\n" + hint
-}
+// View satisfies tea.Model (Describe.Update returns tea.Model); describe is a
+// modal-only overlay, so real rendering always goes through RenderModal and this
+// is never the path the root model uses.
+func (d Describe) View() string { return d.viewport.View() }

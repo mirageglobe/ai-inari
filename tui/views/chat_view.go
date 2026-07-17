@@ -47,12 +47,7 @@ func (c Chat) toolsModal(width, height int) string {
 	}
 	lines = append(lines, "", descStyle.Render("sandboxed to the session cwd    [q/esc] close"))
 
-	boxStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(ActiveTheme.Primary).
-		Padding(0, 1)
-	box := boxStyle.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
+	return renderModalBox(lines, width, height)
 }
 
 func (c Chat) View() string {

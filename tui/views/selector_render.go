@@ -5,8 +5,6 @@
 package views
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -47,13 +45,7 @@ func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 	}
 	lines = append(lines, hint)
 
-	boxStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(ActiveTheme.Primary).
-		Padding(0, 1)
-
-	box := boxStyle.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
+	return renderModalBox(lines, termWidth, termHeight)
 }
 
 // View satisfies tea.Model; actual rendering always goes through RenderModal,

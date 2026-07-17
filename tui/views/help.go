@@ -30,11 +30,11 @@ var helpByView = map[string][]helpEntry{
 	"describe": {
 		{"[e]", "edit system prompt"},
 		{"[ctrl+s]", "save (in edit mode)"},
-		{"[esc]", "cancel / back"},
+		{"[q] / [esc]", "close (esc exits edit mode first)"},
 	},
 	"logs": {
 		{"[r]", "refresh log"},
-		{"[esc]", "back"},
+		{"[q] / [esc]", "close"},
 	},
 	"models": {
 		{"[enter] / [l]", "assign / pull model"},

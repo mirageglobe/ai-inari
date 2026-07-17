@@ -94,29 +94,13 @@ func (l Logs) RenderModal(termWidth, termHeight int) string {
 	}
 
 	lines := []string{titleStyle.Render("logs"), content, hint}
-	boxStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(ActiveTheme.Primary).
-		Padding(0, 1)
-	box := boxStyle.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
+	return renderModalBox(lines, termWidth, termHeight)
 }
 
-func (l Logs) View() string {
-	viewLabel := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary).Render("logs")
-	hint := viewLabel + "  " + RenderHint([]HintCmd{H("[r] refresh"), H("[esc] back"), HS(), H("[?] help")}, l.width-6)
-
-	var body string
-	if !l.ready {
-		body = agentsStyle.Render(lipgloss.NewStyle().Faint(true).Render("loading…"))
-	} else if strings.TrimSpace(l.content) == "" {
-		body = agentsStyle.Render(lipgloss.NewStyle().Faint(true).Render("(no log entries yet)"))
-	} else {
-		body = agentsStyle.Render(l.viewport.View())
-	}
-
-	return body + "\n" + hint
-}
+// View satisfies tea.Model (Logs.Update returns tea.Model); logs is a modal-only
+// overlay, so real rendering always goes through RenderModal and this is never the
+// path the root model uses.
+func (l Logs) View() string { return l.viewport.View() }
 
 func readLogFile() tea.Cmd {
 	return func() tea.Msg {

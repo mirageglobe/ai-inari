@@ -2,7 +2,6 @@ package views
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -69,13 +68,7 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 	}
 	lines = append(lines, hint)
 
-	boxStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(ActiveTheme.Primary).
-		Padding(0, 1)
-
-	box := boxStyle.Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(termWidth, termHeight, lipgloss.Center, lipgloss.Center, box)
+	return renderModalBox(lines, termWidth, termHeight)
 }
 
 func (h Agents) View() string {
