@@ -71,7 +71,7 @@ and per-round not per-token; the roadmap's own suspicion here is unfounded, leav
 
 ### package boundaries (`inari`)
 
-- **S10 `[medium]` `ipc` holds its deps as concrete pointers** (`store`/`sched`/`mcpHost`/`auditor`, `server.go:24-30`) with zero interface seams, against the project's consumer-defined-interface convention; this is why the RPC layer is hard to unit-test in isolation. the sole existing interface (`provider.Provider`) is defined in the producer package, inverting where the convention wants it. highest-value structural fix; pairs with S1.
+- **S10 `[medium]` [done] `ipc` holds its deps as concrete pointers** (`store`/`sched`/`mcpHost`/`auditor`, `server.go:24-30`) with zero interface seams, against the project's consumer-defined-interface convention; this is why the RPC layer is hard to unit-test in isolation. the sole existing interface (`provider.Provider`) is defined in the producer package, inverting where the convention wants it. highest-value structural fix; pairs with S1.
 - **S11 `[easy]` oversized files** (convention: source under ~150 lines; 23 files exceed it). worst structural offender is `handleStream`, a single ~247-line function (`stream.go:19-265`) doing context-assembly + streaming + tool-dispatch in one body (`[hard]` to split well). the rest are large-but-cohesive mechanical splits: `client_session.go` (309), `dispatch_session.go` (308), `ollama/client.go` (245, `[medium]`), `chat_msgs.go` (215). note: `sched`/`mcpHost` are stored on `Server` but appear unused by any `ipc` handler; confirm and drop if so.
 - positive, recorded: **doc.go ownership hygiene is fully compliant** (every package has one with explicit "does NOT own" scoping) and there are **no import cycles** (clean layering, `provider` at the bottom). do not disturb.
 
@@ -95,7 +95,7 @@ small, separately-reviewable, ordered so each de-risks the next:
 1. **correctness batch** (C1-C4): **[done]** locked `RemoveLast`, doctor endpoint, assign guard, doc fix; tests per fix.
 2. **P1 + P3**: **[done]** trivial perf wins (loopguard slice-before-convert; memoize `/api/show`); no profile needed.
 3. **S12 + S13**: **[done]** tui modal-box helper + retire dead `View()` paths; cleans up after #74. (S13 note: the views must satisfy `tea.Model` since their own `Update` returns it, so the dead full-screen bodies were replaced with thin stubs, matching the selector, not deleted outright.)
-4. **S1 + S10**: S1 (`ServerConfig` struct) **[done]**; S10 (`ipc` consumer-side interface seams) next.
+4. **S1 + S10**: **[done]** S1 (`ServerConfig` struct); S10 resolved by *removing* the dead `mcpHost`/`sched` deps from `ipc` (measured: zero usages) rather than interface-izing them, and removing the dead scheduler wiring entirely + correcting the SPEC throttle claims. store/auditor left concrete (tests already use reals; interfaces would be indirection with no consumer).
 5. **S5 + S3 + S2 + S4**: client/handler dedup and error-code consistency, in that dependency order (S2 before S3 or S3 is cosmetic).
 6. **S14 + S15**: tui `activeOverlay` enum then broadcast helper (after the state settles).
 7. **profile P2/P4/P5** before touching them; then the streaming-render cache if the profile justifies it.

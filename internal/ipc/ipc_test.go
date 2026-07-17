@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/mcp"
 	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -51,10 +49,8 @@ func TestPingPong(t *testing.T) {
 	defer auditor.Close()
 
 	store := session.NewStore()
-	sched := scheduler.New(8192)
-	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Scheduler: sched, MCPHost: host, Auditor: auditor})
+	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Auditor: auditor})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -97,10 +93,8 @@ func TestSessionList(t *testing.T) {
 	defer auditor.Close()
 
 	store := session.NewStore()
-	sched := scheduler.New(8192)
-	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Scheduler: sched, MCPHost: host, Auditor: auditor})
+	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Auditor: auditor})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -131,10 +125,8 @@ func TestSessionAssign(t *testing.T) {
 		t.Cleanup(func() { auditor.Close() })
 
 		store := session.NewStore()
-		sched := scheduler.New(8192)
-		host := mcp.NewHost(nil, auditor)
 
-		srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Scheduler: sched, MCPHost: host, Auditor: auditor, Provider: fake})
+		srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Auditor: auditor, Provider: fake})
 		if err != nil {
 			t.Fatalf("NewServer: %v", err)
 		}

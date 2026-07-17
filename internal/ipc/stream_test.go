@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/mcp"
 	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -52,10 +50,8 @@ func newStreamTestServer(t *testing.T, sock string, p provider.Provider) (*Serve
 	t.Cleanup(func() { auditor.Close() })
 
 	store := session.NewStore()
-	sched := scheduler.New(8192)
-	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Scheduler: sched, MCPHost: host, Auditor: auditor, Provider: p})
+	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Auditor: auditor, Provider: p})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

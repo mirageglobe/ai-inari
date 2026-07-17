@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/mcp"
-	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -26,10 +24,8 @@ func newSetCwdServer(t *testing.T, sock string) (*Server, *Client) {
 	t.Cleanup(func() { auditor.Close() })
 
 	store := session.NewStore()
-	sched := scheduler.New(8192)
-	host := mcp.NewHost(nil, auditor)
 
-	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Scheduler: sched, MCPHost: host, Auditor: auditor, Provider: &fakeAssignProvider{}})
+	srv, err := NewServer(ServerConfig{Socket: sock, Store: store, Auditor: auditor, Provider: &fakeAssignProvider{}})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

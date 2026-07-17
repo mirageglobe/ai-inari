@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/mcp"
-	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -29,8 +27,6 @@ func newProjectTestServer(t *testing.T, sock, globalPrompt string) (*Server, *Cl
 	srv, err := NewServer(ServerConfig{
 		Socket:             sock,
 		Store:              store,
-		Scheduler:          scheduler.New(8192),
-		MCPHost:            mcp.NewHost(nil, auditor),
 		Auditor:            auditor,
 		Provider:           &fakeAssignProvider{},
 		GlobalSystemPrompt: globalPrompt,

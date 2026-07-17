@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/mcp"
 	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/scheduler"
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
@@ -45,12 +43,10 @@ func newRecapServer(t *testing.T, sock string) (*Server, *Client) {
 	t.Cleanup(func() { auditor.Close() })
 
 	srv, err := NewServer(ServerConfig{
-		Socket:    sock,
-		Store:     session.NewStore(),
-		Scheduler: scheduler.New(8192),
-		MCPHost:   mcp.NewHost(nil, auditor),
-		Auditor:   auditor,
-		Provider:  fakeRecapProvider{},
+		Socket:   sock,
+		Store:    session.NewStore(),
+		Auditor:  auditor,
+		Provider: fakeRecapProvider{},
 	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)

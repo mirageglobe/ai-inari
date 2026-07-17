@@ -65,7 +65,7 @@ section.
 - [x] `[inarit]` keyboard navigation (select, quit).
 
 #### M3 - Ollama Integration & Chat
-- [x] `[inarid]` daemon POSTs to Ollama `/api/chat` and streams tokens; semaphore throttle enforces the memory budget.
+- [x] `[inarid]` daemon POSTs to Ollama `/api/chat` and streams tokens. *(the memory-budget throttle originally scoped here was never wired; the `scheduler` package exists but is unused. tracked as an Ideas item below.)*
 - [x] `[inarit/inarid]` token stream forwarded to the inarit chat view.
 - [x] `[inarit]` interactive `i` chat view wires to Head Inari (Thinker tier).
 - [x] `[inarid]` message history scoped to session; detach/reattach preserves session state.
@@ -74,6 +74,7 @@ section.
 - [ ] `[inari]` `[hard]` **architecture review + refactor** - a whole-app pass for performance and design, optimising for simplicity, extensibility, and maintainability with no behaviour regressions. scope: audit hot paths (the `handleStream` tool-call loop, viewport hardwrap/render on every token, per-turn history copies); the RPC surface and the growing `NewServer` positional-param list (candidate: a config/options struct instead of ~10 positional args); config layering and the `provider` abstraction seam (second-backend readiness); package boundaries and the remaining oversized files. deliver as a written findings doc first, then land incremental refactors as small, separately-reviewable PRs rather than one big-bang change. **findings pass complete (2026-07-16): [docs/architecture-review.md](docs/architecture-review.md) holds the verified backlog (4 correctness fixes, 5 perf items, 15 structural items) and a de-risked PR queue; incremental refactor PRs pending.**
 
 ### Ideas
+- [ ] `[inarid]` `[medium]` **memory-budget throttle (wire the scheduler)** - the `internal/scheduler` semaphore (Acquire/Release, budget from `config.json` `memory_budget_mb`) exists as a library but is wired to nothing; the S10 cleanup (2026-07-17) removed the dead daemon plumbing that created it without using it. scope: Acquire before a stream's generation and Release after, keyed by model tier, so concurrent sessions respect the configured memory budget instead of streaming unthrottled.
 - [ ] `[inarit/inarid]` `[hard]` **long-term task planning from high-level prompts** - decompose a high-level user goal into a tracked, multi-step plan that the session executes and checks off. exploratory; no concrete entry point yet, so parked here until the shape is clearer.
 - [ ] `[inarit]` `[medium]` **pre-send prompt optimisation (autocorrect)** - the prompt-optimisation half of the pre-send intercept layer (its security/validation half is **pre-send message intercept**, near-term, which stays daemon-side as the authoritative gate). client-side because it is a UX affordance, not a security control: before the message leaves the TUI, lightly rewrite it to improve model accuracy - fix obvious typos, expand terse fragments, normalise formatting - without altering intent. the user must preview the rewrite in the input box and accept or reject it before send (or toggle the feature off); it never silently distorts what the user asked.
 - [ ] `[inarit]` `[hard]` **chat viewport character selection** - build on line selection to add character-level precision: within the selected rows, re-parse ANSI sequences to locate byte ranges and inject highlight styles mid-sequence, so a drag can start and end partway through a line. builds on the shipped line-selection work (see Done). parked as exploratory: whole-row selection already covers the common copy case, so the mid-sequence ANSI re-parsing is not yet worth the complexity.
@@ -196,7 +197,7 @@ section.
   inarid (daemon)
     ├── session store   — persists sessions + history to ~/.local/share/inari/sessions/
     ├── ollama client   — sends full message history to local models
-    ├── scheduler       — semaphore-based memory budget
+    ├── scheduler       — semaphore memory-budget throttle (library only; not wired)
     └── audit logger    — append-only record of all tool calls
 ```
 
@@ -330,7 +331,7 @@ token messages (`ChatTokenMsg`, `ChatDoneMsg`) carry a `SessionID` field. the ro
 ### 4.5 Concurrency & Scheduling
 
 - Each Ollama session runs in its own goroutine.
-- A semaphore gates concurrent sessions based on configured memory budget.
+- A memory-budget semaphore to gate concurrent sessions is planned but not yet wired (see Ideas); today each session streams unthrottled.
 - Multiple simultaneous chat streams are supported — each uses its own UDS connection.
 - Slow/background tasks continue when the TUI is detached.
 
