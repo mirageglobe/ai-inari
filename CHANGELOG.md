@@ -8,6 +8,7 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 ## [unreleased]
 
 ### fixed
+- config: new sessions now use the configured `models.thinker` as their default model; `session.create` previously hardcoded `gemma4:e2b` and silently ignored a configured thinker tier.
 - concurrency: the `session.stream` error path rolled back the failed turn's user message by truncating `sess.Messages` directly, bypassing the session lock every other mutator holds; a concurrent `session.history`/`session.list` read could race the slice header. now goes through a locked `Session.RemoveLast()`. (arch-review C1)
 - doctor: `inari doctor` health-checked the legacy top-level `ollama_base_url` instead of the active endpoint, so it could report green against the wrong backend once a `provider`/`endpoints` profile is in use; it now checks `ActiveEndpoint()`. (arch-review C2)
 - session.assign: added the missing provider guard so assigning a model with no configured provider returns a clean "provider not configured" error instead of risking a nil-deref on the model-validation call (defensive; the shipped daemon always has a provider). (arch-review C3)

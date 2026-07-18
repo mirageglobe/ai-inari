@@ -6,7 +6,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
 	"github.com/mirageglobe/ai-inari/internal/config"
@@ -72,15 +71,9 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	}
 	defer mcpHost.Stop()
 
-	// idle auto-shutdown: 0 falls back to the 30 min default (covers configs
-	// predating the field); a negative value disables the watchdog.
-	idleTimeout := time.Duration(cfg.IdleShutdownMins) * time.Minute
-	switch {
-	case cfg.IdleShutdownMins == 0:
-		idleTimeout = 30 * time.Minute
-	case cfg.IdleShutdownMins < 0:
-		idleTimeout = 0
-	}
+	// idle auto-shutdown window; the 0->30min / negative->disabled logic lives in
+	// config.IdleTimeout so the default is defined in one place.
+	idleTimeout := cfg.IdleTimeout()
 	if idleTimeout > 0 {
 		log.Printf("idle auto-shutdown: %s", idleTimeout)
 	}
