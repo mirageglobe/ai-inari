@@ -8,20 +8,31 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// viewportContent returns the string to show in the viewport.
-// during streaming, streamBuf is rendered as a live in-progress assistant message.
-// before the first token arrives, the spinner is shown instead.
-// when a tool approval is pending, the pending tool call is shown in place of the spinner.
-// neither is ever written into display so finalisation is a simple append.
-func (c Chat) viewportContent() string {
-	base := strings.Join(c.display, "\n")
+// viewportContent returns the fully hardwrapped string to show in the viewport.
+// during streaming, streamBuf is rendered as a live in-progress assistant message;
+// the wrapped scrollback base is cached per stream (streamBaseWrapped) so each token
+// re-wraps only the in-progress line, not all of history (P2). before the first token
+// the spinner is shown instead. when a tool approval is pending, the pending tool
+// call is shown in place of the spinner. neither is ever written into display so
+// finalisation is a simple append. content is pre-wrapped here (setViewportContent no
+// longer wraps) so the viewport's \n count matches the visual row count.
+func (c *Chat) viewportContent() string {
+	w := c.viewport.Width
+	wrap := func(s string) string {
+		if w > 0 {
+			return ansi.Hardwrap(s, w, true)
+		}
+		return s
+	}
 	if c.streamBuf != "" {
-		partial := assistantStyle.Render(c.sessionName+": ") + c.streamBuf
+		base := c.streamBaseWrapped(w)
+		partial := wrap(assistantStyle.Render(c.sessionName+": ") + c.streamBuf)
 		if base == "" {
 			return partial
 		}
 		return base + "\n" + partial
 	}
+	base := wrap(strings.Join(c.display, "\n"))
 	if c.waiting {
 		var waitLine string
 		switch {
@@ -32,6 +43,7 @@ func (c Chat) viewportContent() string {
 		default:
 			waitLine = thinkingStyle.Render(c.spinner.View() + " thinking...")
 		}
+		waitLine = wrap(waitLine)
 		if base == "" {
 			return waitLine
 		}
@@ -40,15 +52,32 @@ func (c Chat) viewportContent() string {
 	return base
 }
 
-// setViewportContent pre-wraps content to the viewport width before calling
-// SetContent. bubbles v0.18.0 viewport splits content only on \n; it does not
-// perform terminal line-wrapping itself, so GotoBottom undershoots when long
-// styled lines wrap visually in the terminal. hardwrapping beforehand makes the
-// \n count match the visual row count, fixing the scroll position.
-func setViewportContent(vp *viewport.Model, content string) {
-	if vp.Width > 0 {
-		content = ansi.Hardwrap(content, vp.Width, true)
+// streamBaseWrapped returns the display scrollback joined and hardwrapped, cached for
+// the current stream so each token re-wraps only the in-progress line, not all of
+// history (P2). display is immutable between a stream's tokens; the cache is keyed on
+// viewport width and display length, so a mid-stream resize or a finalised message
+// (which changes len(display)) refreshes it. onDone drops the cache at stream end.
+func (c *Chat) streamBaseWrapped(width int) string {
+	if width == c.streamBaseW && len(c.display) == c.streamBaseN {
+		return c.streamBase
 	}
+	base := strings.Join(c.display, "\n")
+	if width > 0 {
+		base = ansi.Hardwrap(base, width, true)
+	}
+	c.streamBase = base
+	c.streamBaseW = width
+	c.streamBaseN = len(c.display)
+	return base
+}
+
+// setViewportContent sets the viewport content, which viewportContent has already
+// hardwrapped to the viewport width. bubbles v0.18.0 viewport splits content only on
+// \n and does no line-wrapping itself, so GotoBottom would undershoot on visually
+// wrapped lines; pre-wrapping (in viewportContent) keeps the \n count equal to the
+// visual row count. the wrap lives in viewportContent, not here, so the streaming
+// path can cache the wrapped scrollback base and re-wrap only the in-progress line.
+func setViewportContent(vp *viewport.Model, content string) {
 	vp.SetContent(content)
 }
 
