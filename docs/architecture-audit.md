@@ -1,9 +1,22 @@
-# architecture review (2026-07-16)
+# architecture audit (conducted 2026-07-16)
 
-status: findings only. no behaviour changes land with this doc. the roadmap item
-(`SPEC.md` near-term, `[inari]` `[hard]`) asks for a written findings pass first,
-then incremental, separately-reviewable PRs. this is that pass; the ranked backlog
-below is the PR queue.
+> **decision record.** a point-in-time architecture audit: the findings and the
+> decision taken on each (done / deferred, with rationale) are recorded here. treat it
+> like an ADR; a superseding audit should be a new dated record, not an edit to this one.
+
+- **audit date**: 2026-07-16 (findings); resolutions landed 2026-07-16 to 2026-07-18.
+- **method**: five parallel read-only reviews (hot paths, RPC surface, provider/config seam, package boundaries, tui), plus verification of every load-bearing claim against source.
+- **status**: closed. correctness/perf/structural findings resolved or deferred (see outcome); streaming-render profiling spun out to the SPEC near-term roadmap.
+
+## audit outcome (decision record)
+
+the recurring finding: several literal review items assumed a consumer or need that
+measurement did not find, so the delivered work was the non-speculative subset.
+
+- **resolved (merged, PRs #76-#83)**: correctness C1-C4; perf P1/P3; tui S12/S13/S14/S15; S1 + S10; S3/S4/S5; S9a/S9c.
+- **deferred (YAGNI: no consumer/need found)**: S2 (no caller branches on error codes); S10 interface seams (tests use reals); S6/S7/S8 second-provider factory (no second backend committed); S9d num_ctx-cap config knob. S14's flat enum was replaced by a `topOverlay()` accessor, since a flat field would regress the model-selector-over-agents-popup nesting.
+- **spun out to roadmap (SPEC near-term)**: streaming-render profiling P2/P4/P5; measure under a real workload before optimising.
+- **remaining minor**: S9b dual URL source, S9e double project-overlay read.
 
 ## scope & method
 
