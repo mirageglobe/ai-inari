@@ -115,3 +115,12 @@ small, separately-reviewable, ordered so each de-risks the next:
 8. **S6 (+S7/S8/S9)**: S9a (new sessions use configured thinker) + S9c (idle-timeout logic to config) **[done]**. S6/S7/S8 (factory, endpoint discriminator, option translation, `ollama.*` rename) **[deferred]**: measured no second provider is committed, so the seam is speculative scaffolding (YAGNI) until an actual second backend is on the roadmap. remaining minor S9: S9b dual URL source (config-schema risk), S9d num_ctx cap (leave as documented const), S9e double project read (rare-path micro-opt).
 
 items 1-3 are safe quick wins; 4-6 are the core structural work; 7-8 are milestones.
+
+## profiling outcome (2026-07-18)
+
+item 7 (P2/P4/P5) profiled measure-first via `BenchmarkStreamTurn` (`tui/views`) swept over session length, plus live ollama round-trip timings:
+
+- **P2 [fixed]**: per-token full-scrollback re-wrap scaled linearly with history - 0.89ms/turn at 0 lines up to 72ms/turn and 100MB allocated at 1000 lines (one 200-token reply), on the single-threaded bubbletea loop. fixed by caching the wrapped base per stream and re-wrapping only the in-progress line (`streamBaseWrapped`; hardwrap moved into `viewportContent`): 3.2x-15.1x faster, 2.7x-5.5x fewer allocs, byte-identical output.
+- **P4 [accepted]**: `streamBuf += token` (~1KB/reply) is negligible next to the residual base+partial concat once P2 is cached; a builder fights the value-receiver `Chat`.
+- **P5 [left]**: `/api/ps` measured ~2ms/turn; immaterial and drives the loading-vs-thinking indicator.
+- **P3 [follow-up]**: `/api/show` measured ~7-29ms/turn; a clean per-model memoize, spun to its own roadmap item (SPEC near-term).

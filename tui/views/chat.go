@@ -59,6 +59,9 @@ type Chat struct {
 	historyDraft   string   // saves the in-progress input when history navigation starts
 	inputFocused   bool
 	streamBuf      string
+	streamBase     string // wrapped display scrollback cached for the current stream (P2)
+	streamBaseW    int    // viewport width streamBase was wrapped at
+	streamBaseN    int    // len(display) streamBase was computed for
 	streamTokens   <-chan string
 	streamStatus   <-chan string
 	streamErrc     <-chan error

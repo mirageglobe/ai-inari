@@ -82,6 +82,8 @@ func (c Chat) onDone(msg ChatDoneMsg) (tea.Model, tea.Cmd) {
 		autoCompact = shouldAutoCompact(c.ctxChars, effectiveNumCtx(c.numCtxOverride, c.maxCtx))
 	}
 	c.streamBuf = ""
+	c.streamBase = ""  // drop the per-stream wrapped-base cache (P2)
+	c.streamBaseN = -1 // force a recompute on the next stream's first token
 	c.streamTokens = nil
 	c.streamStatus = nil
 	c.streamErrc = nil
