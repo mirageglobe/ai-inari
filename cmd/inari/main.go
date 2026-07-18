@@ -19,6 +19,7 @@ func printHelp() {
 	fmt.Println("commands:")
 	fmt.Println("  (none)   launch daemon and open the TUI  (default)")
 	fmt.Println("  tui      open TUI  (assumes daemon is running)")
+	fmt.Println("  chat     send one message to a session, print the reply  (headless)")
 	fmt.Println("  daemon   run daemon in foreground")
 	fmt.Println("  doctor   check dependencies and daemon status")
 	fmt.Println("  stop     stop the running daemon")
@@ -28,6 +29,11 @@ func printHelp() {
 	fmt.Println("flags (follow the subcommand):")
 	fmt.Println("  -v         verbose daemon logging")
 	fmt.Println("  -config    path to config.json  (default: ~/.config/inari/config.json)")
+	fmt.Println()
+	fmt.Println("chat flags:")
+	fmt.Println("  -session   session id to send to  (required)")
+	fmt.Println("  -message   message text, or - to read from stdin")
+	fmt.Println("  -json      print the reply as a JSON object")
 }
 
 func main() {
@@ -40,13 +46,17 @@ func main() {
 	sub := os.Args[1]
 	rest := os.Args[2:]
 
-	// help and version need no flag parsing and no config resolution.
+	// help and version need no flag parsing and no config resolution; chat parses
+	// its own flags (--session/--message/--json) so it bypasses the shared parser.
 	switch sub {
 	case "help", "-h", "--help":
 		printHelp()
 		return
 	case "version", "--version":
 		fmt.Println(version.Version)
+		return
+	case "chat":
+		runChat(rest)
 		return
 	}
 
