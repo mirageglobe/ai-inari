@@ -17,20 +17,25 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-// runChat is the headless entry point: it drives a single non-streaming turn
-// against an existing session and prints the assistant reply, with no TUI.
-// session.chat is a plain provider round-trip (no tool-call loop), so the path
-// is deterministic and scriptable for automation and testing.
+// runChat is the headless entry point: it drives a single non-streaming turn and
+// prints the assistant reply, with no TUI. it targets an existing session
+// (--session) or creates a fresh one for this turn (--new); session.chat is a plain
+// provider round-trip (no tool-call loop), so the path is deterministic and
+// scriptable for automation and testing.
 func runChat(args []string) {
 	fs := flag.NewFlagSet("chat", flag.ExitOnError)
-	session := fs.String("session", "", "session id to send the message to (required)")
+	session := fs.String("session", "", "session id to send the message to (or use --new)")
+	newSession := fs.Bool("new", false, "create a new session for this turn instead of --session")
+	name := fs.String("name", "", "name for the --new session (default: a generated headless-* name)")
+	model := fs.String("model", "", "model for the --new session (default: the daemon's default model)")
+	cwd := fs.String("cwd", "", "working directory for the --new session (default: none)")
 	message := fs.String("message", "", "message text; use - to read from stdin")
 	asJSON := fs.Bool("json", false, "print the reply as a JSON object")
 	cfgFlag := fs.String("config", "", "path to config.json")
 	fs.Parse(args) //nolint:errcheck
 
-	if strings.TrimSpace(*session) == "" {
-		fmt.Fprintln(os.Stderr, "error: --session is required")
+	if err := resolveTarget(*newSession, *session); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(2)
 	}
 	msg, err := resolveMessage(*message, os.Stdin)
@@ -50,12 +55,59 @@ func runChat(args []string) {
 	client := ipc.NewClient(defaultSocket)
 	defer client.Close()
 
-	reply, err := client.Chat(*session, msg)
+	sessionID := strings.TrimSpace(*session)
+	if *newSession {
+		sessionID, err = createSession(client, newSessionName(*name), *model, *cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	reply, err := client.Chat(sessionID, msg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 	printReply(os.Stdout, reply, *asJSON)
+}
+
+// resolveTarget validates the session-target flags: exactly one of --new / --session.
+func resolveTarget(isNew bool, session string) error {
+	session = strings.TrimSpace(session)
+	switch {
+	case isNew && session != "":
+		return errors.New("--new and --session are mutually exclusive")
+	case !isNew && session == "":
+		return errors.New("one of --new or --session is required")
+	}
+	return nil
+}
+
+// newSessionName returns the --name value, or a generated headless-* name when empty.
+// session.create requires a non-empty name; names need not be unique (ids are).
+func newSessionName(flagName string) string {
+	if n := strings.TrimSpace(flagName); n != "" {
+		return n
+	}
+	return "headless-" + time.Now().Format("150405")
+}
+
+// createSession creates a persisted session, optionally overrides its default model,
+// and returns the new session id. the id is echoed to stderr so the caller can reuse
+// it later with --session; stdout stays the reply only.
+func createSession(client *ipc.Client, name, model, cwd string) (string, error) {
+	info, err := client.CreateSession(name, cwd)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(model) != "" {
+		if err := client.AssignModel(info.ID, model); err != nil {
+			return "", fmt.Errorf("assign model %q: %w", model, err)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "created session %s (%s)\n", info.ID, name)
+	return info.ID, nil
 }
 
 // resolveMessage returns the message body from the --message flag, reading stdin
