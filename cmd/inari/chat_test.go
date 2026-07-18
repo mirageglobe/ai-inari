@@ -50,3 +50,39 @@ func TestPrintReply(t *testing.T) {
 		t.Errorf("json: got %q, want %q", got, `{"reply":"hi there"}`)
 	}
 }
+
+// resolveTarget requires exactly one of --new / --session.
+func TestResolveTarget(t *testing.T) {
+	tests := []struct {
+		name    string
+		isNew   bool
+		session string
+		wantErr bool
+	}{
+		{"session only", false, "abc123", false},
+		{"new only", true, "", false},
+		{"neither", false, "", true},
+		{"both", true, "abc123", true},
+		{"new + blank session", true, "  ", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := resolveTarget(tc.isNew, tc.session); (err != nil) != tc.wantErr {
+				t.Fatalf("resolveTarget(%v,%q) err=%v, wantErr %v", tc.isNew, tc.session, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// newSessionName returns the given name, trimmed, or a generated headless-* default.
+func TestNewSessionName(t *testing.T) {
+	if got := newSessionName("my session"); got != "my session" {
+		t.Errorf("provided name: got %q, want %q", got, "my session")
+	}
+	if got := newSessionName("  spaced  "); got != "spaced" {
+		t.Errorf("trims: got %q, want %q", got, "spaced")
+	}
+	if got := newSessionName(""); !strings.HasPrefix(got, "headless-") {
+		t.Errorf("default: got %q, want a headless-* prefix", got)
+	}
+}

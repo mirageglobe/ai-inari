@@ -31,7 +31,11 @@ func printHelp() {
 	fmt.Println("  -config    path to config.json  (default: ~/.config/inari/config.json)")
 	fmt.Println()
 	fmt.Println("chat flags:")
-	fmt.Println("  -session   session id to send to  (required)")
+	fmt.Println("  -session   existing session id to send to   (or -new)")
+	fmt.Println("  -new       create a new session for this turn")
+	fmt.Println("  -name      name for the -new session         (default: generated)")
+	fmt.Println("  -model     model for the -new session        (default: daemon default)")
+	fmt.Println("  -cwd       working dir for the -new session  (default: none)")
 	fmt.Println("  -message   message text, or - to read from stdin")
 	fmt.Println("  -json      print the reply as a JSON object")
 }
