@@ -5,7 +5,23 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 )
+
+// IdleTimeout resolves the idle auto-shutdown window from IdleShutdownMins: 0 means
+// the 30-minute default (covers configs predating the field), a negative value
+// disables the watchdog, and a positive value is that many minutes. keeps the
+// default logic in config rather than split into the daemon startup.
+func (c *Config) IdleTimeout() time.Duration {
+	switch {
+	case c.IdleShutdownMins == 0:
+		return 30 * time.Minute
+	case c.IdleShutdownMins < 0:
+		return 0
+	default:
+		return time.Duration(c.IdleShutdownMins) * time.Minute
+	}
+}
 
 type MCPConnector struct {
 	Name    string   `json:"name"`

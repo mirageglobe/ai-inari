@@ -41,7 +41,13 @@ func (s *Server) handleSessionCreate(req Request) Response {
 		return badParams(req, "invalid params")
 	}
 	sess := session.New(params.Name)
-	sess.Model = defaultNewAgentModel
+	// new sessions default to the configured thinker-tier model; fall back to the
+	// built-in default only when config sets none, so a config models.thinker is no
+	// longer silently ignored for new sessions.
+	sess.Model = s.defaultModel
+	if sess.Model == "" {
+		sess.Model = defaultNewAgentModel
+	}
 	// base prompt: the cwd file-tree/AGENTS.md context when a cwd is given, else
 	// the session's default concise-response prompt set by session.New.
 	base := sess.SystemPrompt
