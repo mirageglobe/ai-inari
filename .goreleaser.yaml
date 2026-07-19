@@ -8,7 +8,9 @@ before:
 
 builds:
   - id: inari
-    main: ./cmd/inari/main.go
+    # the package dir, not main.go: cmd/inari is multi-file (main/chat/daemon/doctor/
+    # process/paths/tui), so building the single file fails to resolve sibling symbols.
+    main: ./cmd/inari
     binary: inari
     ldflags:
       - -s -w -X github.com/mirageglobe/ai-inari/internal/version.Version={{.Version}}
@@ -44,3 +46,20 @@ release:
   draft: false
   prerelease: auto
   name_template: "v{{ .Version }}"
+
+# publish a homebrew cask to mirageglobe/homebrew-tap on each release so inari
+# installs via `brew install mirageglobe/tap/inari`. goreleaser's formula support
+# (`brews`) is deprecated in favour of casks for pre-built binaries. the tap-push
+# token is a PAT/deploy key with write access to the tap repo
+# (HOMEBREW_TAP_GITHUB_TOKEN); the default GITHUB_TOKEN cannot push to another repo.
+# casks are macOS-only; linux users install from the release archive.
+homebrew_casks:
+  - name: inari
+    repository:
+      owner: mirageglobe
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/mirageglobe/ai-inari"
+    description: "keyboard-driven TUI for chatting with local LLMs via Ollama"
