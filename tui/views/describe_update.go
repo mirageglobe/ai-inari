@@ -24,7 +24,7 @@ func (d Describe) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if vpHeight < 1 {
 			vpHeight = 1
 		}
-		// subtract 2 for agentsStyle NormalBorder so total width = UIWidth.
+		// subtract 2 for sessionsStyle NormalBorder so total width = UIWidth.
 		if !d.ready {
 			d.viewport = viewport.New(d.width-2, vpHeight)
 			d.ready = true

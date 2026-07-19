@@ -1,7 +1,7 @@
-// agents_input.go owns the Agents view's input handlers: mouse (wheel scroll and
+// sessions_input.go owns the Sessions view's input handlers: mouse (wheel scroll and
 // click-to-select a table row) and hotkeys (open/create/delete/close popup).
-// it does NOT own data/mutation handlers (agents_data.go / agents_mutations.go)
-// or the Update dispatch (agents.go).
+// it does NOT own data/mutation handlers (sessions_data.go / sessions_mutations.go)
+// or the Update dispatch (sessions.go).
 
 package views
 
@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func (h Agents) onMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if msg.Action == tea.MouseActionPress {
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
@@ -41,7 +41,7 @@ func (h Agents) onMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 // navigation) fall through to the table's own Update in the caller. it always
 // clears the transient infoMsg, so the caller must use the returned value even
 // when the key was not handled.
-func (h Agents) handleKey(msg tea.KeyMsg) (Agents, tea.Cmd, bool) {
+func (h Sessions) handleKey(msg tea.KeyMsg) (Sessions, tea.Cmd, bool) {
 	h.infoMsg = ""
 
 	// filter mode: keystrokes edit the filter string and the table live-filters.
@@ -99,11 +99,11 @@ func (h Agents) handleKey(msg tea.KeyMsg) (Agents, tea.Cmd, bool) {
 		}
 	case "q", "esc":
 		if h.modal {
-			return h, func() tea.Msg { return CloseAgentsModalMsg{} }, true
+			return h, func() tea.Msg { return CloseSessionsModalMsg{} }, true
 		}
 	case "a":
 		if !h.offline {
-			name := pickAgentName(h.usedNames())
+			name := pickSessionName(h.usedNames())
 			return h, createSessionCmd(h.client, name), true
 		}
 	case "x":

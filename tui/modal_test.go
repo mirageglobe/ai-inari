@@ -56,18 +56,18 @@ func TestModalsCloseOnBothQAndEsc(t *testing.T) {
 	}
 }
 
-// TestOverlayReturnsToViewUnderneath asserts a modal opened from agents returns to
-// agents on close (not forced to chat).
+// TestOverlayReturnsToViewUnderneath asserts a modal opened from sessions returns to
+// sessions on close (not forced to chat).
 func TestOverlayReturnsToViewUnderneath(t *testing.T) {
-	m := New(nil, "", 0) // base view is agents
+	m := New(nil, "", 0) // base view is sessions
 	opened, _ := m.Update(views.OpenLogsMsg{})
 	m = opened.(Model)
-	if !m.showLogs || m.current != viewAgents {
-		t.Fatalf("logs should open over agents, got showLogs=%v current=%d", m.showLogs, m.current)
+	if !m.showLogs || m.current != viewSessions {
+		t.Fatalf("logs should open over sessions, got showLogs=%v current=%d", m.showLogs, m.current)
 	}
 	closed, _ := m.Update(keyRune('q'))
 	m = closed.(Model)
-	if m.showLogs || m.current != viewAgents {
-		t.Fatalf("closing logs should return to agents, got showLogs=%v current=%d", m.showLogs, m.current)
+	if m.showLogs || m.current != viewSessions {
+		t.Fatalf("closing logs should return to sessions, got showLogs=%v current=%d", m.showLogs, m.current)
 	}
 }

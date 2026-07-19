@@ -54,7 +54,7 @@ func (d Describe) buildContent() string {
 }
 
 // RenderModal renders describe as a centred popup modal over the current view
-// (chat or agents). the metadata/editor content matches View, wrapped in a
+// (chat or sessions). the metadata/editor content matches View, wrapped in a
 // bordered box. when not editing, the hint advertises the q/esc close; while
 // editing, ctrl+s saves and esc exits edit mode (handled in describe_update).
 func (d Describe) RenderModal(termWidth, termHeight int) string {

@@ -1,5 +1,5 @@
 // Package views contains the individual screen views rendered by the inari TUI:
-// Agents (session table), Models (model selector), Logs (token stream), Describe
+// Sessions (session table), Models (model selector), Logs (token stream), Describe
 // (session metadata), and Chat (head-inari conversation), plus the shared top bar,
 // footer, hint bar, help overlay, and theme palette.
 //

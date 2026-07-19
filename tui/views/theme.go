@@ -137,8 +137,8 @@ func ApplyTheme(t Theme) {
 	userStyle = lipgloss.NewStyle().Foreground(t.User).Bold(true)
 	assistantStyle = lipgloss.NewStyle().Foreground(t.Primary)
 
-	// agents / shared pane border (used by agents, chat, logs, describe, selector)
-	agentsStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(t.Primary)
+	// sessions / shared pane border (used by sessions, chat, logs, describe, selector)
+	sessionsStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(t.Primary)
 	spinnerStyle = lipgloss.NewStyle().Foreground(t.Secondary)
 
 	// hints — active labels use secondary so they're distinct from header primary

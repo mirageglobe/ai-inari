@@ -26,7 +26,7 @@ func (s *Server) handleSessionList(req Request) Response {
 }
 
 // session.create initialises a new named session, pre-assigned to
-// defaultNewAgentModel so it can chat immediately.
+// defaultNewSessionModel so it can chat immediately.
 // if cwd is provided, a shallow file tree is injected into the system prompt so
 // the model is aware of the project layout without reading any file content.
 func (s *Server) handleSessionCreate(req Request) Response {
@@ -46,7 +46,7 @@ func (s *Server) handleSessionCreate(req Request) Response {
 	// longer silently ignored for new sessions.
 	sess.Model = s.defaultModel
 	if sess.Model == "" {
-		sess.Model = defaultNewAgentModel
+		sess.Model = defaultNewSessionModel
 	}
 	// base prompt: the cwd file-tree/AGENTS.md context when a cwd is given, else
 	// the session's default concise-response prompt set by session.New.

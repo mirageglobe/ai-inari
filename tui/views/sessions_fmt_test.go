@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// pickAgentName returns an adjective+noun name from the pools, never reuses a
-// name already in use, and falls back to a numbered agent once exhausted.
-func TestPickAgentName(t *testing.T) {
+// pickSessionName returns an adjective+noun name from the pools, never reuses a
+// name already in use, and falls back to a numbered session once exhausted.
+func TestPickSessionName(t *testing.T) {
 	adjs := make(map[string]bool, len(sessionAdjectives))
 	for _, a := range sessionAdjectives {
 		adjs[a] = true
@@ -19,34 +19,34 @@ func TestPickAgentName(t *testing.T) {
 	}
 
 	// fresh name: two words, each drawn from the pools.
-	name := pickAgentName(nil)
+	name := pickSessionName(nil)
 	parts := strings.SplitN(name, " ", 2)
 	if len(parts) != 2 || !adjs[parts[0]] || !nouns[parts[1]] {
-		t.Fatalf("pickAgentName(nil) = %q, want <adjective> <noun> from the pools", name)
+		t.Fatalf("pickSessionName(nil) = %q, want <adjective> <noun> from the pools", name)
 	}
 
 	// dedup: a returned name is never one already in use.
 	used := []string{name}
 	for i := 0; i < 50; i++ {
-		got := pickAgentName(used)
+		got := pickSessionName(used)
 		for _, u := range used {
 			if got == u {
-				t.Fatalf("pickAgentName returned in-use name %q", got)
+				t.Fatalf("pickSessionName returned in-use name %q", got)
 			}
 		}
 		used = append(used, got)
 	}
 
-	// exhaustion: with every combination taken, fall back to a numbered agent.
+	// exhaustion: with every combination taken, fall back to a numbered session.
 	all := make([]string, 0, len(sessionAdjectives)*len(sessionNouns))
 	for _, a := range sessionAdjectives {
 		for _, n := range sessionNouns {
 			all = append(all, a+" "+n)
 		}
 	}
-	got := pickAgentName(all)
-	if want := fmt.Sprintf("agent #%d", len(all)+1); got != want {
-		t.Errorf("exhausted pool: pickAgentName = %q, want %q", got, want)
+	got := pickSessionName(all)
+	if want := fmt.Sprintf("session #%d", len(all)+1); got != want {
+		t.Errorf("exhausted pool: pickSessionName = %q, want %q", got, want)
 	}
 }
 

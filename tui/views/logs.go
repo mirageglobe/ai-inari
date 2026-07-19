@@ -47,7 +47,7 @@ func (l Logs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if height < 1 {
 			height = 1
 		}
-		// subtract 2 for agentsStyle NormalBorder so total width = UIWidth.
+		// subtract 2 for sessionsStyle NormalBorder so total width = UIWidth.
 		vpWidth := l.width - 2
 		if vpWidth < 1 {
 			vpWidth = 1

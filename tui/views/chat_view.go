@@ -57,7 +57,7 @@ func (c Chat) View() string {
 	if inputVal := c.input.Value(); strings.HasPrefix(inputVal, "/") && !c.showBuiltin && c.pendingTool == nil {
 		hintLine = c.renderChatSuggestions(inputVal, c.viewport.Width+2)
 	}
-	chatBoxStyle := agentsStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)
+	chatBoxStyle := sessionsStyle.BorderRight(false).BorderTop(true).BorderBottom(true).BorderLeft(true)
 	rightEdge := RenderRightEdge(c.viewport)
 	// while the tools modal is open it replaces the transcript body (centred popup);
 	// q/esc close it (handled in chat_keys).

@@ -16,7 +16,7 @@ func (m ModelSelector) WithModalDimensions() ModelSelector {
 	return m
 }
 
-// RenderModal renders the selector as a centred overlay for use on top of the agents view.
+// RenderModal renders the selector as a centred overlay for use on top of the sessions view.
 func (m ModelSelector) RenderModal(termWidth, termHeight int) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
 	secStyle := lipgloss.NewStyle().Foreground(ActiveTheme.Secondary)

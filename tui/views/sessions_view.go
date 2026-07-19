@@ -6,10 +6,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// agentsHints returns the command hint list for the agents view. while the
+// sessionsHints returns the command hint list for the sessions view. while the
 // filter input is focused the hints switch to filter-editing keys; otherwise
 // they are the session-table actions plus the [/] filter entry.
-func agentsHints(hasSession, offline, filtering bool) []HintCmd {
+func sessionsHints(hasSession, offline, filtering bool) []HintCmd {
 	hc := func(label string, enabled bool) HintCmd { return HintCmd{Label: label, Enabled: enabled} }
 	if filtering {
 		return []HintCmd{
@@ -41,17 +41,17 @@ func renderFilterLine(filter string, filtering bool, shown, total int) string {
 	return labelStyle.Render("[filter]") + " " + txt + "  " + labelStyle.Render(fmt.Sprintf("(%d of %d)", shown, total))
 }
 
-// RenderModal renders the agents popup as a centred overlay, matching the
+// RenderModal renders the sessions popup as a centred overlay, matching the
 // model-selector modal's shape: a title, the table, and the hint line inside
 // a single rounded-border box (see ModelSelector.RenderModal in selector.go).
-func (h Agents) RenderModal(termWidth, termHeight int) string {
+func (h Sessions) RenderModal(termWidth, termHeight int) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(ActiveTheme.Primary)
-	title := titleStyle.Render("agents")
+	title := titleStyle.Render("sessions")
 
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
 
-	hints := agentsHints(hasSession, h.offline, h.filtering)
+	hints := sessionsHints(hasSession, h.offline, h.filtering)
 	hints = append(hints, HS(), H("[q/esc] back to chat"))
 	hint := RenderHint(hints, modalInnerWidth(h.width))
 
@@ -59,7 +59,7 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 	lines = append(lines, title)
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(1).PaddingLeft(1)
-		lines = append(lines, pad.Render(h.spinner.View()+" fetching agents..."))
+		lines = append(lines, pad.Render(h.spinner.View()+" fetching sessions..."))
 	} else {
 		lines = append(lines, h.table.View())
 	}
@@ -71,11 +71,11 @@ func (h Agents) RenderModal(termWidth, termHeight int) string {
 	return renderModalBox(lines, termWidth, termHeight)
 }
 
-func (h Agents) View() string {
+func (h Sessions) View() string {
 	idx := h.table.Cursor()
 	hasSession := idx >= 0 && idx < len(h.sessions)
 
-	sessionName := "agent"
+	sessionName := "session"
 	if hasSession {
 		sessionName = h.sessions[idx].Name
 	}
@@ -96,7 +96,7 @@ func (h Agents) View() string {
 		}
 	}
 
-	sessionLine := RenderSessionLine("agents", sessionName, model, tokens)
+	sessionLine := RenderSessionLine("sessions", sessionName, model, tokens)
 	cwdLine := renderCWDLine(cwd)
 
 	var statusContent string
@@ -110,15 +110,15 @@ func (h Agents) View() string {
 	}
 	statusLine := renderStatusLine(statusContent)
 
-	hintLine := RenderHint(agentsHints(hasSession, h.offline, h.filtering), h.width)
+	hintLine := RenderHint(sessionsHints(hasSession, h.offline, h.filtering), h.width)
 	filterLine := renderFilterLine(h.filter, h.filtering, len(h.sessions), len(h.allSessions))
 
 	if h.loading {
 		pad := lipgloss.NewStyle().PaddingTop(4).PaddingLeft(2)
-		body := agentsStyle.Render(pad.Render(h.spinner.View() + " fetching agents..."))
+		body := sessionsStyle.Render(pad.Render(h.spinner.View() + " fetching sessions..."))
 		return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, filterLine, hintLine)
 	}
 
-	body := agentsStyle.Render(h.table.View())
+	body := sessionsStyle.Render(h.table.View())
 	return body + "\n" + renderFooter(sessionLine, cwdLine, statusLine, filterLine, hintLine)
 }

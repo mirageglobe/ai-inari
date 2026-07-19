@@ -1,6 +1,6 @@
-// this file owns the Agents type, its Init/Update/View methods, and the hint list.
-// message types live in agents_msgs.go, tea.Cmd constructors in agents_cmds.go,
-// and naming/formatting helpers in agents_fmt.go.
+// this file owns the Sessions type, its Init/Update/View methods, and the hint list.
+// message types live in sessions_msgs.go, tea.Cmd constructors in sessions_cmds.go,
+// and naming/formatting helpers in sessions_fmt.go.
 
 package views
 
@@ -13,7 +13,7 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/ipc"
 )
 
-var agentsStyle = lipgloss.NewStyle().
+var sessionsStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
@@ -23,12 +23,12 @@ var (
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 )
 
-// Agents is the default session-list view.
+// Sessions is the default session-list view.
 // sessions are owned by inarid; inari fetches them on init and after mutations.
 // runningInfo is supplementary — it annotates sessions with live VRAM/expiry data.
 // the view is hotkey-only: model selection, export, logs, and describe all live in
 // chat now, so there is no text input to focus here.
-type Agents struct {
+type Sessions struct {
 	client          *ipc.Client
 	table           table.Model
 	spinner         spinner.Model
@@ -52,7 +52,7 @@ type Agents struct {
 	modal           bool                // true while rendered as a popup overlay on top of chat
 }
 
-func NewAgents(client *ipc.Client) Agents {
+func NewSessions(client *ipc.Client) Sessions {
 	// model column is resized dynamically in WindowSizeMsg; 28 is a safe default before first resize.
 	cols := []table.Column{
 		{Title: "", Width: 2},
@@ -72,7 +72,7 @@ func NewAgents(client *ipc.Client) Agents {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
-	return Agents{
+	return Sessions{
 		client:      client,
 		table:       t,
 		spinner:     s,
@@ -82,15 +82,15 @@ func NewAgents(client *ipc.Client) Agents {
 	}
 }
 
-func (h Agents) Init() tea.Cmd {
+func (h Sessions) Init() tea.Cmd {
 	return tea.Batch(fetchSessions(h.client), fetchRunning(h.client), h.spinner.Tick)
 }
 
-// Filtering reports whether the agents filter input is focused and capturing
+// Filtering reports whether the sessions filter input is focused and capturing
 // typed keys, so the root model can suppress global bare-key hotkeys.
-func (h Agents) Filtering() bool { return h.filtering }
+func (h Sessions) Filtering() bool { return h.filtering }
 
-func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (h Sessions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ThemeChangedMsg:
 		return h.onThemeChanged()
@@ -135,28 +135,28 @@ func (h Agents) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
-// Booting reports whether the agents view is still waiting on its initial
+// Booting reports whether the sessions view is still waiting on its initial
 // session fetch to decide between auto-opening a session into chat or
-// falling back to the agents table itself; the root model uses this to
+// falling back to the sessions table itself; the root model uses this to
 // avoid painting the table for the single frame before that decision lands.
-func (h Agents) Booting() bool { return h.loading || h.autoOpen }
+func (h Sessions) Booting() bool { return h.loading || h.autoOpen }
 
-// WithModal marks whether the agents view is being rendered via RenderModal
+// WithModal marks whether the sessions view is being rendered via RenderModal
 // (as a popup over chat) rather than full-screen; this only affects Update's
 // [q]/[esc] handling, which closes the popup instead of doing nothing.
-func (h Agents) WithModal(v bool) Agents {
+func (h Sessions) WithModal(v bool) Sessions {
 	h.modal = v
 	return h
 }
 
-func (h Agents) WithActiveSession(id string) Agents {
+func (h Sessions) WithActiveSession(id string) Sessions {
 	h.activeSessionID = id
 	h.rebuildTable()
 	return h
 }
 
-// WithOffline returns a copy of the Agents view with the offline flag set.
-func (h Agents) WithOffline(offline bool) Agents {
+// WithOffline returns a copy of the Sessions view with the offline flag set.
+func (h Sessions) WithOffline(offline bool) Sessions {
 	h.offline = offline
 	return h
 }
