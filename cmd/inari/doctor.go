@@ -12,8 +12,8 @@ import (
 
 // cmdDoctor checks inari's runtime dependencies and prints one status line per
 // check. it exits non-zero when a required check fails (config, ollama, base
-// model) so it can gate a preflight or CI step; daemon state and worker/sensor
-// models are advisory and never fail the command.
+// model) so it can gate a preflight or CI step; daemon state and the runner
+// model are advisory and never fail the command.
 func cmdDoctor(cfgPath string) {
 	fmt.Println("inari doctor")
 	fmt.Println()
@@ -48,8 +48,8 @@ func cmdDoctor(cfgPath string) {
 		ok = false
 	}
 
-	// models: the thinker is the base model and is required to chat; worker and
-	// sensor are advisory since not every setup uses all tiers.
+	// models: the thinker is the base model and is required to chat; runner
+	// is advisory since not every setup uses it.
 	if ollamaUp {
 		ok = checkModels(client, cfg.Models) && ok
 	} else {
@@ -78,7 +78,7 @@ func cmdDoctor(cfgPath string) {
 }
 
 // checkModels verifies the configured base model is pulled and reports the
-// worker/sensor tiers. returns false only when the required base model is absent.
+// runner tier. returns false only when the required base model is absent.
 func checkModels(client *ollama.Client, m config.Models) bool {
 	installed, err := client.ListModels()
 	if err != nil {
@@ -98,18 +98,12 @@ func checkModels(client *ollama.Client, m config.Models) bool {
 		base = false
 	}
 
-	// advisory tiers, in fixed order (map iteration order is not stable).
-	for _, t := range []struct{ label, want string }{
-		{"worker", m.Worker},
-		{"sensor", m.Sensor},
-	} {
-		if t.want == "" {
-			continue
-		}
-		if modelPresent(names, t.want) {
-			line("ok", t.label, t.want)
+	// advisory tier: empty when unset (see runner default, config.go).
+	if m.Runner != "" {
+		if modelPresent(names, m.Runner) {
+			line("ok", "runner", m.Runner)
 		} else {
-			line("warn", t.label, t.want+"  (not pulled)")
+			line("warn", "runner", m.Runner+"  (not pulled)")
 		}
 	}
 	return base

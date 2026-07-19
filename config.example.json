@@ -11,8 +11,7 @@
   "mcp_connectors": [],
   "models": {
     "thinker": "gemma4:e2b",
-    "worker": "bonsai:4b",
-    "sensor": "qwen3-nano"
+    "runner": ""
   },
   "shell": {
     "allowlist": ["go", "make", "git", "ls", "cat", "find", "pwd", "whoami", "uname", "wc", "date", "echo", "which", "df", "du", "uptime", "ps"]

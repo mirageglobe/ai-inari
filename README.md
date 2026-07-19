@@ -49,7 +49,7 @@ The herd is organized into tiers based on resource usage and role:
 | workers  | parallel execution       | 500 MB | Bonsai 4B     | yes      |
 | thinkers | architect / chat         | 1 GB   | Bonsai 8B     | yes      |
 
-Sensors are optional scouts. Workers do the heavy lifting in parallel.
+Runners are optional agents the thinker dispatches for background work.
 The thinker is the "Head Inari" — the one you talk to directly.
 
 ---
@@ -106,8 +106,7 @@ only needed to end it immediately.
   ],
   "models": {
     "thinker": "gemma4:e2b",
-    "worker":  "bonsai:4b",
-    "sensor":  "qwen3-nano"
+    "runner":  ""
   },
   "shell": {
     "allowlist": ["go", "make", "git", "ls", "cat", "find"]
