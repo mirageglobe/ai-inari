@@ -47,19 +47,25 @@ release:
   prerelease: auto
   name_template: "v{{ .Version }}"
 
-# publish a homebrew cask to mirageglobe/homebrew-tap on each release so inari
-# installs via `brew install mirageglobe/tap/inari`. goreleaser's formula support
-# (`brews`) is deprecated in favour of casks for pre-built binaries. the tap-push
-# token is a PAT/deploy key with write access to the tap repo
-# (HOMEBREW_TAP_GITHUB_TOKEN); the default GITHUB_TOKEN cannot push to another repo.
-# casks are macOS-only; linux users install from the release archive.
-homebrew_casks:
+# publish a homebrew formula to mirageglobe/homebrew-tap on each release so inari
+# installs via `brew install mirageglobe/tap/inari`. formula (not cask) to match the
+# existing tap convention (Formula/scout.rb) and support linux brew; it overwrites
+# the stale hand-written Formula/inari.rb on release. goreleaser 2.17 flags `brews`
+# as deprecated but still generates the formula on `release`. the tap-push token is a
+# PAT/deploy key with write access to the tap repo (HOMEBREW_TAP_GITHUB_TOKEN); the
+# default GITHUB_TOKEN cannot push to another repo.
+brews:
   - name: inari
     repository:
       owner: mirageglobe
       name: homebrew-tap
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: "https://github.com/mirageglobe/ai-inari"
     description: "keyboard-driven TUI for chatting with local LLMs via Ollama"
+    license: "BUSL-1.1"
+    install: |
+      bin.install "inari"
+    test: |
+      system "#{bin}/inari", "version"
