@@ -38,7 +38,9 @@ func (s *Server) handle(conn net.Conn) {
 			return
 		}
 		s.touch() // any RPC (including ping heartbeats) resets the idle watchdog
-		s.auditor.Log(req.Method, req.Params)
+		if req.Method != "ping" {
+			s.auditor.Log(req.Method, req.Params) // ping fires every heartbeat and adds no signal
+		}
 
 		if req.Method == "session.stream" {
 			if s.verbose {
