@@ -10,8 +10,8 @@ import (
 
 // applyFilter matches name and model, case-insensitively; an empty filter shows
 // everything and produces a fresh slice (not aliased to allSessions).
-func TestAgentsApplyFilter(t *testing.T) {
-	h := NewAgents(nil)
+func TestSessionsApplyFilter(t *testing.T) {
+	h := NewSessions(nil)
 	h.allSessions = []ipc.SessionInfo{
 		{ID: "1", Name: "jade fox"},
 		{ID: "2", Name: "wise otter"},
@@ -48,12 +48,12 @@ func TestAgentsApplyFilter(t *testing.T) {
 }
 
 // [/] enters filter mode; typing narrows the list live; esc clears and exits.
-func TestAgentsFilterKeys(t *testing.T) {
+func TestSessionsFilterKeys(t *testing.T) {
 	slash := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}}
 	keyF := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}}
 	esc := tea.KeyMsg{Type: tea.KeyEsc}
 
-	h := NewAgents(nil)
+	h := NewSessions(nil)
 	h.allSessions = []ipc.SessionInfo{{ID: "1", Name: "jade fox"}, {ID: "2", Name: "wise otter"}}
 	h.applyFilter()
 	h.rebuildTable()

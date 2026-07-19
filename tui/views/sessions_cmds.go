@@ -1,7 +1,7 @@
-// agents_cmds.go owns the Agents view's tea.Cmd constructors: RPC calls for
+// sessions_cmds.go owns the Sessions view's tea.Cmd constructors: RPC calls for
 // listing sessions/running models, create/delete/assign/unassign, chat
 // export, and model-caps lookup. it does NOT own message types
-// (agents_msgs.go) or naming/formatting helpers (agents_fmt.go).
+// (sessions_msgs.go) or naming/formatting helpers (sessions_fmt.go).
 
 package views
 

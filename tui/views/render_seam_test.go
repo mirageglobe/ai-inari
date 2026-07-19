@@ -22,13 +22,13 @@ func TestChatViewRenders(t *testing.T) {
 	}
 }
 
-// TestAgentsViewRenders exercises the agents render seam: after a window-size,
+// TestSessionsViewRenders exercises the sessions render seam: after a window-size,
 // View must render without panicking and be non-empty even with no sessions.
-func TestAgentsViewRenders(t *testing.T) {
-	h := NewAgents(nil)
+func TestSessionsViewRenders(t *testing.T) {
+	h := NewSessions(nil)
 	m, _ := h.onWindowSize(tea.WindowSizeMsg{Width: 100, Height: 30})
-	h = m.(Agents)
+	h = m.(Sessions)
 	if out := h.View(); out == "" {
-		t.Fatal("agents View rendered empty")
+		t.Fatal("sessions View rendered empty")
 	}
 }

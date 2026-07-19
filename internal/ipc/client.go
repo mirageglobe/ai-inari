@@ -18,7 +18,7 @@ type SessionInfo struct {
 	SystemPrompt string `json:"system_prompt,omitempty"`
 	CWD          string `json:"cwd,omitempty"`
 	ContextChars int    `json:"context_chars,omitempty"`
-	// Tags are free-form labels for grouping/filtering in the agents view.
+	// Tags are free-form labels for grouping/filtering in the sessions view.
 	Tags []string `json:"tags,omitempty"`
 	// Role is the session's task role ("general"/"coding"), or empty.
 	Role string `json:"role,omitempty"`

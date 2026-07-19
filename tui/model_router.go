@@ -16,14 +16,14 @@ import (
 
 // updateBroadcast handles messages that must reach every view regardless of
 // which one is active: terminal resize and theme changes.
-// broadcast fans msg out to every sub-view (agents, model selector, describe, logs,
+// broadcast fans msg out to every sub-view (sessions, model selector, describe, logs,
 // and each chat), returning the accumulated commands. the single fan-out point, so a
 // new view is wired here once instead of in each broadcast handler. note: the offline
 // fan-out in updateSystem stays separate; it calls WithOffline, not Update.
 func (m Model) broadcast(msg tea.Msg) (Model, []tea.Cmd) {
 	var cmds []tea.Cmd
-	a, c := m.agents.Update(msg)
-	m.agents = a.(views.Agents)
+	a, c := m.sessions.Update(msg)
+	m.sessions = a.(views.Sessions)
 	cmds = append(cmds, c)
 	ms, c := m.models.Update(msg)
 	m.models = ms.(views.ModelSelector)
@@ -88,7 +88,7 @@ func (m Model) updateSystem(msg tea.Msg) (Model, tea.Cmd, bool) {
 		wasOffline := !m.connOnline
 		m.connOnline = conn.OK
 		offline := !conn.OK
-		m.agents = m.agents.WithOffline(offline)
+		m.sessions = m.sessions.WithOffline(offline)
 		m.describe = m.describe.WithOffline(offline)
 		for id, chat := range m.chats {
 			m.chats[id] = chat.WithOffline(offline)
@@ -97,7 +97,7 @@ func (m Model) updateSystem(msg tea.Msg) (Model, tea.Cmd, bool) {
 			m.connErr = ""
 			if wasOffline {
 				// daemon just came back online; refresh sessions and running models now.
-				return m, tea.Batch(views.ConnTick(m.client), m.agents.Init()), true
+				return m, tea.Batch(views.ConnTick(m.client), m.sessions.Init()), true
 			}
 		} else {
 			m.connErr = "connection failed"

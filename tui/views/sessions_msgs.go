@@ -1,6 +1,6 @@
-// agents_msgs.go owns the Agents view's internal message types and the
+// sessions_msgs.go owns the Sessions view's internal message types and the
 // runningMeta helper struct. it does NOT own the tea.Cmd constructors that
-// produce these messages (agents_cmds.go) or naming/formatting helpers (agents_fmt.go).
+// produce these messages (sessions_cmds.go) or naming/formatting helpers (sessions_fmt.go).
 
 package views
 
@@ -27,21 +27,21 @@ type CycleThemeMsg struct{}
 // ToggleHelpMsg is emitted by chat's /help command to open/close the help overlay.
 type ToggleHelpMsg struct{}
 
-// OpenAgentsMsg is emitted by chat's /agents command to open agents as a popup
+// OpenSessionsMsg is emitted by chat's /sessions command to open sessions as a popup
 // modal over chat, rather than switching away from chat entirely.
-type OpenAgentsMsg struct{}
+type OpenSessionsMsg struct{}
 
-// CloseAgentsModalMsg is emitted by agents when [q] is pressed while it is
+// CloseSessionsModalMsg is emitted by sessions when [q] is pressed while it is
 // rendered as a popup modal, returning the root model to chat.
-type CloseAgentsModalMsg struct{}
+type CloseSessionsModalMsg struct{}
 
 // OpenDefaultChatMsg is emitted by chat's /chat command to jump to the
-// default agent's chat regardless of which session is currently active.
+// default session's chat regardless of which session is currently active.
 type OpenDefaultChatMsg struct{}
 
-// RefreshAgentsMsg is emitted by chat's /refresh command to silently reload
-// the agents session list and running-model info in the background.
-type RefreshAgentsMsg struct{}
+// RefreshSessionsMsg is emitted by chat's /refresh command to silently reload
+// the sessions session list and running-model info in the background.
+type RefreshSessionsMsg struct{}
 
 type runningMsg struct {
 	models []provider.RunningModel

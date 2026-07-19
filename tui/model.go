@@ -8,22 +8,22 @@ import (
 	"github.com/mirageglobe/ai-inari/tui/views"
 )
 
-// agentsModalMarginW/H shrink the agents table so it renders as a popup, not a
-// full-screen view, when opened from chat via /agents.
+// sessionsModalMarginW/H shrink the sessions table so it renders as a popup, not a
+// full-screen view, when opened from chat via /sessions.
 const (
-	agentsModalMarginW = 12
-	agentsModalMarginH = 6
+	sessionsModalMarginW = 12
+	sessionsModalMarginH = 6
 )
 
 type view int
 
 const (
-	viewAgents view = iota
+	viewSessions view = iota
 	viewChat
 )
 
 // overlay identifies the active pop-up overlay. the six showX bools stay the source
-// of truth (the model selector can sit ON TOP of the agents popup, so two may be set
+// of truth (the model selector can sit ON TOP of the sessions popup, so two may be set
 // at once, which a single flat field could not represent); overlay + topOverlay just
 // define the render/priority order in ONE place so it cannot drift across sites.
 type overlay int
@@ -31,7 +31,7 @@ type overlay int
 const (
 	overlayNone overlay = iota
 	overlayModelSelector
-	overlayAgents
+	overlaySessions
 	overlayDescribe
 	overlayLogs
 	overlayThemePicker
@@ -45,7 +45,7 @@ type Model struct {
 	client            *ipc.Client
 	current           view
 	activeSession     string // session ID of the currently open chat
-	agents            views.Agents
+	sessions            views.Sessions
 	models            views.ModelSelector
 	logs              views.Logs
 	describe          views.Describe
@@ -59,8 +59,8 @@ type Model struct {
 	titleDir          int  // +1 = left-to-right, -1 = right-to-left
 	showHelp          bool // true while the [?] help overlay is visible
 	showThemePicker   bool // true while the /theme modal is visible
-	showModelSelector bool // true while the model selector modal is overlaid on agents
-	showAgents        bool // true while agents is overlaid on chat as a popup modal (opened via /agents)
+	showModelSelector bool // true while the model selector modal is overlaid on sessions
+	showSessions        bool // true while sessions is overlaid on chat as a popup modal (opened via /sessions)
 	showLogs          bool // true while logs is overlaid as a popup modal (opened via /logs or [l])
 	showDescribe      bool // true while describe is overlaid as a popup modal (opened via /describe or [d])
 	themePickerIdx    int  // cursor position in the theme picker
@@ -74,21 +74,21 @@ func (m Model) currentViewName() string {
 	case viewChat:
 		return "chat"
 	default:
-		return "agents"
+		return "sessions"
 	}
 }
 
 // topOverlay reports the highest-priority overlay currently active (or overlayNone).
 // this is the single definition of overlay priority; model_view's render and the
 // overlay-open check both consult it so the order can never disagree across sites.
-// the order preserves the prior render precedence (selector sits over the agents
+// the order preserves the prior render precedence (selector sits over the sessions
 // popup, etc.).
 func (m Model) topOverlay() overlay {
 	switch {
 	case m.showModelSelector:
 		return overlayModelSelector
-	case m.showAgents:
-		return overlayAgents
+	case m.showSessions:
+		return overlaySessions
 	case m.showDescribe:
 		return overlayDescribe
 	case m.showLogs:
@@ -106,8 +106,8 @@ func (m Model) topOverlay() overlay {
 func New(client *ipc.Client, configPath string, themeIdx int) Model {
 	return Model{
 		client:        client,
-		current:       viewAgents,
-		agents:        views.NewAgents(client),
+		current:       viewSessions,
+		sessions:        views.NewSessions(client),
 		models:        views.NewModelSelector(client),
 		logs:          views.NewLogs(),
 		describe:      views.NewDescribe(),
@@ -121,7 +121,7 @@ func New(client *ipc.Client, configPath string, themeIdx int) Model {
 func (m Model) Init() tea.Cmd {
 	// fire TitleStartMsg immediately so the first sweep begins on launch.
 	firstSweep := func() tea.Msg { return views.TitleStartMsg{} }
-	return tea.Batch(m.agents.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep, views.IdleHintTick())
+	return tea.Batch(m.sessions.Init(), views.FetchSysStatsNow(), views.CheckConnNow(m.client), firstSweep, views.IdleHintTick())
 }
 
 // Update is the root message dispatcher. each stage handles the messages it

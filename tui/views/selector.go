@@ -39,8 +39,8 @@ type SelectModelMsg struct {
 	SystemPrompt   string // injected file-tree/project-context text, for the chat pre-context line
 }
 
-// BackToAgentsMsg is emitted to return to the agents view.
-type BackToAgentsMsg struct{}
+// BackToSessionsMsg is emitted to return to the sessions view.
+type BackToSessionsMsg struct{}
 
 // AssignModelMsg is emitted when a loaded model is assigned to a session.
 type AssignModelMsg struct {
@@ -55,7 +55,7 @@ type UnassignModelMsg struct {
 	SessionName string
 }
 
-// OpenModelSelectorMsg is emitted by agents to open the model selector for a session.
+// OpenModelSelectorMsg is emitted by sessions to open the model selector for a session.
 type OpenModelSelectorMsg struct {
 	SessionID   string
 	SessionName string

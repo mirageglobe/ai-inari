@@ -15,7 +15,7 @@ import (
 const UIWidth = 100
 
 // ModalInnerW is the shared inner width for centred modal overlays (model
-// selector, agents), excluding the box chrome. capped to the UIWidth budget
+// selector, sessions), excluding the box chrome. capped to the UIWidth budget
 // (UIWidth - 4: rounded border 1*2 + padding 1*2) so wide terminals do not
 // stretch modals past the TUI budget.
 const ModalInnerW = UIWidth - 4

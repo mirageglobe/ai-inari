@@ -1,7 +1,7 @@
-// agents_mutations.go owns the Agents view's mutation-result handlers: the
+// sessions_mutations.go owns the Sessions view's mutation-result handlers: the
 // outcomes of create/delete/assign/unassign/export RPCs and the optimistic
 // AssignModelMsg update. it does NOT own data/lifecycle handlers
-// (agents_data.go), input (agents_input.go), or the Update dispatch (agents.go).
+// (sessions_data.go), input (sessions_input.go), or the Update dispatch (sessions.go).
 
 package views
 
@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func (h Agents) onCreate(msg createSessionResultMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onCreate(msg createSessionResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		h.status = connErrStyle.Render("create failed: " + msg.err.Error())
 		return h, nil
@@ -19,7 +19,7 @@ func (h Agents) onCreate(msg createSessionResultMsg) (tea.Model, tea.Cmd) {
 
 // setSessionModel updates a session's model in the backing list and refreshes
 // the filtered view + table, so an active filter stays consistent.
-func (h *Agents) setSessionModel(id, model string) {
+func (h *Sessions) setSessionModel(id, model string) {
 	for i := range h.allSessions {
 		if h.allSessions[i].ID == id {
 			h.allSessions[i].Model = model
@@ -30,7 +30,7 @@ func (h *Agents) setSessionModel(id, model string) {
 	h.rebuildTable()
 }
 
-func (h Agents) onDelete(msg deleteSessionResultMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onDelete(msg deleteSessionResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		h.status = connErrStyle.Render("delete failed: " + msg.err.Error())
 		return h, nil
@@ -62,7 +62,7 @@ func (h Agents) onDelete(msg deleteSessionResultMsg) (tea.Model, tea.Cmd) {
 	return h, nil
 }
 
-func (h Agents) onAssignResult(msg assignModelResultMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onAssignResult(msg assignModelResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		// revert optimistic local update on failure.
 		h.status = connErrStyle.Render("assign failed: " + msg.err.Error())
@@ -83,7 +83,7 @@ func (h Agents) onAssignResult(msg assignModelResultMsg) (tea.Model, tea.Cmd) {
 	return h, tea.Batch(cmds...)
 }
 
-func (h Agents) onUnassignResult(msg unassignModelResultMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onUnassignResult(msg unassignModelResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		// revert optimistic local update on failure.
 		h.status = connErrStyle.Render("unassign failed: " + msg.err.Error())
@@ -92,7 +92,7 @@ func (h Agents) onUnassignResult(msg unassignModelResultMsg) (tea.Model, tea.Cmd
 	return h, nil
 }
 
-func (h Agents) onExportResult(msg exportChatResultMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onExportResult(msg exportChatResultMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		h.infoMsg = connErrStyle.Render("[error] " + msg.err.Error())
 	} else {
@@ -101,7 +101,7 @@ func (h Agents) onExportResult(msg exportChatResultMsg) (tea.Model, tea.Cmd) {
 	return h, nil
 }
 
-func (h Agents) onAssignModel(msg AssignModelMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onAssignModel(msg AssignModelMsg) (tea.Model, tea.Cmd) {
 	// optimistically update the local session so the table reflects the change immediately.
 	// assignModelCmd fires concurrently to persist the assignment in inarid.
 	sessionName := msg.SessionID
@@ -115,7 +115,7 @@ func (h Agents) onAssignModel(msg AssignModelMsg) (tea.Model, tea.Cmd) {
 	return h, assignModelCmd(h.client, msg.SessionID, sessionName, msg.ModelName)
 }
 
-func (h Agents) onUnassignModel(msg UnassignModelMsg) (tea.Model, tea.Cmd) {
+func (h Sessions) onUnassignModel(msg UnassignModelMsg) (tea.Model, tea.Cmd) {
 	// optimistically clear the session's model so the table updates immediately.
 	// unassignModelCmd fires concurrently to persist the change in inarid.
 	sessionName, model := msg.SessionName, ""

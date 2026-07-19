@@ -1,5 +1,5 @@
 // model_input.go owns the root model's late-stage routing: modal capture (model
-// selector / agents popup / theme-save error), keyboard handling (theme picker,
+// selector / sessions popup / theme-save error), keyboard handling (theme picker,
 // help overlay, per-view keys), and the final fall-through to the active view.
 // it does NOT own broadcast/system messages (model_router.go), navigation
 // (model_nav.go), or the Update dispatch (model.go).
@@ -15,15 +15,15 @@ import (
 )
 
 // activeViewInputFocused reports whether the currently active view is capturing
-// text input (chat message box, agents filter, describe context editor). when
+// text input (chat message box, sessions filter, describe context editor). when
 // true, unmodified keys belong to that input, not to global hotkeys.
 func (m Model) activeViewInputFocused() bool {
 	switch m.current {
 	case viewChat:
 		chat, ok := m.chats[m.activeSession]
 		return ok && chat.InputFocused()
-	case viewAgents:
-		return m.agents.Filtering()
+	case viewSessions:
+		return m.sessions.Filtering()
 	default:
 		return false
 	}
@@ -50,10 +50,10 @@ func (m Model) updateModal(msg tea.Msg) (Model, tea.Cmd, bool) {
 		m.models = updated.(views.ModelSelector)
 		return m, cmd, true
 	}
-	// route all remaining messages to agents when it is overlaid on chat as a popup.
-	if m.showAgents {
-		updated, cmd := m.agents.Update(msg)
-		m.agents = updated.(views.Agents)
+	// route all remaining messages to sessions when it is overlaid on chat as a popup.
+	if m.showSessions {
+		updated, cmd := m.sessions.Update(msg)
+		m.sessions = updated.(views.Sessions)
 		return m, cmd, true
 	}
 	// route to the describe overlay while it is open. q/esc close it and reveal the
@@ -87,8 +87,8 @@ func (m Model) updateModal(msg tea.Msg) (Model, tea.Cmd, bool) {
 				return m, cmd, true
 			}
 		}
-		updated, cmd := m.agents.Update(saveErr)
-		m.agents = updated.(views.Agents)
+		updated, cmd := m.sessions.Update(saveErr)
+		m.sessions = updated.(views.Sessions)
 		return m, cmd, true
 	}
 	return m, nil, false
@@ -157,9 +157,9 @@ func (m Model) updateKeys(msg tea.Msg) (Model, tea.Cmd, bool) {
 // this is the terminal step of Update, so it always reports the message handled.
 func (m Model) updateActiveView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.current {
-	case viewAgents:
-		updated, cmd := m.agents.Update(msg)
-		m.agents = updated.(views.Agents)
+	case viewSessions:
+		updated, cmd := m.sessions.Update(msg)
+		m.sessions = updated.(views.Sessions)
 		return m, cmd
 	case viewChat:
 		updated, cmd := m.chats[m.activeSession].Update(msg)

@@ -70,7 +70,7 @@ func (m ModelSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.targetSessionID == "" {
-			return m, func() tea.Msg { return BackToAgentsMsg{} }
+			return m, func() tea.Msg { return BackToSessionsMsg{} }
 		}
 		id, name := m.targetSessionID, msg.name
 		return m, func() tea.Msg { return AssignModelMsg{SessionID: id, ModelName: name} }

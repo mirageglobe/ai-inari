@@ -17,8 +17,8 @@ func (m Model) View() string {
 	switch m.topOverlay() {
 	case overlayModelSelector:
 		body = m.models.RenderModal(m.termWidth, m.termHeight-1)
-	case overlayAgents:
-		body = m.agents.RenderModal(m.termWidth, m.termHeight-1)
+	case overlaySessions:
+		body = m.sessions.RenderModal(m.termWidth, m.termHeight-1)
 	case overlayDescribe:
 		body = m.describe.RenderModal(m.termWidth, m.termHeight-1)
 	case overlayLogs:
@@ -33,17 +33,17 @@ func (m Model) View() string {
 		case viewChat:
 			body = m.chats[m.activeSession].View()
 		default:
-			// suppress the agents table for the single frame between launch and the
+			// suppress the sessions table for the single frame between launch and the
 			// initial session fetch resolving, so a session with a model already
 			// assigned lands straight in chat instead of flashing the table first.
-			if !m.agents.Booting() {
-				body = m.agents.View()
+			if !m.sessions.Booting() {
+				body = m.sessions.View()
 			}
 		}
 	}
 
 	// emit cursor shape once here; views no longer emit escape sequences themselves.
-	// the agents view has no text input, so it never shows the blinking bar cursor.
+	// the sessions view has no text input, so it never shows the blinking bar cursor.
 	cursorEsc := views.ResetCursor
 	overlayOpen := m.topOverlay() != overlayNone
 	if !overlayOpen && m.current == viewChat {
@@ -54,7 +54,7 @@ func (m Model) View() string {
 	full := cursorEsc + topBar + body
 	// pad every render to termHeight lines so Bubble Tea's cursor tracking stays
 	// consistent when switching between views of different heights. Without this,
-	// switching from a short view (models, describe) back to a tall one (agents)
+	// switching from a short view (models, describe) back to a tall one (sessions)
 	// positions the cursor mid-screen, causing the top lines including the header
 	// to render into stale rows and appear invisible.
 	if m.termHeight > 0 {

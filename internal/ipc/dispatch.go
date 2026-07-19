@@ -4,9 +4,9 @@ import (
 	"github.com/mirageglobe/ai-inari/internal/session"
 )
 
-// defaultNewAgentModel is attached to every session.create call so a new
-// agent can chat immediately without a manual /model select.
-const defaultNewAgentModel = "gemma4:e2b"
+// defaultNewSessionModel is attached to every session.create call so a new
+// session can chat immediately without a manual /model select.
+const defaultNewSessionModel = "gemma4:e2b"
 
 // toInfo converts a session to the wire summary sent to inari.
 // ContextChars sums all message content (including system prompt) so inari can

@@ -1,6 +1,6 @@
-// agents_fmt.go owns session-name generation and byte/duration formatting
-// helpers shared across the agents, selector, and describe views. it does NOT
-// own message types (agents_msgs.go) or tea.Cmd constructors (agents_cmds.go).
+// sessions_fmt.go owns session-name generation and byte/duration formatting
+// helpers shared across the sessions, selector, and describe views. it does NOT
+// own message types (sessions_msgs.go) or tea.Cmd constructors (sessions_cmds.go).
 
 package views
 
@@ -11,7 +11,7 @@ import (
 )
 
 // sessionAdjectives and sessionNouns are paired to form session names like
-// "jade fox". pairing (not a fixed "agent" suffix) gives N*M combinations, so
+// "jade fox". pairing (not a fixed "session" suffix) gives N*M combinations, so
 // name generation only exhausts after len(adj)*len(noun) sessions.
 var sessionAdjectives = []string{
 	"arctic", "amber", "ash", "blaze", "copper", "crimson", "dusk",
@@ -28,9 +28,9 @@ var sessionNouns = []string{
 	"stoat", "tapir", "vole", "weasel",
 }
 
-// pickAgentName returns an adjective+noun session name not already in use,
-// falling back to a numbered agent once every combination is taken.
-func pickAgentName(used []string) string {
+// pickSessionName returns an adjective+noun session name not already in use,
+// falling back to a numbered session once every combination is taken.
+func pickSessionName(used []string) string {
 	inUse := make(map[string]bool, len(used))
 	for _, v := range used {
 		inUse[v] = true
@@ -49,7 +49,7 @@ func pickAgentName(used []string) string {
 			}
 		}
 	}
-	return fmt.Sprintf("agent #%d", len(used)+1)
+	return fmt.Sprintf("session #%d", len(used)+1)
 }
 
 // formatBytes formats a byte count as a human-readable string (GB/MB/B).
