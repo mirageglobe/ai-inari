@@ -17,7 +17,7 @@ func TestLoad(t *testing.T) {
 		"memory_budget_mb": 4096,
 		"ollama_base_url": "http://localhost:11434",
 		"mcp_connectors": [],
-		"models": {"thinker": "bonsai:8b", "worker": "bonsai:4b", "sensor": "qwen3-nano"}
+		"models": {"thinker": "bonsai:8b", "runner": "bonsai:4b"}
 	}`)
 	f.Close()
 

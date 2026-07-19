@@ -31,8 +31,7 @@ type MCPConnector struct {
 
 type Models struct {
 	Thinker string `json:"thinker"`
-	Worker  string `json:"worker"`
-	Sensor  string `json:"sensor"`
+	Runner  string `json:"runner"`
 }
 
 // Endpoint is a named inference-backend profile: the base URL of an OpenAI/Ollama
@@ -105,8 +104,7 @@ var defaults = &Config{
 	MCPConnectors:  []MCPConnector{},
 	Models: Models{
 		Thinker: "gemma4:e2b",
-		Worker:  "bonsai:4b",
-		Sensor:  "qwen3-nano",
+		Runner:  "",
 	},
 	Shell:            Shell{Allowlist: []string{}}, // empty -> inarid's built-in default allowlist
 	Theme:            "slate",
