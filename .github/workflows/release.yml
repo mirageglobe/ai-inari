@@ -28,6 +28,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PAT/deploy key with write access to mirageglobe/homebrew-tap; the default
-          # GITHUB_TOKEN is scoped to this repo and cannot push the formula there.
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
