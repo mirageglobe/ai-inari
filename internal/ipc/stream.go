@@ -248,6 +248,17 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 			if s.verbose {
 				log.Printf("[inarid->builtin] %s(%v) -> %d chars", tc.Function.Name, tc.Function.Arguments, len(result))
 			}
+			// audit every model-invoked tool call (name + args), not just the outer
+			// session.stream request that started the turn; this is the data the
+			// curated-tool-surface review depends on.
+			if b, mErr := json.Marshal(map[string]any{
+				"session": sess.ID,
+				"tool":    tc.Function.Name,
+				"args":    tc.Function.Arguments,
+				"failed":  err != nil,
+			}); mErr == nil {
+				s.auditor.Log("tool.call", json.RawMessage(b))
+			}
 			if turnToolOutput.Len() > 0 {
 				turnToolOutput.WriteString("\n")
 			}
