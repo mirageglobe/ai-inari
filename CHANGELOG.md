@@ -7,6 +7,9 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [unreleased]
 
+### added
+- tools: two typed builtins for the model's tool loop, `find_files` (recursive glob name search) and `read_lines` (a numbered line range of a large file), both pure-Go and cwd-sandboxed, so the model rarely needs to shell out for these. `awk`, `sed`, and `jq` are added to the default shell auto-approve allowlist for column/stream filtering of large logs, and the cwd system prompt now tells the model to prefer the builtins and use `execute_shell_command` only when no builtin fits.
+
 ## [v0.3.0] - 2026-07-19
 
 ### fixed

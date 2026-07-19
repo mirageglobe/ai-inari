@@ -91,9 +91,10 @@ func buildCWDSystemPrompt(cwd string) string {
 		"\n\nworking directory: " + cwd + "\n" + tree +
 		"\n\nthe file tree above is a point-in-time snapshot for orientation only and may be stale. " +
 		"never answer questions about files, directories, or file contents from it or from memory; " +
-		"always call a tool to read live data. use read_file, list_dir, grep_file, and stat_file to " +
-		"inspect the working directory, and execute_shell_command to run a command " +
-		"(these run without asking: " + sortedAllowedCommands() + "; any other command asks the user first)."
+		"always call a tool to read live data. prefer the builtin tools: read_file, read_lines (a line " +
+		"range of a large file), list_dir, find_files (match names by glob), grep_file, and stat_file. " +
+		"use execute_shell_command only when no builtin fits (e.g. awk, sed, or jq for column or stream " +
+		"filtering of large logs); these run without asking: " + sortedAllowedCommands() + "; any other command asks the user first."
 	// inject a project-level context file (AGENTS.md / .inari/context.md) so the
 	// model picks up local conventions without manual copy-paste; absent file is fine.
 	if ctx := readAgentContext(cwd); ctx != "" {
