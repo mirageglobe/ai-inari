@@ -32,9 +32,6 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	// set before NewServer starts accepting so the value is stable under serving.
 	ipc.SetShellAllowlist(cfg.Shell.Allowlist)
 
-	auditor := audit.New("inari-audit.log")
-	defer auditor.Close()
-
 	// resolve the active backend from a named endpoint profile, falling back to the
 	// legacy single ollama_base_url when no provider is selected.
 	endpoint, named := cfg.ActiveEndpoint()
@@ -64,6 +61,14 @@ func runDaemon(cfgPath string, verbose, background bool) {
 		log.Fatalf("session store: %v", err)
 	}
 	log.Printf("sessions: %s", dataDir)
+
+	// audit log lives beside the session store, not the daemon's cwd (which varies
+	// by launch context and previously scattered "inari-audit.log" into whatever
+	// directory started the daemon).
+	auditPath := filepath.Join(filepath.Dir(dataDir), "inari-audit.log")
+	auditor := audit.New(auditPath)
+	defer auditor.Close()
+	log.Printf("audit log: %s", auditPath)
 
 	mcpHost := mcp.NewHost(cfg.MCPConnectors, auditor)
 	if err := mcpHost.Start(); err != nil {
