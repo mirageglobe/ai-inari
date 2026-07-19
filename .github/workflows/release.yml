@@ -1,0 +1,33 @@
+name: release
+
+# tag-triggered release: on a v* tag, goreleaser builds the binaries, publishes a
+# GitHub release, and pushes the homebrew formula to mirageglobe/homebrew-tap.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT/deploy key with write access to mirageglobe/homebrew-tap; the default
+          # GITHUB_TOKEN is scoped to this repo and cannot push the formula there.
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
