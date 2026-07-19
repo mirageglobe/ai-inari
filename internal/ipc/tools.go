@@ -75,6 +75,37 @@ func filesystemTools() []provider.Tool {
 		{
 			Type: "function",
 			Function: provider.ToolFunction{
+				Name:        "find_files",
+				Description: "find files by name under a directory, recursively. matches each file name against a glob pattern (e.g. \"*.go\"). returns matching paths relative to the working directory. path must be relative to the session working directory.",
+				Parameters: provider.ToolParameters{
+					Type: "object",
+					Properties: map[string]provider.Property{
+						"path": {Type: "string", Description: "relative path to the directory to search; use \".\" for the root"},
+						"name": {Type: "string", Description: "glob pattern to match file names (e.g. \"*.go\", \"config.*\")"},
+					},
+					Required: []string{"path", "name"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: provider.ToolFunction{
+				Name:        "read_lines",
+				Description: "read a range of lines from a file, to inspect part of a large file without reading it all. returns the lines prefixed with their line numbers. path must be relative to the session working directory.",
+				Parameters: provider.ToolParameters{
+					Type: "object",
+					Properties: map[string]provider.Property{
+						"path":  {Type: "string", Description: "relative path to the file"},
+						"start": {Type: "integer", Description: "1-based line number to start from"},
+						"count": {Type: "integer", Description: "number of lines to read (default 100, max 500)"},
+					},
+					Required: []string{"path", "start"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: provider.ToolFunction{
 				Name:        "execute_shell_command",
 				Description: "run a shell command inside the session working directory and return its stdout and stderr. commands on the auto-approve allowlist run immediately; any other command runs only after the user approves it, so prefer allowlisted commands.",
 				Parameters: provider.ToolParameters{
@@ -94,10 +125,12 @@ func filesystemTools() []provider.Tool {
 // read-only filesystem tools pose no write/exec risk, so interrupting the user for every call would be noise.
 // any tool not in this set, currently only "execute_shell_command", always requires inari approval.
 var safeTools = map[string]bool{
-	"read_file": true,
-	"list_dir":  true,
-	"grep_file": true,
-	"stat_file": true,
+	"read_file":  true,
+	"list_dir":   true,
+	"find_files": true,
+	"read_lines": true,
+	"grep_file":  true,
+	"stat_file":  true,
 }
 
 // defaultShellAllowlist is the built-in set of command binaries that
@@ -107,6 +140,7 @@ var safeTools = map[string]bool{
 var defaultShellAllowlist = []string{
 	"go", "make", "git", "ls", "cat", "find", "pwd", "whoami",
 	"uname", "wc", "date", "echo", "which", "df", "du", "uptime", "ps",
+	"awk", "sed", "jq", // text/stream filtering for large logs and column extraction
 }
 
 // allowedCommands is the active auto-approve set: commands here run without a

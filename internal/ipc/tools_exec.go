@@ -5,6 +5,7 @@
 package ipc
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -137,9 +139,100 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 			return fmt.Sprintf("exit error: %v\n%s", runErr, result), nil
 		}
 		return string(result), nil
+	case "find_files":
+		safePath, err := sandboxed()
+		if err != nil {
+			return "", err
+		}
+		pattern, _ := args["name"].(string)
+		if pattern == "" {
+			return "", fmt.Errorf("name is required")
+		}
+		// validate the glob once so a bad pattern is a clean error, not a mid-walk abort.
+		if _, err := filepath.Match(pattern, ""); err != nil {
+			return "", fmt.Errorf("invalid name pattern: %w", err)
+		}
+		const maxResults = 200
+		var sb strings.Builder
+		count := 0
+		walkErr := filepath.WalkDir(safePath, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil // skip unreadable entries and directories
+			}
+			if ok, _ := filepath.Match(pattern, d.Name()); !ok {
+				return nil
+			}
+			rel, _ := filepath.Rel(cwd, p)
+			fmt.Fprintf(&sb, "%s\n", rel)
+			count++
+			if count >= maxResults {
+				sb.WriteString("(truncated)\n")
+				return filepath.SkipAll
+			}
+			return nil
+		})
+		if walkErr != nil {
+			return "", walkErr
+		}
+		return sb.String(), nil
+	case "read_lines":
+		safePath, err := sandboxed()
+		if err != nil {
+			return "", err
+		}
+		start := toInt(args["start"])
+		if start < 1 {
+			start = 1
+		}
+		count := toInt(args["count"])
+		if count < 1 {
+			count = 100 // default window when unset
+		}
+		const maxCount = 500
+		if count > maxCount {
+			count = maxCount
+		}
+		f, err := os.Open(safePath)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 0, 64*1024), 1024*1024) // tolerate long lines up to 1 MB
+		var sb strings.Builder
+		line := 0
+		for sc.Scan() {
+			line++
+			if line < start {
+				continue
+			}
+			if line >= start+count {
+				break
+			}
+			fmt.Fprintf(&sb, "%d: %s\n", line, sc.Text())
+		}
+		if err := sc.Err(); err != nil {
+			return "", err
+		}
+		return sb.String(), nil
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+// toInt coerces a tool argument to an int, accepting JSON numbers (float64) and
+// numeric strings; anything else yields 0.
+func toInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case string:
+		i, _ := strconv.Atoi(strings.TrimSpace(n))
+		return i
+	}
+	return 0
 }
 
 // runUserShell runs a user-authored `!` command line via `sh -c` inside cwd and
