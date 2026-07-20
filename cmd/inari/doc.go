@@ -3,7 +3,8 @@
 // it owns:
 //   - subcommand parsing and dispatch: start, daemon, tui, stop, status, version.
 //   - start:   fork the daemon in the background then launch the TUI.
-//   - daemon:  run the IPC server in the foreground (--background for internal use).
+//   - daemon:  run the IPC server; detaches into the background by default,
+//     -f/--foreground runs attached, --child is the internal forked-worker marker.
 //   - tui:     run the terminal UI only (assumes the daemon is already running).
 //   - stop:    send SIGTERM to the running daemon.
 //   - status:  report whether the daemon is running.

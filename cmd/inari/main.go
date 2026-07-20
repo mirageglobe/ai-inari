@@ -20,7 +20,7 @@ func printHelp() {
 	fmt.Println("  (none)   launch daemon and open the TUI  (default)")
 	fmt.Println("  tui      open TUI  (assumes daemon is running)")
 	fmt.Println("  chat     send one message to a session, print the reply  (headless)")
-	fmt.Println("  daemon   run daemon in foreground")
+	fmt.Println("  daemon   run the daemon (backgrounds by default; -f to stay in foreground)")
 	fmt.Println("  doctor   check dependencies and daemon status (--models to run each model)")
 	fmt.Println("  stop     stop the running daemon")
 	fmt.Println("  version  print version and exit")
@@ -28,6 +28,7 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("flags (follow the subcommand):")
 	fmt.Println("  -v         verbose daemon logging")
+	fmt.Println("  -f         (daemon) run attached in the foreground (ctrl+c to quit)")
 	fmt.Println("  -config    path to config.json  (default: ~/.config/inari/config.json)")
 	fmt.Println("  -models    (doctor) run each configured model through a real tool-calling turn")
 	fmt.Println()
@@ -67,7 +68,9 @@ func main() {
 
 	fs := flag.NewFlagSet(sub, flag.ExitOnError)
 	verbose := fs.Bool("v", false, "verbose logging")
-	background := fs.Bool("background", false, "run as background daemon (internal use)")
+	child := fs.Bool("child", false, "internal: run as the detached daemon worker (set by the parent fork)")
+	foregroundF := fs.Bool("f", false, "run the daemon attached in the foreground (ctrl+c to quit)")
+	foregroundLong := fs.Bool("foreground", false, "alias of -f")
 	verifyModels := fs.Bool("models", false, "doctor: also run each configured model through a real tool-calling turn")
 	cfgFlag := fs.String("config", "", "path to config.json")
 	fs.Parse(rest) //nolint:errcheck
@@ -81,7 +84,7 @@ func main() {
 	case "start": // alias of the bare invocation; keeps `make start` and muscle memory working
 		cmdStart(cfgPath, *verbose)
 	case "daemon":
-		runDaemon(cfgPath, *verbose, *background)
+		cmdDaemon(cfgPath, *verbose, *foregroundF || *foregroundLong, *child)
 	case "tui":
 		runTUI(cfgPath)
 	case "doctor":
