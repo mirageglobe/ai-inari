@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/mirageglobe/ai-inari/internal/audit"
@@ -48,14 +47,7 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	}
 	log.Printf("ollama ready: %s", endpoint.BaseURL)
 
-	dataDir := cfg.DataDir
-	if dataDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			log.Fatalf("data dir: %v", err)
-		}
-		dataDir = filepath.Join(home, ".local", "share", "inari", "sessions")
-	}
+	dataDir := resolveDataDir(cfg.DataDir)
 	store, err := session.NewPersistentStore(dataDir)
 	if err != nil {
 		log.Fatalf("session store: %v", err)
@@ -64,8 +56,8 @@ func runDaemon(cfgPath string, verbose, background bool) {
 
 	// audit log lives beside the session store, not the daemon's cwd (which varies
 	// by launch context and previously scattered "inari-audit.log" into whatever
-	// directory started the daemon).
-	auditPath := filepath.Join(filepath.Dir(dataDir), "inari-audit.log")
+	// directory started the daemon). doctor computes the same path via auditLogPath.
+	auditPath := auditLogPath(cfg.DataDir)
 	auditor := audit.New(auditPath)
 	defer auditor.Close()
 	log.Printf("audit log: %s", auditPath)

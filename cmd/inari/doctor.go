@@ -14,7 +14,7 @@ import (
 // check. it exits non-zero when a required check fails (config, ollama, base
 // model) so it can gate a preflight or CI step; daemon state and the runner
 // model are advisory and never fail the command.
-func cmdDoctor(cfgPath string) {
+func cmdDoctor(cfgPath string, verifyModelsFlag bool) {
 	fmt.Println("inari doctor")
 	fmt.Println()
 
@@ -51,7 +51,16 @@ func cmdDoctor(cfgPath string) {
 	// models: the thinker is the base model and is required to chat; runner
 	// is advisory since not every setup uses it.
 	if ollamaUp {
-		ok = checkModels(client, cfg.Models) && ok
+		if names, err := installedNames(client); err != nil {
+			line("warn", "models", "could not list: "+err.Error())
+		} else {
+			ok = checkModels(names, cfg.Models) && ok
+			// --models: presence is not function; drive each configured, present
+			// model through a real tool-calling turn (see verifyModels).
+			if verifyModelsFlag {
+				ok = verifyModels(cfgPath, cfg, names) && ok
+			}
+		}
 	} else {
 		line("warn", "models", "skipped (ollama unreachable)")
 	}
@@ -77,19 +86,22 @@ func cmdDoctor(cfgPath string) {
 	os.Exit(1)
 }
 
-// checkModels verifies the configured base model is pulled and reports the
-// runner tier. returns false only when the required base model is absent.
-func checkModels(client *ollama.Client, m config.Models) bool {
+// installedNames returns the names of all models the backend has pulled.
+func installedNames(client *ollama.Client) ([]string, error) {
 	installed, err := client.ListModels()
 	if err != nil {
-		line("warn", "models", "could not list: "+err.Error())
-		return true // cannot prove absence; do not fail the run
+		return nil, err
 	}
 	names := make([]string, len(installed))
 	for i, mdl := range installed {
 		names[i] = mdl.Name
 	}
+	return names, nil
+}
 
+// checkModels verifies the configured base model is pulled and reports the
+// runner tier. returns false only when the required base model is absent.
+func checkModels(names []string, m config.Models) bool {
 	base := true
 	if modelPresent(names, m.Thinker) {
 		line("ok", "base model", m.Thinker)

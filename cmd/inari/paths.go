@@ -18,6 +18,21 @@ func inariDir() string {
 
 func pidFile() string { return filepath.Join(inariDir(), "inari.pid") }
 
+// resolveDataDir returns the session store directory: cfgDataDir when set, else
+// the default under inariDir(). single source shared by the daemon and doctor.
+func resolveDataDir(cfgDataDir string) string {
+	if cfgDataDir != "" {
+		return cfgDataDir
+	}
+	return filepath.Join(inariDir(), "sessions")
+}
+
+// auditLogPath returns the audit log path: beside the session store, matching
+// where the daemon writes it, so doctor reads the same file the daemon appends.
+func auditLogPath(cfgDataDir string) string {
+	return filepath.Join(filepath.Dir(resolveDataDir(cfgDataDir)), "inari-audit.log")
+}
+
 func defaultConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
