@@ -558,13 +558,14 @@ curated picks by hardware tier and role. pull via `ollama pull <tag>`. prefer `q
 
 #### general
 
-| tier | model       | size   | notes                                                   |
-| :--- | :---------- | :----- | :------------------------------------------------------ |
-| 32gb | gemma4:27b  | ~15gb  | google moe; near-frontier chat and review               |
-| 16gb | phi-4:14b   | ~8gb   | microsoft; strong multi-file reasoning                  |
-| 8gb  | gemma4:e4b  | ~2.7gb | 4.5b effective; fast routing and quick queries          |
-| 8gb  | gemma4:e2b  | ~1.5gb | 2b effective; leaner and faster than e4b, lower quality |
-| 4gb  | llama3.2:3b | ~2gb   | meta; best chat and reasoning within 4gb                |
+| tier | model        | size   | notes                                                   |
+| :--- | :----------- | :----- | :------------------------------------------------------ |
+| 32gb | qwen3.6:27b  | ~16gb  | alibaba; near-frontier chat and review                  |
+| 16gb | phi4:14b     | ~8gb   | microsoft; strong multi-file reasoning                  |
+| 16gb | gemma4:12b   | ~7.6gb | google; 12b dense; strong general chat                  |
+| 8gb  | gemma4:e4b   | ~2.7gb | 4.5b effective; fast routing and quick queries          |
+| 8gb  | gemma4:e2b   | ~1.5gb | 2b effective; leaner and faster than e4b, lower quality |
+| 4gb  | llama3.2:3b  | ~2gb   | meta; best chat and reasoning within 4gb                |
 
 #### coding
 
@@ -574,6 +575,15 @@ curated picks by hardware tier and role. pull via `ollama pull <tag>`. prefer `q
 | 16gb | deepseek-r1:14b          | ~9gb   | r1-671b distil; strong coding and reasoning  |
 | 8gb  | deepseek-r1:8b           | ~5gb   | r1-671b distil; fits 8gb; coding+reasoning   |
 | 4gb  | llama3.2:3b              | ~2gb   | meta; best within 4gb budget                 |
+
+### 6.2 Keeping the curation current (findings)
+
+the table is dual-maintained (`tui/views/curated.go` `CuratedModels` + §6.1 above) and drifts; the last rebuild found two dead tags shipping in a "live" list (`gemma4:27b` and `phi-4:14b`, both 404 - the latter a `phi-4`/`phi4` typo). two cheap mechanisms, split by what each can actually prove:
+
+- **tag resolves (does it 404):** an HTTP HEAD against the ollama registry is enough and needs no pull - `curl -s -o /dev/null -w "%{http_code}" https://registry.ollama.ai/v2/library/<model>/manifests/<tag>` returns 200 vs 404. verified against the current list. fold into a `make check-models` target or `inari doctor` to catch dead tags without downloading gigabytes.
+- **model actually runs + invokes tools:** resolution is not function; that check is the headless tool-calling smoke test (roadmap items "`inari doctor`: verify pulled models actually work" and "discover + locally test new candidate models"), which drives a real turn and checks the audit log for a `tool.call` entry.
+
+drift itself is best killed at the source: make `CuratedModels` the single source and generate the §6.1 table from it (or a shared data file both read), so the two cannot disagree. **not committing to a mechanism here** - the pull+test function lands with the discover/test-candidates item; this note is the options, not the decision.
 
 ---
 

@@ -19,8 +19,9 @@ type CuratedModel struct {
 
 // CuratedModels mirrors SPEC.md §6.1. update both together.
 var CuratedModels = []CuratedModel{
-	{32, "general", "gemma4:27b", "~15gb", "google moe; near-frontier chat and review"},
-	{16, "general", "phi-4:14b", "~8gb", "microsoft; strong multi-file reasoning"},
+	{32, "general", "qwen3.6:27b", "~16gb", "alibaba; near-frontier chat and review"},
+	{16, "general", "phi4:14b", "~8gb", "microsoft; strong multi-file reasoning"},
+	{16, "general", "gemma4:12b", "~7.6gb", "google; 12b dense; strong general chat"},
 	{8, "general", "gemma4:e4b", "~2.7gb", "4.5b effective; fast routing and quick queries"},
 	{8, "general", "gemma4:e2b", "~1.5gb", "2b effective; leaner and faster than e4b, lower quality"},
 	{4, "general", "llama3.2:3b", "~2gb", "meta; best chat and reasoning within 4gb"},
