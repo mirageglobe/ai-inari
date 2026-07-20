@@ -78,7 +78,9 @@ inari          # launch the daemon + TUI (the default action)
 inari stop     # stop the background daemon
 ```
 
-`inari doctor` prints the exact `ollama pull` command if the base model is missing.
+`inari doctor` prints the exact `ollama pull` command if the base model is missing;
+`inari doctor --models` goes further and runs each configured model through a real
+tool-calling turn to confirm it works, not just that it is pulled.
 the background daemon also shuts itself down after an idle period, so `inari stop` is
 only needed to end it immediately.
 
@@ -159,7 +161,7 @@ only these two fields are honored. infra and security settings (socket, endpoint
 - `inari chat --session <id> --message <text>`: send one message to an existing session and print the reply (headless, no TUI); `--message -` reads stdin, `--json` prints the reply as JSON
 - `inari chat --new [--model <m>] [--cwd <p>] --message <text>`: create a fresh session and print the reply, a self-contained headless one-liner (no pre-existing session needed); the new session id is printed to stderr
 - `inari daemon`: run the daemon in the foreground
-- `inari doctor`: check dependencies and daemon status
+- `inari doctor`: check dependencies and daemon status; add `--models` to also run each configured model through a real tool-calling turn and confirm it actually works, not just that it is pulled
 - `inari stop`: stop the running daemon
 - `inari version`: print the version
 - `inari help`: show usage

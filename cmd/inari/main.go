@@ -21,7 +21,7 @@ func printHelp() {
 	fmt.Println("  tui      open TUI  (assumes daemon is running)")
 	fmt.Println("  chat     send one message to a session, print the reply  (headless)")
 	fmt.Println("  daemon   run daemon in foreground")
-	fmt.Println("  doctor   check dependencies and daemon status")
+	fmt.Println("  doctor   check dependencies and daemon status (--models to run each model)")
 	fmt.Println("  stop     stop the running daemon")
 	fmt.Println("  version  print version and exit")
 	fmt.Println("  help     show this message")
@@ -29,6 +29,7 @@ func printHelp() {
 	fmt.Println("flags (follow the subcommand):")
 	fmt.Println("  -v         verbose daemon logging")
 	fmt.Println("  -config    path to config.json  (default: ~/.config/inari/config.json)")
+	fmt.Println("  -models    (doctor) run each configured model through a real tool-calling turn")
 	fmt.Println()
 	fmt.Println("chat flags:")
 	fmt.Println("  -session   existing session id to send to   (or -new)")
@@ -67,6 +68,7 @@ func main() {
 	fs := flag.NewFlagSet(sub, flag.ExitOnError)
 	verbose := fs.Bool("v", false, "verbose logging")
 	background := fs.Bool("background", false, "run as background daemon (internal use)")
+	verifyModels := fs.Bool("models", false, "doctor: also run each configured model through a real tool-calling turn")
 	cfgFlag := fs.String("config", "", "path to config.json")
 	fs.Parse(rest) //nolint:errcheck
 
@@ -83,7 +85,7 @@ func main() {
 	case "tui":
 		runTUI(cfgPath)
 	case "doctor":
-		cmdDoctor(cfgPath)
+		cmdDoctor(cfgPath, *verifyModels)
 	case "stop":
 		cmdStop()
 	default:
