@@ -104,7 +104,7 @@ var defaults = &Config{
 	MCPConnectors:  []MCPConnector{},
 	Models: Models{
 		Thinker: "gemma4:e2b",
-		Runner:  "",
+		Runner:  "gemma4:e4b", // §6.1 curated pick noted as "fast routing"; the runner role
 	},
 	Shell:            Shell{Allowlist: []string{}}, // empty -> inarid's built-in default allowlist
 	Theme:            "slate",
