@@ -20,6 +20,7 @@ func printHelp() {
 	fmt.Println("  (none)   launch daemon and open the TUI  (default)")
 	fmt.Println("  tui      open TUI  (assumes daemon is running)")
 	fmt.Println("  chat     send one message to a session, print the reply  (headless)")
+	fmt.Println("  try      resolve, pull, and tool-call test a candidate model (--check: resolve only)")
 	fmt.Println("  daemon   run the daemon (backgrounds by default; -f to stay in foreground)")
 	fmt.Println("  doctor   check dependencies and daemon status (--models to run each model)")
 	fmt.Println("  stop     stop the running daemon")
@@ -63,6 +64,9 @@ func main() {
 		return
 	case "chat":
 		runChat(rest)
+		return
+	case "try":
+		runTry(rest)
 		return
 	}
 
