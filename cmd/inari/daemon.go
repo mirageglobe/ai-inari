@@ -15,8 +15,9 @@ import (
 )
 
 // runDaemon is the foreground daemon loop shared by "daemon" and the background
-// fork spawned by "start". background is true when forked internally.
-func runDaemon(cfgPath string, verbose, background bool) {
+// fork spawned by "start". attached is true only for `inari daemon -f` (foreground,
+// prints ctrl+c); the detached worker and the default background path pass false.
+func runDaemon(cfgPath string, verbose, attached bool) {
 	if verbose {
 		log.SetPrefix("[log] ")
 	}
@@ -90,14 +91,15 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	}
 	defer srv.Close()
 
-	if background {
-		if err := writePID(os.Getpid()); err != nil {
-			log.Printf("pid file warning: %v", err)
-		}
+	// always record the pid so `inari stop` can find this daemon regardless of how
+	// it was launched (attached or detached); a foreground daemon used to skip this
+	// and so could not be stopped via the pid file.
+	if err := writePID(os.Getpid()); err != nil {
+		log.Printf("pid file warning: %v", err)
 	}
 
 	log.Printf("listening: %s", cfg.Socket)
-	if !background {
+	if attached {
 		log.Println("ctrl+c to quit")
 	}
 
@@ -108,8 +110,6 @@ func runDaemon(cfgPath string, verbose, background bool) {
 	case <-srv.Quit():
 	}
 
-	if background {
-		os.Remove(pidFile())
-	}
+	os.Remove(pidFile())
 	log.Println("inari daemon shutting down")
 }

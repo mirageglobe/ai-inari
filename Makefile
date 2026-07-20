@@ -67,7 +67,7 @@ clean: ## remove build artefacts and socket
 ##@ run
 
 run-daemon: ## run daemon in foreground (no build)
-	go run ./cmd/inari daemon
+	go run ./cmd/inari daemon -f
 
 run-tui: ## run TUI only (no build, assumes daemon running)
 	go run ./cmd/inari tui

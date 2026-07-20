@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"strings"
 	"syscall"
 	"time"
@@ -140,22 +139,14 @@ func printReply(w io.Writer, reply string, asJSON bool) {
 	fmt.Fprintln(w, reply)
 }
 
-// ensureDaemon starts a background daemon and waits for its socket when none is
-// already running; a live daemon is reused as-is.
+// ensureDaemon starts a detached background daemon and waits for its socket when
+// none is already running; a live daemon is reused as-is.
 func ensureDaemon(cfgPath string) {
 	if daemonRunning() {
 		return
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		log.Fatalf("executable: %v", err)
-	}
-	cmd := exec.Command(exe, "daemon", "--background", "-config", cfgPath)
-	if err := cmd.Start(); err != nil {
+	if _, err := forkDaemon(cfgPath, false); err != nil {
 		log.Fatalf("start daemon: %v", err)
-	}
-	if !waitForSocket(defaultSocket, 5*time.Second) {
-		log.Fatalf("daemon did not come up within 5s")
 	}
 }
 

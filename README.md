@@ -160,7 +160,7 @@ only these two fields are honored. infra and security settings (socket, endpoint
 - `inari tui`: open the TUI; assumes the daemon is already running
 - `inari chat --session <id> --message <text>`: send one message to an existing session and print the reply (headless, no TUI); `--message -` reads stdin, `--json` prints the reply as JSON
 - `inari chat --new [--model <m>] [--cwd <p>] --message <text>`: create a fresh session and print the reply, a self-contained headless one-liner (no pre-existing session needed); the new session id is printed to stderr
-- `inari daemon`: run the daemon in the foreground
+- `inari daemon`: run the daemon; it backgrounds itself by default (so `inari stop` manages it), or pass `-f`/`--foreground` to keep it attached in the terminal (ctrl+c to quit)
 - `inari doctor`: check dependencies and daemon status; add `--models` to also run each configured model through a real tool-calling turn and confirm it actually works, not just that it is pulled
 - `inari stop`: stop the running daemon
 - `inari version`: print the version
