@@ -81,7 +81,6 @@ section.
 - [x] `[inarid]` message history scoped to session; detach/reattach preserves session state.
 
 ### Near-term
-- [ ] `[inarit/inarid]` `[easy]` **generate SPEC §6.1 from `curated.go` (kill the dual-maintenance drift)** - the curated table lives in two hand-synced places, `tui/views/curated.go` `CuratedModels` and SPEC §6.1; the model-list rebuild had to edit both and they will drift again. make `CuratedModels` the single source and generate the §6.1 markdown table from it (a `go:generate` or `make` target, enforced by a `make` check that fails on a stale table), so the two cannot disagree. the tag-resolution half of the original automation question is already answered by `inari try --check` (registry HEAD, no pull); this item is only the drift-elimination piece.
 - [ ] `[inarid]` `[medium]` **review and improve the builtin tool surface** - the tool set (`internal/ipc/tools.go`: `read_file`, `list_dir`, `grep_file`, `stat_file`, `find_files`, `read_lines`, `execute_shell_command`, plus the `awk`/`sed`/`jq` shell allowlist) just grew in 86062ea; audit real session tool-call logs for what still falls through to `execute_shell_command`, which builtins go unused, and where schemas/descriptions confuse tool selection for small models, then improve based on findings.
 
 ### Ideas
@@ -105,6 +104,7 @@ section.
 - [ ] `[inarid]` `[medium]` consider exposing Ollama as an MCP server so other models — local or cloud — can be invoked as tools by the default model (`gemma4:e2b`); this lets the thinker agent delegate sub-tasks to specialised models (e.g. a coding runner) via the existing MCP tool-call loop rather than requiring a separate session
 
 ### Done
+- [x] `[inarit/inarid]` `[easy]` **generate SPEC §6.1 from `curated.go` (killed the dual-maintenance drift)** - `CuratedModels` (`tui/views/curated.go`) is now the single source; the §6.1 tables are generated from it by `RenderCuratedTables` (`tui/views/curated_table.go`) between `<!-- BEGIN/END generated -->` markers. `make curated-sync` rewrites the region; `TestCuratedTablesInSync` (under `make test`) fails if it is left stale, comparing the marker region byte-for-byte against the rendered output. the renderer left-aligns and pads every column to its widest cell (repo table convention), so a hand-edit to the table alone can never silently diverge from the source. also refreshed the now-stale "update both together" comments in `curated.go` and the §6.2 findings note. verified: go build, go vet, `go test ./...`; `-update-curated` regenerates and the plain run then passes in-sync.
 - [x] `[inarit/inarid]` `[medium]` **rebuild the curated model list for local LLMs** - rebuilt `CuratedModels` (`tui/views/curated.go`) and SPEC §6.1 against the live ollama registry (every tag HEAD-checked, 200 vs 404), which caught two dead tags the "live" list still shipped: `gemma4:27b` (404) -> `qwen3.6:27b` (verified; family already run locally as the coding variant) and `phi-4:14b` (404 hyphen typo) -> `phi4:14b`; added `gemma4:12b` (local, measured 7.6GB, was missing); set the empty `models.runner` config default to `gemma4:e4b` (its §6.1 note is "fast routing", the runner role). **automation investigated + delivered:** the cheap tag-resolution check (registry HEAD, no download) shipped as `inari try --check`, and the full run + tool-call test as `inari try <tag>` / `inari doctor --models`; SPEC §6.2 records the findings. the remaining drift-elimination piece (generate §6.1 from `curated.go` so the two cannot disagree) is split into its own near-term item. see also the `doctor --models` and `inari try` Done entries.
 - [x] `[inari]` `[medium]` **`inari try <tag>`: discover + locally test new candidate models** - the model-shopping counterpart to `doctor --models` (which is a preflight over already-configured models). `inari try <tag>` (1) resolves the tag against the ollama registry with a cheap HEAD (`registryManifestURL` + `modelResolves` in `cmd/inari/try.go`, no auth/download; library models get the `library/` prefix, missing `:tag` defaults to latest, `user/model` used as-is), (2) pulls it if absent (headless `client.PullModel`), then (3) drives it through the exact same streaming tool-call smoke test `doctor --models` uses (`verifyOne`: fixture cwd + `client.ChatStream` + audit-log `tool.call` check, not reply-text). `--check` does only step 1 - the cheap dead-tag signal the curated-model-list rebuild wants, no gigabyte pull. exits non-zero if the tag 404s, the pull fails, or the model runs but invokes no tool. **shares the corrected mechanic from the doctor item:** `session.chat` has no tool loop, so verification drives the stream path. tests: `TestRegistryManifestURL` (tag->URL mapping). verified live: `try --check llama3.2:3b` -> resolves 200 exit 0; `try --check qwen3-nano` -> 404 exit 1; `try gemma4:e2b` -> resolves + already-local + `replied + called list_dir`, exit 0.
 - [x] `[inarid]` `[easy]` **background the daemon by default; `-f`/`--foreground` to attach** - `inari daemon` now self-detaches into the background and returns (the common case, so `inari stop` manages it); `-f`/`--foreground` runs it attached with "ctrl+c to quit". the old `--background` flag was a misnomer (it never detached - it only wrote a pid file and skipped the ctrl+c line, the internal forked-worker marker); renamed to `--child`, set only by the parent when it forks. extracted `forkDaemon` + `refuseIfRunning` in `process.go` as the shared fork path (`cmdStart`, the default `daemon`, and `ensureDaemon` all use it, dropping the duplicated fork in `chat.go`). `runDaemon`'s `background` param became `attached` and it now **always** writes the pid file, so a foreground daemon is stoppable via `inari stop` too (it previously was not - the stated side benefit). also fixed a latent bug the change exposed: `forkDaemon` waited on the compiled-in `defaultSocket`, so a custom `socket` in config.json produced a false "did not come up within 5s" even though the daemon started; it now loads config and waits on the actual socket. **CLI-contract change:** `make run-daemon` moved from `go run ./cmd/inari daemon` to `daemon -f` (a supervisor expecting `daemon` to block must use `-f`); noted in help + README. verified via go vet, go build, `go test ./...`, and a live isolated-HOME lifecycle run: default detaches + returns (pid written, socket up), a second daemon is refused, `inari stop` stops it, and `-f`/`--foreground` block attached.
@@ -557,25 +557,29 @@ Memory budget is enforced via `memory_budget_mb` in `config.json`. The scheduler
 
 curated picks by hardware tier and role. pull via `ollama pull <tag>`. prefer `q4_k_m` quant unless the tier has headroom for `q8_0`.
 
+<!-- BEGIN generated: §6.1 tables from tui/views/curated.go CuratedModels; run `make curated-sync` -->
+
 #### general
 
-| tier | model        | size   | notes                                                   |
-| :--- | :----------- | :----- | :------------------------------------------------------ |
-| 32gb | qwen3.6:27b  | ~16gb  | alibaba; near-frontier chat and review                  |
-| 16gb | phi4:14b     | ~8gb   | microsoft; strong multi-file reasoning                  |
-| 16gb | gemma4:12b   | ~7.6gb | google; 12b dense; strong general chat                  |
-| 8gb  | gemma4:e4b   | ~2.7gb | 4.5b effective; fast routing and quick queries          |
-| 8gb  | gemma4:e2b   | ~1.5gb | 2b effective; leaner and faster than e4b, lower quality |
-| 4gb  | llama3.2:3b  | ~2gb   | meta; best chat and reasoning within 4gb                |
+| tier | model       | size   | notes                                                   |
+| :--- | :---------- | :----- | :------------------------------------------------------ |
+| 32gb | qwen3.6:27b | ~16gb  | alibaba; near-frontier chat and review                  |
+| 16gb | phi4:14b    | ~8gb   | microsoft; strong multi-file reasoning                  |
+| 16gb | gemma4:12b  | ~7.6gb | google; 12b dense; strong general chat                  |
+| 8gb  | gemma4:e4b  | ~2.7gb | 4.5b effective; fast routing and quick queries          |
+| 8gb  | gemma4:e2b  | ~1.5gb | 2b effective; leaner and faster than e4b, lower quality |
+| 4gb  | llama3.2:3b | ~2gb   | meta; best chat and reasoning within 4gb                |
 
 #### coding
 
-| tier | model                    | size   | notes                                        |
-| :--- | :----------------------- | :----- | :------------------------------------------- |
-| 32gb | qwen3.6:27b-coding-nvfp4 | ~18gb  | alibaba; near-frontier generation and review |
-| 16gb | deepseek-r1:14b          | ~9gb   | r1-671b distil; strong coding and reasoning  |
-| 8gb  | deepseek-r1:8b           | ~5gb   | r1-671b distil; fits 8gb; coding+reasoning   |
-| 4gb  | llama3.2:3b              | ~2gb   | meta; best within 4gb budget                 |
+| tier | model                    | size  | notes                                        |
+| :--- | :----------------------- | :---- | :------------------------------------------- |
+| 32gb | qwen3.6:27b-coding-nvfp4 | ~18gb | alibaba; near-frontier generation and review |
+| 16gb | deepseek-r1:14b          | ~9gb  | r1-671b distil; strong coding and reasoning  |
+| 8gb  | deepseek-r1:8b           | ~5gb  | r1-671b distil; fits 8gb; coding+reasoning   |
+| 4gb  | llama3.2:3b              | ~2gb  | meta; best within 4gb budget                 |
+
+<!-- END generated: §6.1 tables -->
 
 ### 6.2 Keeping the curation current (findings)
 
@@ -584,7 +588,7 @@ the table is dual-maintained (`tui/views/curated.go` `CuratedModels` + §6.1 abo
 - **tag resolves (does it 404):** an HTTP HEAD against the ollama registry is enough and needs no pull - `curl -s -o /dev/null -w "%{http_code}" https://registry.ollama.ai/v2/library/<model>/manifests/<tag>` returns 200 vs 404. verified against the current list. fold into a `make check-models` target or `inari doctor` to catch dead tags without downloading gigabytes.
 - **model actually runs + invokes tools:** resolution is not function; that check is the headless tool-calling smoke test (roadmap items "`inari doctor`: verify pulled models actually work" and "discover + locally test new candidate models"), which drives a real turn and checks the audit log for a `tool.call` entry.
 
-drift itself is best killed at the source: make `CuratedModels` the single source and generate the §6.1 table from it (or a shared data file both read), so the two cannot disagree. **not committing to a mechanism here** - the pull+test function lands with the discover/test-candidates item; this note is the options, not the decision.
+drift itself is killed at the source: `CuratedModels` (`tui/views/curated.go`) is the single source and the §6.1 tables above are generated from it (`RenderCuratedTables`, between the marker comments). edit `CuratedModels`, run `make curated-sync`, and `make test` fails if the table is left stale (`TestCuratedTablesInSync`).
 
 ---
 

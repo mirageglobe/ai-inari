@@ -1,5 +1,5 @@
 // curated model recommendations for the model selector.
-// this file owns the CuratedModel table (kept in sync with SPEC.md §6.1),
+// this file owns the CuratedModel table (the single source SPEC.md §6.1 is generated from),
 // hardware-tier detection, and the filter that picks curated models not
 // already pulled locally. it does NOT own model listing/loading - that
 // stays in selector.go, which reads from CuratedModels via NotLocal.
@@ -17,7 +17,8 @@ type CuratedModel struct {
 	Notes  string
 }
 
-// CuratedModels mirrors SPEC.md §6.1. update both together.
+// CuratedModels is the single source of truth; SPEC.md §6.1 is generated from it
+// (RenderCuratedTables). edit here, then run `make curated-sync`.
 var CuratedModels = []CuratedModel{
 	{32, "general", "qwen3.6:27b", "~16gb", "alibaba; near-frontier chat and review"},
 	{16, "general", "phi4:14b", "~8gb", "microsoft; strong multi-file reasoning"},
