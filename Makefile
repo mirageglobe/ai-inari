@@ -40,7 +40,7 @@ NEXT_MAJOR_VERSION = \
 .SHELLFLAGS := -eu -o pipefail -c
 .ONESHELL:
 
-.PHONY: help all build clean fmt lint test run-daemon run-tui start stop demo bump-patch bump-minor bump-major push-tags release release-reset release-dry
+.PHONY: help all build clean fmt lint test curated-sync run-daemon run-tui start stop demo bump-patch bump-minor bump-major push-tags release release-reset release-dry
 
 # ============================================================== targets ===== #
 
@@ -90,6 +90,9 @@ lint: ## run vet and staticcheck
 test: ## run all tests
 	go vet ./...
 	go test ./...
+
+curated-sync: ## regenerate SPEC.md §6.1 tables from tui/views/curated.go (single source)
+	go test ./tui/views -run TestCuratedTablesInSync -update-curated -count=1
 
 ##@ release
 
