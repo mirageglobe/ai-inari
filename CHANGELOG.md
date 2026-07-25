@@ -8,7 +8,12 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 ## [unreleased]
 
 ### added
+- probe: `inari probe` audits which builtin tool a model actually selects. it writes a realistic throwaway go project, asks one ordinary question per builtin (never naming the tool), and reports the tool chain the model reached for, plus a summary of unused builtins and anything that fell through to the shell. each task runs in its own session so one task's history cannot few-shot the next; `--runs N` repeats the suite because small models are stochastic, and `--model <tag>` probes a specific model. this is the corpus the tool-surface review needed and did not have.
 - tools: two typed builtins for the model's tool loop, `find_files` (recursive glob name search) and `read_lines` (a numbered line range of a large file), both pure-Go and cwd-sandboxed, so the model rarely needs to shell out for these. `awk`, `sed`, and `jq` are added to the default shell auto-approve allowlist for column/stream filtering of large logs, and the cwd system prompt now tells the model to prefer the builtins and use `execute_shell_command` only when no builtin fits.
+
+### fixed
+- tools: a shell tool call that packs the whole command line into `command` (`{"command":"make test"}`, which gemma4:e2b emits regularly) now runs. the packed string matched no allowlist entry, so an allowlisted command asked for approval, and approving it would have failed at exec as a missing binary named `make test`. the allowlist gate and the executor now share one normalisation step. splitting on whitespace is not a shell (no glob, pipe, or variable expansion) and cannot widen the gate: `go; curl x` yields the binary `go;`, which is unlisted and still prompts.
+- tools: `grep_file`'s name read as file-scoped and measurably steered gemma4:e2b into grepping one file at a time for a project-wide question (2 to 4 calls where one does). its description now leads with the recursive directory search; measured over 3 runs, the same question went from a mean of 2.7 calls to exactly 1 in 3/3 runs.
 
 ## [v0.3.0] - 2026-07-19
 

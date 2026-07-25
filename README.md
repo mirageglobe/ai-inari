@@ -163,6 +163,7 @@ only these two fields are honored. infra and security settings (socket, endpoint
 - `inari try <tag>`: try out a candidate model you don't run yet; checks it resolves on the registry, pulls it, and runs a real tool-calling turn to confirm it works. `--check` only checks the tag resolves (no download)
 - `inari daemon`: run the daemon; it backgrounds itself by default (so `inari stop` manages it), or pass `-f`/`--foreground` to keep it attached in the terminal (ctrl+c to quit)
 - `inari doctor`: check dependencies and daemon status; add `--models` to also run each configured model through a real tool-calling turn and confirm it actually works, not just that it is pulled
+- `inari probe`: check how well a model uses inari's built-in tools; it asks a set of ordinary questions about a throwaway sample project and reports, per question, which tool the model reached for. useful when comparing models: `--model <tag>` probes a specific one, `--runs 3` repeats the set because small models vary between runs
 - `inari stop`: stop the running daemon
 - `inari version`: print the version
 - `inari help`: show usage

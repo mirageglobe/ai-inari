@@ -119,13 +119,12 @@ func execTool(name string, args map[string]any, cwd string) (string, error) {
 		argsStr, _ := args["args"].(string)
 		// no allowlist check here: the stream gate already decided auto-run vs.
 		// user approval; a command reaching execTool has cleared that gate.
-		var cmdArgs []string
-		if argsStr != "" {
-			cmdArgs = strings.Fields(argsStr)
-		}
+		// the same normalisation the gate used, so a packed "make test" runs as
+		// make(test) rather than failing as a missing binary named "make test".
+		binary, cmdArgs := splitShellCommand(command, argsStr)
 		ctx, cancel := context.WithTimeout(context.Background(), runCommandTimeout)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, command, cmdArgs...)
+		cmd := exec.CommandContext(ctx, binary, cmdArgs...)
 		cmd.Dir = cwd
 		var out bytes.Buffer
 		cmd.Stdout = &out

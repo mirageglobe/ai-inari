@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,43 +112,5 @@ func drain[T any](ch <-chan T) {
 	}
 }
 
-// fileSize returns the byte length of path, or 0 if it does not exist yet.
-func fileSize(path string) int64 {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return 0
-	}
-	return fi.Size()
-}
-
-// sessionToolCalled scans the audit log from byte offset `from` and returns the
-// name of the first tool.call logged for sessionID, or "" if none. reads only new
-// bytes so a long-lived log does not slow the check.
-func sessionToolCalled(auditPath string, from int64, sessionID string) string {
-	f, err := os.Open(auditPath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	if _, err := f.Seek(from, io.SeekStart); err != nil {
-		return ""
-	}
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	for sc.Scan() {
-		var e struct {
-			Method string `json:"method"`
-			Params struct {
-				Session string `json:"session"`
-				Tool    string `json:"tool"`
-			} `json:"params"`
-		}
-		if json.Unmarshal(sc.Bytes(), &e) != nil {
-			continue
-		}
-		if e.Method == "tool.call" && e.Params.Session == sessionID {
-			return e.Params.Tool
-		}
-	}
-	return ""
-}
+// the audit scan (sessionToolCalls/sessionToolCalled) and fileSize live in
+// audit_scan.go, shared with the tool-surface probe.

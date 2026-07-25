@@ -23,6 +23,7 @@ func printHelp() {
 	fmt.Println("  try      resolve, pull, and tool-call test a candidate model (--check: resolve only)")
 	fmt.Println("  daemon   run the daemon (backgrounds by default; -f to stay in foreground)")
 	fmt.Println("  doctor   check dependencies and daemon status (--models to run each model)")
+	fmt.Println("  probe    audit builtin tool selection against a fixture task suite")
 	fmt.Println("  stop     stop the running daemon")
 	fmt.Println("  version  print version and exit")
 	fmt.Println("  help     show this message")
@@ -32,6 +33,8 @@ func printHelp() {
 	fmt.Println("  -f         (daemon) run attached in the foreground (ctrl+c to quit)")
 	fmt.Println("  -config    path to config.json  (default: ~/.config/inari/config.json)")
 	fmt.Println("  -models    (doctor) run each configured model through a real tool-calling turn")
+	fmt.Println("  -runs      (probe) repeat the task suite N times  (default 1)")
+	fmt.Println("  -model     (probe) model tag to probe             (default: models.thinker)")
 	fmt.Println()
 	fmt.Println("chat flags:")
 	fmt.Println("  -session   existing session id to send to   (or -new)")
@@ -67,6 +70,9 @@ func main() {
 		return
 	case "try":
 		runTry(rest)
+		return
+	case "probe":
+		runProbe(rest)
 		return
 	}
 

@@ -46,12 +46,16 @@ func filesystemTools() []provider.Tool {
 		{
 			Type: "function",
 			Function: provider.ToolFunction{
-				Name:        "grep_file",
-				Description: "search for a regex pattern in files under a directory. returns matching lines with file path and line number. path must be relative to the session working directory.",
+				Name: "grep_file",
+				// the name reads file-scoped, and measurably steered gemma4:e2b into
+				// grepping one file at a time (Makefile, then main.go, ...) for a
+				// project-wide question. the description now leads with the recursive
+				// directory search so one call answers "which files mention X".
+				Description: "search file contents for a regex pattern, recursively. pass a directory path to search every file beneath it in one call - use \".\" to search the whole project. a single file path searches just that file. returns matching lines with file path and line number. path must be relative to the session working directory.",
 				Parameters: provider.ToolParameters{
 					Type: "object",
 					Properties: map[string]provider.Property{
-						"path":    {Type: "string", Description: "relative path to the directory to search; use \".\" for the root"},
+						"path":    {Type: "string", Description: "relative path to search: a directory searches it recursively, a file searches only that file; use \".\" for the whole project"},
 						"pattern": {Type: "string", Description: "regular expression to search for"},
 					},
 					Required: []string{"path", "pattern"},
@@ -111,14 +115,27 @@ func filesystemTools() []provider.Tool {
 				Parameters: provider.ToolParameters{
 					Type: "object",
 					Properties: map[string]provider.Property{
-						"command": {Type: "string", Description: "the binary to run (e.g. \"go\", \"make\", \"git\")"},
-						"args":    {Type: "string", Description: "space-separated arguments (e.g. \"test ./...\")"},
+						"command": {Type: "string", Description: "the binary to run on its own, with no arguments attached (e.g. \"go\", \"make\", \"git\")"},
+						"args":    {Type: "string", Description: "space-separated arguments, not repeating the binary (e.g. \"test ./...\")"},
 					},
 					Required: []string{"command"},
 				},
 			},
 		},
 	}
+}
+
+// BuiltinToolNames returns the name of every builtin tool declared to the model,
+// in declaration order. exported so the tool-surface probe measures coverage
+// against the real declaration list rather than a hand-copied one that silently
+// drifts when a tool is added or renamed.
+func BuiltinToolNames() []string {
+	tools := filesystemTools()
+	names := make([]string, len(tools))
+	for i, t := range tools {
+		names[i] = t.Function.Name
+	}
+	return names
 }
 
 // safeTools are executed immediately without an approval round-trip.
@@ -167,6 +184,27 @@ func SetShellAllowlist(cmds []string) {
 	allowedCommands = commandSet(cmds)
 }
 
+// splitShellCommand normalises the model's command/args pair into a binary plus
+// argv. the schema asks for the binary alone in "command", but small models
+// regularly pack the whole line in ({"command":"make test"}) - measured against
+// gemma4:e2b with `inari probe`. left unsplit, that string matches no allowlist
+// entry and then fails at exec as a missing binary, so an allowlisted command both
+// prompts the user and refuses to run. splitting on whitespace is not a shell: no
+// glob, pipe, or variable expansion happens, so the §8.3 "never hand model output
+// to a shell" rule still holds, and the gate now sees the real binary.
+func splitShellCommand(command, argsStr string) (string, []string) {
+	fields := strings.Fields(command)
+	if len(fields) == 0 {
+		return "", nil
+	}
+	args := append([]string{}, fields[1:]...)
+	args = append(args, strings.Fields(argsStr)...)
+	if len(args) == 0 {
+		return fields[0], nil
+	}
+	return fields[0], args
+}
+
 // shellAutoApproved reports whether a tool call may run without a user prompt:
 // only execute_shell_command whose binary is on the allowlist. every other
 // non-safe tool returns false and still requires explicit approval.
@@ -175,7 +213,8 @@ func shellAutoApproved(tc provider.ToolCall) bool {
 		return false
 	}
 	command, _ := tc.Function.Arguments["command"].(string)
-	return allowedCommands[command]
+	binary, _ := splitShellCommand(command, "")
+	return allowedCommands[binary]
 }
 
 // sortedAllowedCommands returns the allowed command names as a sorted, comma-separated string.
