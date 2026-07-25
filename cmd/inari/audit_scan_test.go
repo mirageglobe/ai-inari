@@ -22,6 +22,7 @@ func TestSessionToolCallsReturnsChain(t *testing.T) {
 {"ts":"t3","method":"tool.call","params":{"session":"bbb","tool":"stat_file"}}
 not json at all
 {"ts":"t4","method":"tool.call","params":{"session":"aaa","tool":"execute_shell_command","args":{"command":"go","args":"test ./..."},"failed":true}}
+{"ts":"t5","method":"tool.denied","params":{"session":"aaa","tool":"execute_shell_command","args":{"command":"curl"}}}
 `
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
@@ -33,8 +34,8 @@ not json at all
 	f.Close()
 
 	calls := sessionToolCalls(path, from, "aaa")
-	if len(calls) != 2 {
-		t.Fatalf("got %d calls, want 2: %+v", len(calls), calls)
+	if len(calls) != 3 {
+		t.Fatalf("got %d calls, want 3: %+v", len(calls), calls)
 	}
 	if calls[0].tool != "list_dir" || calls[0].args["path"] != "." {
 		t.Errorf("call 0 = %+v", calls[0])
@@ -45,6 +46,13 @@ not json at all
 	if calls[1].args["command"] != "go" {
 		t.Errorf("call 1 args = %v", calls[1].args)
 	}
+	// a refused call is part of the chain the probe reports, flagged as denied.
+	if calls[2].tool != "execute_shell_command" || !calls[2].denied {
+		t.Errorf("call 2 = %+v, want a denied shell call", calls[2])
+	}
+	if calls[0].denied || calls[1].denied {
+		t.Error("executed calls must not be flagged denied")
+	}
 
 	// doctor's first-tool check keeps working off the same scan.
 	if got := sessionToolCalled(path, from, "aaa"); got != "list_dir" {
@@ -52,5 +60,19 @@ not json at all
 	}
 	if got := sessionToolCalled(path, from, "ccc"); got != "" {
 		t.Errorf("unknown session returned %q", got)
+	}
+}
+
+// doctor passes a model only when a tool actually ran. now that refusals are
+// audited too, a model that only reached for a denied tool must still fail the
+// health check rather than counting as "invoked a tool".
+func TestSessionToolCalledIgnoresDenied(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.log")
+	body := `{"ts":"t1","method":"tool.denied","params":{"session":"aaa","tool":"execute_shell_command","args":{"command":"curl"}}}` + "\n"
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := sessionToolCalled(path, 0, "aaa"); got != "" {
+		t.Errorf("sessionToolCalled = %q, want empty (only a denied call was logged)", got)
 	}
 }

@@ -11,9 +11,9 @@ import (
 	"os"
 )
 
-// probeCall is one tool invocation observed during a turn. executed calls are read
-// back from the audit log; denied ones are seen client-side as approval requests
-// that never reach the log, so both paths feed the same record type.
+// probeCall is one tool invocation observed during a turn: either executed
+// ("tool.call") or refused by the user ("tool.denied"). both come from the audit
+// log, so the observed chain is whatever the daemon recorded.
 type probeCall struct {
 	tool   string
 	args   map[string]any
@@ -22,8 +22,8 @@ type probeCall struct {
 }
 
 // sessionToolCalls scans the audit log from byte offset `from` and returns every
-// tool.call logged for sessionID, in log order. reads only new bytes so a
-// long-lived log does not slow the scan.
+// tool record logged for sessionID, executed or denied, in log order. reads only
+// new bytes so a long-lived log does not slow the scan.
 func sessionToolCalls(auditPath string, from int64, sessionID string) []probeCall {
 	f, err := os.Open(auditPath)
 	if err != nil {
@@ -50,22 +50,32 @@ func sessionToolCalls(auditPath string, from int64, sessionID string) []probeCal
 		if json.Unmarshal(sc.Bytes(), &e) != nil {
 			continue // a partial or non-JSON line is noise, not a scan failure
 		}
-		if e.Method != "tool.call" || e.Params.Session != sessionID {
+		if e.Params.Session != sessionID {
 			continue
 		}
-		calls = append(calls, probeCall{tool: e.Params.Tool, args: e.Params.Args, failed: e.Params.Failed})
+		if e.Method != "tool.call" && e.Method != "tool.denied" {
+			continue
+		}
+		calls = append(calls, probeCall{
+			tool:   e.Params.Tool,
+			args:   e.Params.Args,
+			failed: e.Params.Failed,
+			denied: e.Method == "tool.denied",
+		})
 	}
 	return calls
 }
 
-// sessionToolCalled returns the name of the first tool logged for sessionID, or
-// "" if none: doctor's pass/fail signal, which only asks whether a tool ran.
+// sessionToolCalled returns the name of the first tool that actually ran for
+// sessionID, or "" if none: doctor's pass/fail signal. denied records are skipped
+// on purpose - reaching for a refused tool is not proof the model can use tools.
 func sessionToolCalled(auditPath string, from int64, sessionID string) string {
-	calls := sessionToolCalls(auditPath, from, sessionID)
-	if len(calls) == 0 {
-		return ""
+	for _, c := range sessionToolCalls(auditPath, from, sessionID) {
+		if !c.denied {
+			return c.tool
+		}
 	}
-	return calls[0].tool
+	return ""
 }
 
 // fileSize returns the byte length of path, or 0 if it does not exist yet.

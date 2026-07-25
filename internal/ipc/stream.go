@@ -234,6 +234,10 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 				}
 				if decErr := dec.Decode(&approval); decErr != nil || !approval.Approved {
 					sess.AppendMessage(provider.Message{Role: "tool", Content: "user denied tool execution"})
+					// audit the rejection too (§8.2 layer C): what a model reached
+					// for and was refused is the security signal, and it never
+					// reaches the tool.call entry below because it does not execute.
+					s.auditToolCall("tool.denied", sess.ID, tc, false)
 					if s.verbose {
 						log.Printf("[inarid->builtin] %s denied by user", tc.Function.Name)
 					}
@@ -251,14 +255,7 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 			// audit every model-invoked tool call (name + args), not just the outer
 			// session.stream request that started the turn; this is the data the
 			// curated-tool-surface review depends on.
-			if b, mErr := json.Marshal(map[string]any{
-				"session": sess.ID,
-				"tool":    tc.Function.Name,
-				"args":    tc.Function.Arguments,
-				"failed":  err != nil,
-			}); mErr == nil {
-				s.auditor.Log("tool.call", json.RawMessage(b))
-			}
+			s.auditToolCall("tool.call", sess.ID, tc, err != nil)
 			if turnToolOutput.Len() > 0 {
 				turnToolOutput.WriteString("\n")
 			}
@@ -268,6 +265,24 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 	}
 
 	enc.Encode(map[string]string{"error": "tool call limit reached"})
+}
+
+// auditToolCall writes one tool record to the audit log. method is "tool.call"
+// for a call that executed or "tool.denied" for one the user refused, so the two
+// stay distinguishable to readers (doctor's health check counts only executions).
+// a marshal failure is dropped rather than surfaced: an unloggable argument map
+// must not abort the user's turn.
+func (s *Server) auditToolCall(method, sessionID string, tc provider.ToolCall, failed bool) {
+	b, err := json.Marshal(map[string]any{
+		"session": sessionID,
+		"tool":    tc.Function.Name,
+		"args":    tc.Function.Arguments,
+		"failed":  failed,
+	})
+	if err != nil {
+		return
+	}
+	s.auditor.Log(method, json.RawMessage(b))
 }
 
 // DefaultNumCtx returns the num_ctx to request for a model whose maximum context

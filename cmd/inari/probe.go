@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/mirageglobe/ai-inari/internal/config"
 	"github.com/mirageglobe/ai-inari/internal/ipc"
@@ -110,19 +109,12 @@ func probeOne(client *ipc.Client, model, fixture, auditPath string, task probeTa
 	toolReqs := make(chan ipc.ToolRequestMsg, 8)
 	approvals := make(chan bool, 8)
 
-	// safe builtins and allowlisted shell auto-execute and are read back from the
-	// audit log. anything that asks for approval is denied (the probe must never
-	// run unreviewed commands) but still recorded: a denied request is exactly the
-	// "reached for the wrong thing" signal the audit is looking for, and denied
-	// calls never reach the audit log.
-	var mu sync.Mutex
-	var denied []probeCall
+	// anything that asks for approval is denied: the probe must never run
+	// unreviewed commands. the refusal still shows up in the report because the
+	// daemon audits denials too, so no client-side bookkeeping is needed here.
 	done := make(chan struct{})
 	go func() {
-		for req := range toolReqs {
-			mu.Lock()
-			denied = append(denied, probeCall{tool: req.Name, args: req.Args, denied: true})
-			mu.Unlock()
+		for range toolReqs {
 			approvals <- false
 		}
 		close(done)
@@ -139,12 +131,7 @@ func probeOne(client *ipc.Client, model, fixture, auditPath string, task probeTa
 		res.err = "chat: " + streamErr.Error()
 	}
 
-	// executed calls come from the log in order; denied ones are appended after,
-	// since the log carries no record of them to interleave against.
 	res.calls = sessionToolCalls(auditPath, from, info.ID)
-	mu.Lock()
-	res.calls = append(res.calls, denied...)
-	mu.Unlock()
 	return res
 }
 
