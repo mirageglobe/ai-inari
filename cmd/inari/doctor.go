@@ -35,6 +35,7 @@ func cmdDoctor(cfgPath string, verifyModelsFlag bool) {
 	} else {
 		line("warn", "config", "created with defaults at "+cfgPath)
 	}
+	reportConfigDrift(cfgPath, cfg)
 
 	// ollama reachable at the ACTIVE endpoint (the selected provider profile), not
 	// the legacy top-level url, so doctor health-checks the backend actually in use.
