@@ -9,7 +9,7 @@ import (
 	"log"
 	"math"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // auditTurnMetrics records what one generation round cost. durations are emitted

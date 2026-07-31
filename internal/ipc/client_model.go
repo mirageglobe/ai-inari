@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // ListModels returns models available in Ollama via inarid.

@@ -3,7 +3,7 @@ package ipc
 import (
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // TestSessionSetRole covers a valid role, rejection of an unknown role (leaving

@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // onToolApproval shows the approval prompt for a server-requested tool call and

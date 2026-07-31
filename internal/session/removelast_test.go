@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // TestRemoveLast asserts RemoveLast drops exactly the final message.

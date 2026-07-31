@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // TestKeepAliveInChatBody asserts SetKeepAlive causes keep_alive to be sent on

@@ -7,7 +7,7 @@ package main
 import (
 	"strings"
 
-	"github.com/mirageglobe/ai-inari/internal/config"
+	"github.com/mirageglobe/inari/internal/config"
 )
 
 // reportConfigDrift warns about settings that look configured but do nothing.

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // measured against gemma4:e2b via `inari probe`: the model sometimes packs the

@@ -3,7 +3,7 @@ package ipc
 import (
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // TestSessionRename covers the happy path (name updated in place, other fields

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // TestDecodeParamsReturnsInvalidParams asserts malformed params now return the

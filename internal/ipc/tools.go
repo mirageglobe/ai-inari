@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // filesystemTools returns the read-only tool definitions declared to Ollama for

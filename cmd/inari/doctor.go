@@ -6,8 +6,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/mirageglobe/ai-inari/internal/config"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
+	"github.com/mirageglobe/inari/internal/config"
+	"github.com/mirageglobe/inari/internal/ollama"
 )
 
 // cmdDoctor checks inari's runtime dependencies and prints one status line per

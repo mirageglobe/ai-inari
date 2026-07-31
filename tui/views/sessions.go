@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/ipc"
 )
 
 var sessionsStyle = lipgloss.NewStyle().

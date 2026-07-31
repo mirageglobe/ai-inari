@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/config"
+	"github.com/mirageglobe/inari/internal/config"
 )
 
 // refuseIfRunning fatals if a live daemon is already recorded; two daemons sharing

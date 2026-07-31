@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/ipc"
 )
 
 const (

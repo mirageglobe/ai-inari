@@ -1,11 +1,11 @@
 # ================================================================ info ===== #
 
-# project : ai-inari
+# project : inari
 # author  : mirageglobe
 
 # ======================================================= configuration ===== #
 
-PROJECT  := ai-inari
+PROJECT  := inari
 BIN_DIR  := bin
 BINARY   := $(BIN_DIR)/inari
 

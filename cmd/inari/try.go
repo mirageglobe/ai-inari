@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/config"
-	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/config"
+	"github.com/mirageglobe/inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // runTry evaluates a candidate model you do not yet run. it (1) resolves the tag

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // PullModel triggers a background `ollama pull` for model via inarid, streaming

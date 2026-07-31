@@ -17,7 +17,7 @@ industry. Thousands of shrines across Japan are dedicated to Inari, each guarded
 by kitsune, the foxes who serve as messengers between the spirit world and ours.
 Inari doesn't shout. It works quietly, and good things follow.
 
-**ai-inari** is a herd of local AI minions. Intelligence that lives on your
+**inari** is a herd of local AI minions. Intelligence that lives on your
 machine, answers to you alone, and disappears when you close the lid.
 
 No cloud. No telemetry. No secrets leaving the machine. Just a quiet herd
@@ -88,7 +88,7 @@ only needed to end it immediately.
 
 ## configuration
 
-`ai-inari` reads from `config.json` in the project root.
+`inari` reads from `config.json` in the project root.
 
 ```json
 {

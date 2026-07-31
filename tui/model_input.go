@@ -11,7 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-inari/tui/views"
+	"github.com/mirageglobe/inari/tui/views"
 )
 
 // activeViewInputFocused reports whether the currently active view is capturing

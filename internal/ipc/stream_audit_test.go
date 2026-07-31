@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/audit"
+	"github.com/mirageglobe/inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // TestStreamAuditsToolCall asserts that a model-invoked tool call is written to

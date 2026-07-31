@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // TestSessionTag covers toggle-on, toggle-off, and empty-tag rejection.

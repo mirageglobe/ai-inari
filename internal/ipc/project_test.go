@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/audit"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // newProjectTestServer spins up a daemon with the given global prompt and returns

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // Store holds all active and background sessions.

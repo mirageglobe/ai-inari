@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/ipc"
 )
 
 func (h Sessions) onThemeChanged() (tea.Model, tea.Cmd) {

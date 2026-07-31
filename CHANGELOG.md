@@ -1,6 +1,6 @@
 # changelog
 
-all notable changes to ai-inari are documented here.
+all notable changes to inari are documented here.
 format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
@@ -104,4 +104,4 @@ format follows [keep a changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-[v0.1.0]: https://github.com/mirageglobe/ai-inari/releases/tag/v0.1.0
+[v0.1.0]: https://github.com/mirageglobe/inari/releases/tag/v0.1.0

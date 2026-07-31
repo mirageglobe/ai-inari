@@ -12,7 +12,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // Chat sends a single blocking request and returns the full reply.

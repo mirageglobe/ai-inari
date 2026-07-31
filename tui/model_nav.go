@@ -8,7 +8,7 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-inari/tui/views"
+	"github.com/mirageglobe/inari/tui/views"
 )
 
 // updateNav handles view-navigation and command messages. it returns handled

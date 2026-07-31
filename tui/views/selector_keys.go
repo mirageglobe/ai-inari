@@ -8,7 +8,7 @@ package views
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // handleKey processes a key press for the model selector. handled reports

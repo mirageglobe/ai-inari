@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // handleStream serves a session.stream request over a dedicated connection.

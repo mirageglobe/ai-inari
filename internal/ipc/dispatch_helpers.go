@@ -9,7 +9,7 @@ package ipc
 
 import "encoding/json"
 
-import "github.com/mirageglobe/ai-inari/internal/session"
+import "github.com/mirageglobe/inari/internal/session"
 
 // badParams builds a JSON-RPC invalid-params (-32602) error response. per the spec,
 // -32602 is the code for malformed/invalid params (previously some handlers used

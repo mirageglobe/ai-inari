@@ -11,7 +11,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 
-	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/ipc"
 )
 
 func (h *Sessions) rebuildTable() {

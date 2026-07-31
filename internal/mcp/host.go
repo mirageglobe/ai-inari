@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/config"
+	"github.com/mirageglobe/inari/internal/audit"
+	"github.com/mirageglobe/inari/internal/config"
 )
 
 // Connector wraps a running MCP child process.

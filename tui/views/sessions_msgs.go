@@ -5,8 +5,8 @@
 package views
 
 import (
-	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // runningMeta holds live stats for a running model, used to populate VRAM/Status columns.

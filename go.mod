@@ -1,4 +1,4 @@
-module github.com/mirageglobe/ai-inari
+module github.com/mirageglobe/inari
 
 go 1.24.2
 

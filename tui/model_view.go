@@ -7,7 +7,7 @@ package tui
 import (
 	"strings"
 
-	"github.com/mirageglobe/ai-inari/tui/views"
+	"github.com/mirageglobe/inari/tui/views"
 )
 
 func (m Model) View() string {

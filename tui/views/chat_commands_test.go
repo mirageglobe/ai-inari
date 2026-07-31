@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // the command table is sorted alphabetically in init(), so the palette and help

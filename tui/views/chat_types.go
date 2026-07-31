@@ -8,7 +8,7 @@ package views
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 var (
