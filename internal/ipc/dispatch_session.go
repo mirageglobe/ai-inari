@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/config"
-	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/config"
+	"github.com/mirageglobe/inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // session.list returns a summary of every session; no message history on the wire.

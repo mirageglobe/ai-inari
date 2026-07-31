@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // TestRunUserShellPipes asserts the `!` path runs through a real shell, so pipes

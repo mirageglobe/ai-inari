@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/config"
-	"github.com/mirageglobe/ai-inari/internal/ipc"
-	"github.com/mirageglobe/ai-inari/internal/mcp"
-	"github.com/mirageglobe/ai-inari/internal/ollama"
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/audit"
+	"github.com/mirageglobe/inari/internal/config"
+	"github.com/mirageglobe/inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/mcp"
+	"github.com/mirageglobe/inari/internal/ollama"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // runDaemon is the foreground daemon loop shared by "daemon" and the background

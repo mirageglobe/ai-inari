@@ -1,7 +1,7 @@
 package ipc
 
 import (
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // defaultNewSessionModel is attached to every session.create call so a new

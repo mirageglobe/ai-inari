@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/ipc"
 )
 
 // runChat is the headless entry point: it drives a single non-streaming turn and

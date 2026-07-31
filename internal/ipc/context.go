@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mirageglobe/ai-inari/internal/config"
+	"github.com/mirageglobe/inari/internal/config"
 )
 
 // skipDirs are directory names that are always excluded from the file tree.

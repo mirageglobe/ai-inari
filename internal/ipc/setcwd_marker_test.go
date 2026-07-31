@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // staleMarker returns the injected cwd-change marker from a session's history, or

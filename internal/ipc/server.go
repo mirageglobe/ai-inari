@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/audit"
-	"github.com/mirageglobe/ai-inari/internal/provider"
-	"github.com/mirageglobe/ai-inari/internal/session"
+	"github.com/mirageglobe/inari/internal/audit"
+	"github.com/mirageglobe/inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/session"
 )
 
 // Server listens on a Unix Domain Socket and dispatches JSON-RPC calls.

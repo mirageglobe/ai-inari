@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mirageglobe/ai-inari/internal/config"
-	"github.com/mirageglobe/ai-inari/internal/ipc"
+	"github.com/mirageglobe/inari/internal/config"
+	"github.com/mirageglobe/inari/internal/ipc"
 )
 
 // runProbe audits the builtin tool surface against a real model. `doctor --models`

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 type Status string
@@ -27,7 +27,7 @@ const (
 	TierThinker Tier = "thinker"
 )
 
-// Session is a named chat context. It is the primary entity in ai-inari.
+// Session is a named chat context. It is the primary entity in inari.
 // Chat history accumulates regardless of which model is currently assigned —
 // models can be loaded and unloaded freely while the conversation persists.
 // Model is empty when no model is attached; chat is blocked until one is assigned.

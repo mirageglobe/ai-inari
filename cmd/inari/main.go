@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mirageglobe/ai-inari/internal/version"
+	"github.com/mirageglobe/inari/internal/version"
 )
 
 const defaultSocket = "/tmp/inari.sock"

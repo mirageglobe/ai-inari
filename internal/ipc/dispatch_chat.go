@@ -7,7 +7,7 @@ package ipc
 import (
 	"time"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // recapIdleThreshold is how long a session must sit with no new messages before

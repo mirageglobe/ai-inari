@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // compile-time check: *Client must implement provider.Provider.

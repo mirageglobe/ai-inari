@@ -3,7 +3,7 @@ package ipc
 import (
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 func shellCall(cmd string) provider.ToolCall {

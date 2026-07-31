@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mirageglobe/ai-inari/tui/views"
+	"github.com/mirageglobe/inari/tui/views"
 )
 
 // TestIsBareKey asserts modifier chords are not bare while plain keys are.

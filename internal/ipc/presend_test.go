@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirageglobe/ai-inari/internal/provider"
+	"github.com/mirageglobe/inari/internal/provider"
 )
 
 // TestStreamShortCircuitsLowEffort asserts that low-effort input (no alphanumeric
