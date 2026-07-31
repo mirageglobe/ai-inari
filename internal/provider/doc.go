@@ -6,6 +6,8 @@
 //   - the Provider interface (Chat, ChatStream, LoadModel, UnloadModel, ListModels,
 //     ListRunning, Ping, ModelCaps, PullModel, DeleteModel).
 //   - shared wire types: Message, Tool, ChatRequest, ChatResponse, Model, RunningModel.
+//   - Metrics: per-turn inference timing derived from a final ChatResponse chunk
+//     (tokens/sec, prefill and decode durations, time to first token).
 //
 // it does NOT own:
 //   - backend-specific HTTP / protocol logic (internal/ollama, future packages).
