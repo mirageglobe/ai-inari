@@ -62,6 +62,17 @@ type ChatRequest struct {
 type ChatResponse struct {
 	Message Message `json:"message"`
 	Done    bool    `json:"done"`
+
+	// inference counters, populated only on the final chunk; durations are in
+	// nanoseconds. the backend returns these for free on every turn and they are
+	// the only cost signal available for tier selection, so they are decoded here
+	// rather than discarded. see Metrics for the derived view.
+	TotalDuration      int64 `json:"total_duration,omitempty"`
+	LoadDuration       int64 `json:"load_duration,omitempty"`
+	PromptEvalCount    int   `json:"prompt_eval_count,omitempty"`
+	PromptEvalDuration int64 `json:"prompt_eval_duration,omitempty"`
+	EvalCount          int   `json:"eval_count,omitempty"`
+	EvalDuration       int64 `json:"eval_duration,omitempty"`
 }
 
 // Model is a locally available model reported by the backend.

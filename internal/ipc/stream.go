@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/mirageglobe/ai-inari/internal/provider"
 )
@@ -115,6 +116,9 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 
 		chunks := make(chan provider.ChatResponse, 32)
 		errCh := make(chan error, 1)
+		// time to first token is wall-clock and only observable here; the backend
+		// reports every other duration itself on the final chunk.
+		reqStart := time.Now()
 		go func() {
 			errCh <- s.provider.ChatStream(ctx, provider.ChatRequest{
 				Model:    model,
@@ -134,15 +138,24 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 		var textBuf strings.Builder
 		var toolCalls []provider.ToolCall
 		var loopDetected bool
+		var ttft time.Duration
+		var doneChunk provider.ChatResponse
 		for chunk := range chunks {
 			if loading {
 				enc.Encode(map[string]string{"status": "thinking"})
 				loading = false
 			}
+			// the final chunk carries this round's inference counters.
+			if chunk.Done {
+				doneChunk = chunk
+			}
 			if len(chunk.Message.ToolCalls) > 0 {
 				toolCalls = chunk.Message.ToolCalls
 			}
 			if chunk.Message.Content != "" {
+				if ttft == 0 {
+					ttft = time.Since(reqStart)
+				}
 				textBuf.WriteString(chunk.Message.Content)
 				enc.Encode(map[string]string{"token": chunk.Message.Content})
 				// a short sequence repeating at the tail means the model is stuck in a
@@ -181,6 +194,10 @@ func (s *Server) handleStream(conn net.Conn, dec *json.Decoder, req Request) {
 			}
 			return
 		}
+
+		// record what this round cost once it completed cleanly. a tool-calling turn
+		// runs several rounds and each is its own generation, so each gets a record.
+		s.auditTurnMetrics(sess.ID, model, round, provider.MetricsFrom(doneChunk, ttft))
 
 		if len(toolCalls) == 0 {
 			// prompt-based tool-call fallback: a model (esp. a small one at high
