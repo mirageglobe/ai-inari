@@ -45,7 +45,7 @@ type Model struct {
 	client            *ipc.Client
 	current           view
 	activeSession     string // session ID of the currently open chat
-	sessions            views.Sessions
+	sessions          views.Sessions
 	models            views.ModelSelector
 	logs              views.Logs
 	describe          views.Describe
@@ -60,7 +60,7 @@ type Model struct {
 	showHelp          bool // true while the [?] help overlay is visible
 	showThemePicker   bool // true while the /theme modal is visible
 	showModelSelector bool // true while the model selector modal is overlaid on sessions
-	showSessions        bool // true while sessions is overlaid on chat as a popup modal (opened via /sessions)
+	showSessions      bool // true while sessions is overlaid on chat as a popup modal (opened via /sessions)
 	showLogs          bool // true while logs is overlaid as a popup modal (opened via /logs or [l])
 	showDescribe      bool // true while describe is overlaid as a popup modal (opened via /describe or [d])
 	themePickerIdx    int  // cursor position in the theme picker
@@ -107,7 +107,7 @@ func New(client *ipc.Client, configPath string, themeIdx int) Model {
 	return Model{
 		client:        client,
 		current:       viewSessions,
-		sessions:        views.NewSessions(client),
+		sessions:      views.NewSessions(client),
 		models:        views.NewModelSelector(client),
 		logs:          views.NewLogs(),
 		describe:      views.NewDescribe(),

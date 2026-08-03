@@ -17,9 +17,9 @@ type Connector struct {
 
 // Host manages all MCP connector child processes.
 type Host struct {
-	defs     []config.MCPConnector
-	auditor  *audit.Auditor
-	running  []*Connector
+	defs    []config.MCPConnector
+	auditor *audit.Auditor
+	running []*Connector
 }
 
 func NewHost(defs []config.MCPConnector, auditor *audit.Auditor) *Host {
