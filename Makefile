@@ -83,11 +83,18 @@ stop: ## stop the running daemon
 
 ##@ verify
 
-lint: ## run vet and staticcheck
+fmt-check: ## fail if any tracked go file is not gofmt-clean
+	@unformatted=$$(gofmt -l $$(git ls-files '*.go')); \
+	if [ -n "$$unformatted" ]; then \
+		printf "  gofmt needed:\n%s\n" "$$unformatted"; \
+		exit 1; \
+	fi
+
+lint: fmt-check ## run gofmt check, vet and staticcheck
 	go vet ./...
 	@command -v staticcheck >/dev/null && staticcheck ./... || printf "  staticcheck not found — skipping\n"
 
-test: ## run all tests
+test: fmt-check ## run gofmt check, vet and all tests
 	go vet ./...
 	go test ./...
 
