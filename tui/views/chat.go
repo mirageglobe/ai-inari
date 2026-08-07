@@ -50,6 +50,7 @@ type Chat struct {
 	historyLoaded  bool
 	offline        bool
 	showBuiltin    bool
+	shellMode      bool // true while `!` shell mode is active; survives submits, exits on backspace at an empty input
 	ctxChars       int
 	maxCtx         int      // model's max context window (tokens); 0 until fetched / unknown
 	numCtxOverride int      // per-session num_ctx override (tokens); 0 = use computed default
