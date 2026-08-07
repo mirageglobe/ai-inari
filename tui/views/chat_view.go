@@ -12,10 +12,16 @@ import (
 )
 
 // inputPrompt returns the entry prefix reflecting the active mode:
-// [cmd] while composing a slash command, [tool] while the builtin panel is open,
-// otherwise plain [chat]. gives the user visual feedback on what the input does.
+// [sh] while shell mode is active, [cmd] while composing a slash command, [tool]
+// while the builtin panel is open, otherwise plain [chat]. gives the user visual
+// feedback on what the input does.
 func (c Chat) inputPrompt() string {
 	switch {
+	// shell mode is checked first, and before the slash case, because it is sticky
+	// state rather than a property of the buffer: with the mode on, even a line
+	// starting with `/` is sent to the shell, so the prompt must say so.
+	case c.shellMode:
+		return "[sh] ❯ "
 	case strings.HasPrefix(c.input.Value(), "/"):
 		return "[cmd] ❯ "
 	case strings.HasPrefix(c.input.Value(), "!"):

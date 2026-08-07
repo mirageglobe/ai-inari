@@ -52,6 +52,20 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 		c.inputFocused = true
 	}
 
+	// `!` is a mode, not a prefix character. typing it at an empty input enters shell
+	// mode and is consumed, so it never lands in the buffer; mid-line it is just a
+	// character (echo hi!) and falls through. backspace at an empty input is the only
+	// way out, matching how claude code behaves. the guard on a non-empty buffer is
+	// what stops a typo mid-command from silently dropping the mode.
+	if !c.shellMode && msg.String() == "!" && c.input.Value() == "" {
+		c.shellMode = true
+		return c, nil, true
+	}
+	if c.shellMode && msg.Type == tea.KeyBackspace && c.input.Value() == "" {
+		c.shellMode = false
+		return c, nil, true
+	}
+
 	// ctrl-prefixed shortcuts never collide with typed text, so they stay active
 	// while the input is focused (unlike bare keys like `t`/`?`; see open issue).
 	// ctrl+m is deliberately omitted: terminals deliver it as carriage-return, which
@@ -124,25 +138,31 @@ func (c Chat) handleKey(msg tea.KeyMsg) (Chat, tea.Cmd, bool) {
 		if text == "" {
 			return c, nil, true
 		}
+		// shell mode is checked before slash commands so the prompt never lies: while
+		// [sh] is showing, the whole line goes to the shell. leave the mode with
+		// backspace at an empty input to reach slash commands again.
+		//
+		// shell escape-hatch: run the line as a real shell command via the daemon,
+		// bypassing the model. runs even while offline (shell exec is local to the
+		// daemon, independent of the model backend). the `!` prefix still works for a
+		// pasted line, which never enters the mode since it is not a lone keypress at
+		// an empty input; the mode itself survives the Reset below, which is what lets
+		// consecutive commands skip the prefix.
+		if c.shellMode || strings.HasPrefix(text, "!") {
+			line := strings.TrimSpace(strings.TrimPrefix(text, "!"))
+			c.input.Reset()
+			c.status = ""
+			if line == "" {
+				return c, nil, true
+			}
+			nc, cmd := c.runShell(line)
+			return nc, cmd, true
+		}
 		if strings.HasPrefix(text, "/") {
 			c.input.Reset()
 			c.status = ""
 			m, cmd := c.handleSlashCommand(text)
 			return m.(Chat), cmd, true
-		}
-		// `!` escape-hatch: run the rest of the line as a real shell command via the
-		// daemon, bypassing the model. runs even while offline (shell exec is local to
-		// the daemon, independent of the model backend).
-		if strings.HasPrefix(text, "!") {
-			line := strings.TrimSpace(text[1:])
-			c.input.Reset()
-			c.status = ""
-			if line == "" {
-				c.status = "[warn] usage: !<shell command>"
-				return c, nil, true
-			}
-			nc, cmd := c.runShell(line)
-			return nc, cmd, true
 		}
 		if c.offline {
 			return c, nil, true

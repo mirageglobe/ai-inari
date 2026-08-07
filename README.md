@@ -184,7 +184,7 @@ The TUI is inspired by `k9s` and is entirely keyboard-driven.
 
 **chat**
 - `enter`: send message | `ctrl+o`: change model
-- `!<cmd>`: run a shell command in the session directory, skipping the model (e.g. `!git status`, `!ls | wc -l`); the output shows in the chat and the model sees it too
+- `!`: enter shell mode. the prompt becomes `[sh]` and every line you send runs in the session directory, skipping the model (e.g. `git status`, `ls | wc -l`); output shows in the chat and the model sees it too. the mode stays on, so a second command needs no prefix; press `backspace` on an empty input to return to chat
 - `ctrl+t`: tools panel | `ctrl+p`: command palette | `ctrl+g`: help
 - `↑` / `↓`: input history | `esc`: stop response / clear slash input
 
