@@ -12,7 +12,7 @@
 
 ![demo](demo.gif)
 
-In Japanese mythology, Inari is the fox god — the kami of luck, prosperity, and
+In Japanese mythology, Inari is the fox god - the kami of luck, prosperity, and
 industry. Thousands of shrines across Japan are dedicated to Inari, each guarded
 by kitsune, the foxes who serve as messengers between the spirit world and ours.
 Inari doesn't shout. It works quietly, and good things follow.
@@ -50,7 +50,7 @@ The herd is organized into tiers based on resource usage and role:
 | thinkers | architect / chat         | 1 GB   | Bonsai 8B     | yes      |
 
 Runners are optional agents the thinker dispatches for background work.
-The thinker is the "Head Inari" — the one you talk to directly.
+The thinker is the "Head Inari" - the one you talk to directly.
 
 ---
 
@@ -173,19 +173,19 @@ only these two fields are honored. infra and security settings (socket, endpoint
 The TUI is inspired by `k9s` and is entirely keyboard-driven.
 
 **sessions (main screen)**
-- `s`: new session | `m`: assign model
-- `c` / `enter`: open chat | `x`: delete session | `d`: describe
+- `a`: new session | `enter`: open chat | `x`: delete session
 - `/`: filter sessions (type to narrow, `esc` clears)
-- `l`: view logs | `r`: refresh | `q`: quit
+- `q` / `esc`: quit
+- assigning a model, describe, logs and refresh live in chat as slash commands (`/model`, `/describe`, `/logs`, `/refresh`), since chat owns every shared command
 
-**model selector** (opened with `m` or `ctrl+o`)
+**model selector** (opened with `ctrl+o`)
 - `enter`: assign / pull | `u`: unload from RAM | `d`: delete from disk
 - `q` / `esc`: cancel
 
 **chat**
 - `enter`: send message | `ctrl+o`: change model
 - `!<cmd>`: run a shell command in the session directory, skipping the model (e.g. `!git status`, `!ls | wc -l`); the output shows in the chat and the model sees it too
-- `ctrl+t`: tools panel | `ctrl+p`: command palette | `ctrl+g`: help
+- `ctrl+p`: command palette | `/tools`: tools panel | `/help`: help
 - `↑` / `↓`: input history | `esc`: stop response / clear slash input
 
 **pop-up modals** (help, describe, logs, tools, model selector, theme)
