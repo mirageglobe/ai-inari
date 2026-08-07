@@ -11,6 +11,7 @@ Security-first, minimalist local AI orchestrator.
 - Keep the security surface minimal: no network exposure, no cloud dependencies.
 - Support parallel model execution with explicit resource budgeting.
 - Remain inspectable: all tool-calls are audited and visible to the operator.
+- Stay fast on ordinary hardware: an interactive turn's cost (reasoning budget, prefill, render) is budgeted and measured against §6.3, never inherited from backend defaults.
 
 ## 2. Non-Goals
 
@@ -27,18 +28,18 @@ Security-first, minimalist local AI orchestrator.
 
 the guiding sequence for inari is: ship working features on concrete implementations first, then refactor toward open architecture once the right abstraction shape is known.
 
-designing abstractions too early produces interfaces that fit the first implementation but break the moment a second is added. inari currently has one inference backend (Ollama) and one tool-calling mode — introducing a `Provider` interface now would be guessing. the right shape only becomes visible when writing real code against two concrete targets.
+designing abstractions too early produces interfaces that fit the first implementation but break the moment a second is added. the right shape only becomes visible when writing real code against two concrete targets.
 
 **practical sequence:**
 
 1. **finish the basics** — prompt-based tool calling, session context, streaming stability. ship features that prove the design.
 2. **add a second backend** — e.g. LM Studio (OpenAI-compatible). this is the moment the interface shape becomes obvious, not before.
-3. **extract the abstraction** — the `Provider` interface is pulled from two working implementations, not invented upfront. it reflects reality.
+3. **extract the abstraction** - **done.** `provider.Provider` (Ping, Chat, ChatStream, LoadModel, UnloadModel, ListModels, ListRunning) lives in `internal/provider`, `internal/ollama.Client` satisfies it under a compile-time check (`var _ provider.Provider = (*Client)(nil)`), and `internal/ipc.Server` holds only the interface. it was pulled from working code rather than invented upfront, which was the point. what it has **not** been tested against is a second concrete backend, so treat its shape as provisional until one lands.
 
 **guard against premature abstraction:**
 
 - the Ollama client is already isolated in `internal/ollama` — nothing outside imports Ollama-specific types directly. the boundary is there when needed.
-- do not add `Provider` interfaces, plugin systems, or backend registries until a second concrete backend exists.
+- the `Provider` interface now exists; do **not** widen it speculatively. no plugin systems or backend registries until a second concrete backend forces the shape.
 - when in doubt: duplicate once, abstract on the second duplication.
 
 ---
@@ -83,8 +84,13 @@ section.
 ### Near-term
 - [ ] `[inari]` `[easy]` **widen the probe suite beyond one task per builtin** - `inari probe` currently aims exactly one prompt at each builtin, which measures "can the model reach this tool at all" but not selection under ambiguity (two plausible tools for one question, e.g. find_files vs grep_file for "where is the config"), multi-step chains, or a project layout unlike the fixture. add a second task class with a deliberately ambiguous target and score by preferred-vs-acceptable rather than a single `want`.
 - [ ] `[inarit]` `[easy]` **surface turn metrics in the chat view** - the daemon now records tokens/sec, time-to-first-token and the prefill/decode split for every generation round (see **inference telemetry** in Done) and logs a `turn.metrics` line under `--verbose`, but none of it reaches the TUI. scope: decide where a per-turn cost line belongs in the chat view (footer, a dimmed line after the reply, or only behind a toggle) and forward the numbers over IPC. held back from the telemetry change deliberately: placement is a UI decision, not a mechanical one.
-- [ ] `[inarid]` `[medium]` **reasoning-token handling (verify, then fold)** - `deepseek-r1` is curated at both the 8gb and 16gb coding tiers, and r1 is a reasoning model that emits chain-of-thought before its answer. the tree has no `<think>` parse and no read of ollama's separate `thinking` response field; the only matches are the `thinkingStyle`/`"thinking"` spinner strings in the TUI and the daemon's coarse phase signal. verify first by driving a real r1 turn through the chat view: if reasoning tokens arrive in `message.content`, they currently render as the reply. scope after that measurement: detect the reasoning segment, keep it out of the persisted answer, and fold it behind a toggle rather than dropping it silently.
+- [ ] `[inarid]` `[medium]` **capture and control reasoning tokens** - measured, so no longer a verify-first item (see §6.3.1). `gemma4:e2b`, the **default thinker**, returns its chain of thought in a separate `message.thinking` field rather than inline in `message.content`; `provider.Message` declares only `role`/`content`/`tool_calls`, so it is dropped at unmarshal, and inarid never sends the `think` parameter, so the model's own default (on) applies. inari therefore waits for tokens it then discards: medians of 3 on the reference machine put the cost at 244 vs 22 decode tokens and 4.87 s vs 0.77 s on an easy prompt, 985 vs 434 and 18.18 s vs 8.21 s on a hard one, for answers of comparable length. **correctness was not graded**, so the hard-prompt case may well be earning its keep; that is the reason to make it controllable rather than simply switch it off. scope: add a `Thinking` field to `provider.Message` (json tag `thinking`), thread the `think` request parameter through `ChatRequest`, add a per-session setting with a visible state (§6.4 invariant 3), and fold the captured text behind a toggle rather than dropping it. the r1 case this item originally described (inline `<think>` in `content`) still needs its own check against `deepseek-r1:14b`, since a second parse path may be required.
 - [ ] `[inarit]` `[easy]` **make `!` a sticky shell mode, not a prefix character** - `!` is currently not a mode at all: it is a literal character sitting in the input buffer, and the `[sh] ❯` prompt is derived from it by `strings.HasPrefix(c.input.Value(), "!")` in `inputPrompt()` (`chat_view.go`). because submitting calls `c.input.Reset()` (`chat_keys.go`), the `!` is cleared with the line, so the mode evaporates after every command and a second shell command means typing `!` again. wanted, matching claude code: typing `!` at an empty input **enters** shell mode and is consumed rather than inserted, the mode persists across submits so consecutive commands need no prefix, and the only way out is pressing backspace with an empty input, which drops the mode and returns to `[chat]`. scope: a `shellMode bool` on `Chat` driving both `inputPrompt()` and the submit branch, plus explicit `tea.KeyBackspace` handling in the chat view, which currently has **none** (the only `KeyBackspace` case in the tree is `sessions_input.go`, so the textinput swallows it today). the sharp edge to test: backspace must delete a character whenever the buffer is non-empty and exit the mode **only** when it is empty, so a user mid-command never loses the mode by editing, and the empty-input `!` usage warning becomes unreachable.
+- [ ] `[inarit]` `[medium]` **coalesce streamed token frames on a display-rate budget** - one backend chunk currently produces one UDS JSON frame, one `ChatTokenMsg`, one `streamBuf` concatenation, one full viewport rebuild with hard-wrap, and one bubble tea `View()` (§6.3.3). at the measured 56 tok/s that is 56 full frame renders per second, and `c.streamBuf += msg.Token` is quadratic in reply length. scope: accumulate tokens in a `strings.Builder` and flush to the viewport on a ticker at a display-sensible rate (~30 fps) rather than per token, keeping the final flush on `ChatDoneMsg` so no tail is lost. the sharp edge to test: an interrupt or an error mid-stream must still flush whatever was buffered, or the visible reply silently truncates.
+- [ ] `[inarid]` `[easy]` **doctor: report the memory knobs that multiply** - `inari doctor` surfaces `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_NUM_PARALLEL` but not `OLLAMA_FLASH_ATTENTION` or `OLLAMA_KV_CACHE_TYPE`, both present in `ollama serve --help` on 0.32.6 and both server-start only. it also does not say that ollama allocates `num_ctx` **per parallel slot**, so `num_parallel: 4` with an 8192-token window reserves 32768 tokens of kv cache (§6.3.4). scope: report both variables with their effective values, and compute and print the implied kv reservation from the session's window times `num_parallel`. **do not set them**: they are globals affecting every model on that server, and unsupported architectures fall back to `f16` without reporting it, so advice is honest where silent configuration would not be.
+- [ ] `[inarid]` `[easy]` **stop presenting prefill rate as throughput** - the `turn.metrics` record derives its prefill numbers from `prompt_eval_count` over `prompt_eval_duration`, but that count reports tokens *submitted*, not tokens *computed*: on a prefix-cache hit it stays at the full history length while the duration collapses, so the derived rate reads ~10,000 tok/s and means nothing (§6.3.2). scope: drop or rename any prefill-rate field, and add a cache-hit signal derived from `prompt_eval_duration` instead, which is the only counter that can see it. this is the same defect class as the `make lint` staticcheck report: an instrument that answers confidently without measuring.
+- [ ] `[inari]` `[medium]` **`make bench-turn`: make the §6.3 numbers reproducible** - every figure in the cost model was measured by hand against `/api/chat`. without a committed harness they rot into folklore the moment ollama or a model tag moves. scope: a small target that drives a fixed prompt set through the configured thinker with thinking on and off, reports medians of n runs for decode tokens, wall clock and prefill, and prints the reference-machine row alongside so drift is visible. it must **not** assert a threshold; hardware varies too much for that to be anything but a flaky test.
+- [ ] `[inarid]` `[medium]` **move prompt-based tool calling to a JSON schema** - §4.6's fallback still specifies `format: "json"`, which only constrains the output to *some* valid JSON and leaves field names, types and required keys to chance. ollama now accepts a full JSON **schema** in `format`, enforced by constrained decoding, which makes an off-schema tool call unrepresentable rather than merely unlikely, and skips the tokens the model would have spent deciding on formatting. scope: emit a schema per declared tool and select it when the fallback path is active. the caveat to respect: small quantised models degrade on deeply nested schemas, so keep the tool schemas flat (one object, scalar fields) rather than modelling the whole tool union in one nested shape.
 
 ### Ideas
 - [ ] `[inarid]` `[hard]` **scripting layer for agent execution (Yaegi vs Deno vs status quo)** - evaluated replacing or augmenting the model's `execute_shell_command` path with an embedded interpreter. **decision so far: not the in-process Go interpreter as pitched.** the deciding axis is the trust boundary (the *model* is the untrusted author), not execution latency (subprocess spawn ~30ms is immaterial against multi-second inference and the render hot path, both measured). options: (a) **Yaegi** (in-process Go) is fast and zero-external-dependency, but has no real sandbox: disabling `unsafe`/`syscall` still leaves `os`/`os/exec`/`net`, so model-authored Go is as dangerous as shell or worse and has no allowlist concept; only safe for *user*-authored plugins/macros (trusted, config-time), never model output. (b) **Deno** is a genuine deny-by-default permission sandbox (`--allow-read=<cwd>` only, no net/write/spawn), the safer runtime for model-authored code, but adds an external runtime and re-adds process spawn. (c) **status quo + more typed builtins** (chosen for now): small local models emit structured tool calls far more reliably than compilable Go/JS, so expanding the pure-Go builtin surface (shipped: `find_files`, `read_lines`; plus allowlisted `awk`/`sed`/`jq`) covers the need with no new runtime. revisit Yaegi only as a user-plugin extension mechanism, or Deno if model-authored scripting becomes a hard requirement.
@@ -100,7 +106,7 @@ section.
 - [ ] `[inarid]` `[medium]` **prompt-based tool calling** — for models without native function-calling support, inject tool definitions as plain text into the system prompt and set `format: "json"`; inarid parses the JSON response to detect tool calls. select mode via session config or auto-detect from model name. makes layer 2 work on any instruction-following model (hermes-3-pro, qwen3-coder, etc.)
 - [ ] `[inarid]` `[medium]` **provider abstraction** — the `Provider` interface already exists (`internal/provider/provider.go`: Chat, ChatStream, LoadModel, UnloadModel, ListModels, ListRunning, Ping) and inarid's core already talks only to it. remaining work is a second concrete provider (vLLM, LM Studio, llama.cpp server, or a cloud API) selected via `provider` in `config.json`; overlaps with the local endpoint profiles item above.
 - [ ] `[inarid]` `[hard]` multi-model routing — a runner agent classifies intent and either handles the request itself or escalates to the thinker agent
-- [ ] `[inarid]` `[hard]` **context caching / compression / optimisation** — investigate strategies to reduce prompt size and improve response speed: KV-cache reuse across turns, selective message eviction, rolling summary compression, and prefix caching at the provider level; goal is lower latency and higher effective context utilisation without degrading response quality
+- [ ] `[inarid]` `[hard]` **context compression / eviction** - narrowed by measurement (§6.3.2): KV-cache reuse across turns and prefix caching at the provider level are **already working** and need nothing built here; a follow-up turn that preserves its prefix re-prefills 16x faster than a cold one, and inari's frozen system prompt is what keeps that hit. what remains is the part the backend cannot decide for inari: *what* to drop. scope: selective message eviction and rolling summary compression, both of which rewrite history and therefore forfeit the prefix cache for one turn by construction (§6.4 invariant 2). they have to pay for themselves across the turns that follow, which argues for compacting rarely and deeply rather than on every threshold crossing.
 - [ ] `[inarid]` `[hard]` **vector store / RAG context** — replace or augment flat JSON session storage with a semantic retrieval layer. progression: (1) sqlite as structured store; (2) sqlite-vec (sqlite vector extension) for local embeddings — single file, no external service, fits the Go daemon cleanly; (3) full RAG pipeline with chunking, a local embedding model (~100MB), and ranked context injection. at query time, the user message is embedded and the top-k semantically similar chunks are injected into the prompt rather than the full history dump. benefit: small models see only relevant context, reducing token pressure and improving response quality. a global "master context" store (outside any cwd) could be maintained alongside per-session history, giving all sessions access to persistent personal or cross-project knowledge.
 - [ ] `[inarid]` `[hard]` **task difficulty/effort classification** — investigate how to define and score task difficulty, complexity, and effort (e.g. token count, tool-call depth, reasoning hops) so inarid can automatically select the appropriate model tier (runner vs. thinker) rather than relying on manual session config
 - [ ] `[inarid]` `[medium]` consider adding vLLM as an alternative backend to Ollama — vLLM is OpenAI-compatible and may offer better throughput on CUDA hardware; evaluate alongside the local endpoint profiles item as a concrete second backend candidate
@@ -441,7 +447,7 @@ the native `tools` API parameter solves the "silent ignore" problem only for mod
    {"tool": "read_file", "path": "relative/path"}
    {"tool": "list_dir", "path": "."}
    ```
-2. **set `format: "json"` in the ollama request.** this forces the model to treat tool use as a structured text instruction rather than an API feature, making it reliable across any instruction-following model.
+2. **constrain the output with a JSON schema.** ollama's `format` parameter accepts a full JSON schema, not just the string `"json"`, and enforces it by constrained decoding: the sampler masks tokens that cannot continue a valid document, so an off-schema reply is unrepresentable rather than merely unlikely, and no tokens are spent deciding on formatting. plain `format: "json"` (JSON mode) is the weaker fallback: it guarantees *some* valid JSON and nothing about field names, types or required keys. keep schemas flat (one object, scalar fields); small quantised models degrade noticeably on deeply nested shapes.
 3. **inarid parses the response.** if the JSON response contains a `tool` key, it is treated as a tool call; otherwise it is a plain text reply.
 
 this approach trades API cleanliness for broad model compatibility. it is the recommended strategy for local SLMs where native function-calling is patchy or absent.
@@ -555,7 +561,7 @@ queuing was explicitly not chosen: a silently queued message submitted minutes l
 
 ---
 
-## 6. Resource Tiers Logic
+## 6. Resource & Performance Model
 
 The herd uses a tiered scheduling system to manage local hardware resources:
 
@@ -567,6 +573,8 @@ Memory budget is enforced via `memory_budget_mb` in `config.json`. The scheduler
 ### 6.1 Ollama Model Curation
 
 curated picks by hardware tier and role. pull via `ollama pull <tag>`. prefer `q4_k_m` quant unless the tier has headroom for `q8_0`.
+
+`size` is the **resident** footprint (what `ollama ps` reports once loaded), which is what decides whether a model fits a tier. it is not the download: `gemma4:e2b` measures 1.7 GB resident against 7.2 GB on disk, a 4.2x gap (§6.3.4). check `ollama list` before promising a tier's users a small download.
 
 <!-- BEGIN generated: §6.1 tables from tui/views/curated.go CuratedModels; run `make curated-sync` -->
 
@@ -600,6 +608,183 @@ the table is dual-maintained (`tui/views/curated.go` `CuratedModels` + §6.1 abo
 - **model actually runs + invokes tools:** resolution is not function; that check is the headless tool-calling smoke test (roadmap items "`inari doctor`: verify pulled models actually work" and "discover + locally test new candidate models"), which drives a real turn and checks the audit log for a `tool.call` entry.
 
 drift itself is killed at the source: `CuratedModels` (`tui/views/curated.go`) is the single source and the §6.1 tables above are generated from it (`RenderCuratedTables`, between the marker comments). edit `CuratedModels`, run `make curated-sync`, and `make test` fails if the table is left stale (`TestCuratedTablesInSync`).
+
+### 6.3 Inference cost model (measured)
+
+"fast and resource-efficient" is only meaningful against a cost model, so this
+section carries measured numbers rather than adjectives.
+
+**reference machine:** MacBook Pro 18,3 (Apple M1 Pro), 32 GB unified memory,
+ollama 0.32.6, model `gemma4:e2b` unless stated. **method:** direct `/api/chat`
+calls reading the backend's own counters (`prompt_eval_count`,
+`prompt_eval_duration`, `eval_count`, `eval_duration`, `total_duration`); medians
+of 3 runs. re-measure before trusting any of it on different hardware.
+
+a turn costs four things, and they answer to completely different levers:
+
+| cost    | what it is                          | grows with          | lever                  |
+| :------ | :---------------------------------- | :------------------ | :--------------------- |
+| load    | cold-loading weights into memory    | model size          | keep_alive; residency  |
+| prefill | turning the prompt into kv cache    | prompt tokens       | prefix-cache stability |
+| decode  | generating the reply token by token | reply tokens        | reasoning budget       |
+| render  | drawing the reply in the terminal   | tokens x frame cost | frame coalescing       |
+
+the ranking that matters for an interactive TUI: on short turns **decode
+dominates**, and the largest term in decode is often not the answer.
+
+#### 6.3.1 reasoning tokens are the largest controllable cost
+
+`gemma4:e2b`, the default thinker, is a reasoning model: it returns its chain of
+thought in a **separate `message.thinking` field**, not inline in
+`message.content`. same prompt, thinking on vs off, medians of 3:
+
+| prompt | thinking | decode tokens | wall clock | answer length |
+| :----- | :------- | :------------ | :--------- | :------------ |
+| easy   | on       | 244           | 4.87 s     | 113 chars     |
+| easy   | off      | 22            | 0.77 s     | 112 chars     |
+| hard   | on       | 985           | 18.18 s    | 2146 chars    |
+| hard   | off      | 434           | 8.21 s     | 2084 chars    |
+
+on the easy prompt, thinking costs **11x the decode tokens and 6.3x the wall
+clock** for an answer of the same length; on the hard prompt, 2.3x and 2.2x.
+answer *length* is comparable in both cases and correctness was **not** graded, so
+this measures cost, not value: the hard-prompt case is exactly where the extra
+tokens may be earning their keep.
+
+**inari currently pays this cost and discards the result.** `provider.Message`
+declares only `role`, `content` and `tool_calls`, so `thinking` is dropped at
+unmarshal; inarid never sends the `think` request parameter, so the model's own
+default (on, for this model) applies. the user waits for tokens that are then
+thrown away.
+
+this reframes the near-term "reasoning-token handling" item, which assumed the
+r1-style inline `<think>` case. the measured behaviour is a **separate field**,
+and it affects the **default general model**, not only the curated `deepseek-r1`
+coding picks.
+
+#### 6.3.2 prefix caching is real, and one edited byte forfeits it
+
+inari resends the full history every turn. that is only affordable because the
+backend prefix-caches. measured against a 1236-token first turn:
+
+| turn                               | prompt_eval_count | prefill |
+| :--------------------------------- | :---------------- | :------ |
+| 1; cold                            | 1236              | 1.97 s  |
+| 2; prefix preserved                | 1257              | 0.12 s  |
+| 2; one word changed near the front | 1257              | 1.99 s  |
+
+preserving the prefix makes the follow-up turn's prefill **16x cheaper**; breaking
+it costs as much as a cold start.
+
+**instrument warning:** `prompt_eval_count` is identical (1257) across both turn-2
+rows. it counts tokens *submitted*, not tokens *computed*, so it cannot see a
+cache hit; only `prompt_eval_duration` can. a "prefill tokens/sec" derived from
+count over duration is therefore meaningless on a cache hit (it would report
+~10,000 tok/s above), and the `turn.metrics` audit record must not present such a
+rate as throughput.
+
+#### 6.3.3 the render path fans out once per token
+
+one backend chunk currently produces one of everything, all the way to the glass:
+
+- `internal/ipc/stream.go` encodes one `{"token":...}` JSON frame per token onto the UDS connection
+- `readNextToken` (`tui/views/chat_helpers.go`) turns each frame into one `ChatTokenMsg`
+- `onToken` (`tui/views/chat_stream.go`) appends via `c.streamBuf += msg.Token`, then rebuilds and hard-wraps the entire viewport content
+- bubble tea then runs a full `View()` per message
+
+at the measured 56 tok/s that is 56 full frame renders per second, and the string
+concatenation is quadratic in reply length. the terminal cannot display faster
+than it refreshes, so beyond roughly 30 fps every additional render is pure cost.
+
+#### 6.3.4 memory: the knobs multiply
+
+`gemma4:e2b` measures **1.7 GB resident** at a 32768-token window (`ollama ps`)
+against **7.2 GB on disk** (`ollama list`). the two differ by 4.2x and answer
+different questions: resident decides whether it runs, on-disk decides whether the
+user can face the download. §6.1's `size` column reports the resident figure.
+
+the backend-side knobs are multiplicative, which the config surface currently
+hides:
+
+- ollama allocates `num_ctx` **per parallel slot**, so `OLLAMA_NUM_PARALLEL=4` with an 8192-token window reserves 32768 tokens of kv cache, not 8192.
+- `OLLAMA_KV_CACHE_TYPE` defaults to `f16`; `q8_0` roughly halves kv memory at a perplexity cost small enough to go unnoticed in practice.
+- `OLLAMA_FLASH_ATTENTION` cuts attention memory; combined with a quantised cache it roughly doubles the context that fits.
+
+the latter two are **server-start** variables, exactly like the
+`OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_NUM_PARALLEL` that `inari doctor` already
+surfaces, and neither is reported today. they are also not universally honoured:
+unsupported architectures fall back to `f16` silently, so setting the variable is
+not proof that it applied. only a measured memory figure is.
+
+**measured absence:** `ollama serve --help` on 0.32.6 lists no
+`OLLAMA_SPECULATIVE_DECODE`. whatever secondary sources claim, speculative
+decoding is not a lever this backend exposes today; treat it as llama.cpp-only
+until `ollama serve --help` says otherwise.
+
+#### 6.3.5 cold start costs more than a whole warm turn
+
+`gemma4:e2b` (1.7 GB resident), measured via `load_duration`:
+
+| state                                  | load  | total |
+| :------------------------------------- | :---- | :---- |
+| cold; model evicted, OS page cache cold | 6.33s | 6.48s |
+| cold; model evicted, page cache warm    | 3.03s | 3.18s |
+| warm; model resident                    | 0.32s | 0.43s |
+
+a cold start therefore adds roughly 2.7s to 6s before the first token, against an
+entire warm easy turn of 0.77s (§6.3.1). the spread between the two cold rows is
+the OS page cache, not ollama, so the honest figure is a range rather than a
+constant.
+
+two consequences. first, `keep_alive` is the highest-leverage single setting for
+perceived speed on an interactive TUI, and ollama's 5-minute default is short
+enough that a user returning from a meeting pays full cold start; `ollama.keep_alive`
+in `config.json` is the knob and inari already applies it per request. second,
+this is what earns the existing `loading <model>...` status signal
+(`modelNotResident` in `internal/ipc/stream.go`): a multi-second silent gap before
+the first token reads as a hang, and distinguishing it from `thinking...` is the
+difference between a stall and progress.
+
+
+### 6.4 Efficiency invariants
+
+rules that follow from the measurements above. each is a constraint on future
+changes, not a preference.
+
+1. **the prompt prefix is append-only.** system prompt, project context and file
+   tree are resolved **once** at session creation (`buildCWDSystemPrompt`, called
+   from `session.create` and `/setcwd` only) and then frozen. never regenerate them
+   per turn, never reorder them, never inject anything ahead of them. inari happens
+   to do this correctly today; §6.3.2 is why it must stay that way, and why this is
+   written down rather than left to be rediscovered.
+2. **anything that rewrites history declares its cost.** `session.compact` replaces
+   old turns with a summary, so the following turn pays a full cold prefill by
+   construction. that is a fair trade for a smaller window, but it is not free and
+   must not fire automatically mid-conversation without saying so.
+3. **tokens the user never sees are opted into, never defaulted into.** a reasoning
+   budget is a per-session setting with visible state, not an inherited model
+   default.
+4. **render at the display's rate, not the model's.** token frames coalesce on a
+   frame budget; the terminal is the consumer and it refreshes at a fixed rate.
+5. **a cap is not a budget.** `num_predict` is currently pinned to the full context
+   window, which bounds a runaway loop but does nothing for latency: at 56 tok/s an
+   8192-token reply runs over two minutes. the n-gram tail detector stays the real
+   backstop.
+6. **measure, do not infer.** every performance claim here cites a measured number
+   and the instrument that produced it. §6.3.2 is the cautionary case: a
+   plausible-looking counter that cannot see the thing you want to know.
+
+### 6.5 Decisions
+
+| decision              | chosen                                                                             | why                                                                                                                                   |
+| :-------------------- | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| reasoning tokens      | decode them; capture into a separate field; render behind a toggle, off by default | measured 2.2x to 6.3x wall clock; dropping them silently is the current bug, but suppressing them outright would regress hard prompts |
+| prompt prefix         | frozen at session creation; append-only thereafter                                 | one changed byte near the front costs a full cold prefill (16x)                                                                       |
+| history transport     | keep resending full history; do not build an incremental protocol                  | the backend prefix-cache already makes it cheap; a delta protocol would add state to both sides for no measured gain                  |
+| token rendering       | coalesce frames on a display-rate budget                                           | the terminal cannot show more than its refresh rate; extra renders are pure cost                                                      |
+| speculative decoding  | not pursued                                                                        | absent from ollama 0.32.6's own env-var list; not a lever this backend exposes                                                        |
+| kv-cache quantisation | surfaced as advice in doctor; never set silently                                   | it is a server-start global affecting every model, and unsupported architectures fall back without saying so                          |
+
 
 ---
 
