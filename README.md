@@ -7,7 +7,7 @@
   🦊🦊  🦊🦊🦊  🦊🦊
     🦊🦊🦊🦊🦊🦊🦊
 
-  "a herd behind every idea."
+  "quiet work, good things follow."
 ```
 
 ![demo](demo.gif)
@@ -17,11 +17,13 @@ industry. Thousands of shrines across Japan are dedicated to Inari, each guarded
 by kitsune, the foxes who serve as messengers between the spirit world and ours.
 Inari doesn't shout. It works quietly, and good things follow.
 
-**inari** is a herd of local AI minions. Intelligence that lives on your
-machine, answers to you alone, and disappears when you close the lid.
+**inari** is a terminal coding assistant driven by local models. It opens a
+session in your project, reaches its files through sandboxed tools, and answers
+in the terminal. Intelligence that lives on your machine, answers to you alone,
+and disappears when you close the lid.
 
-No cloud. No telemetry. No secrets leaving the machine. Just a quiet herd
-doing useful work in the background, waiting for your next word.
+No cloud. No telemetry. No secrets leaving the machine. Every model runs on your
+own hardware, and every tool-call it makes is logged where you can read it.
 
 ---
 
@@ -31,7 +33,10 @@ doing useful work in the background, waiting for your next word.
   Conversation history lives in `inarid` (background daemon).
 - **behavior context.** Each session has an editable system prompt (behavior).
 - **project context.** A session opened in a directory picks up its `AGENTS.md`
-  (or `.inari/context.md`) automatically, so the herd knows your conventions.
+  (or `.inari/context.md`) automatically, so it follows your conventions.
+- **sandboxed tools.** The model reads, lists, greps and searches files through
+  typed tools confined to the session directory. Shell commands are separate:
+  common build and inspect commands run straight away, anything else asks first.
 - **context tracking.** Estimated token count visible in the chat header.
 - **no cloud.** Every model runs locally through Ollama.
 - **no noise.** One keyboard-driven screen (`inari` TUI), nothing you didn't ask for.
@@ -39,18 +44,19 @@ doing useful work in the background, waiting for your next word.
 
 ---
 
-## core concepts: the herd
+## choosing a model
 
-The herd is organized into tiers based on resource usage and role:
+inari runs one model per session: the one you assign it. There are no tiers, no
+background workers and no dispatcher. Concurrency is simply how many sessions you
+choose to open, each streaming independently.
 
-| tier     | role                     | size   | example model | required |
-|----------|--------------------------|--------|---------------|----------|
-| sensors  | routing / classification | 100 MB | Qwen3-Nano    | no       |
-| workers  | parallel execution       | 500 MB | Bonsai 4B     | yes      |
-| thinkers | architect / chat         | 1 GB   | Bonsai 8B     | yes      |
+Models are curated by the memory they need rather than by role. See
+[SPEC.md](SPEC.md#61-ollama-model-curation) for the current picks per hardware
+size, and run `inari doctor` to check what you already have pulled.
 
-Runners are optional agents the thinker dispatches for background work.
-The thinker is the "Head Inari" - the one you talk to directly.
+One thing worth knowing when you pick: the listed `size` is the **resident**
+footprint once loaded, which is what decides whether a model fits your machine.
+It is not the download. `gemma4:e2b` loads in 1.7 GB but pulls 7.2 GB.
 
 ---
 
@@ -107,8 +113,7 @@ only needed to end it immediately.
     { "name": "search",     "command": "mcp-search",     "args": [] }
   ],
   "models": {
-    "thinker": "gemma4:e2b",
-    "runner":  ""
+    "thinker": "gemma4:e2b"
   },
   "shell": {
     "allowlist": ["go", "make", "git", "ls", "cat", "find"]

@@ -6,11 +6,14 @@ Security-first, minimalist local AI orchestrator.
 
 ## 1. Goals
 
-- Raise the bar on local LLM/SLM performance - through better context, tooling, and orchestration, make small models punch above their weight.
-- Run and orchestrate local LLMs (via Ollama) from a single terminal UI.
-- Keep the security surface minimal: no network exposure, no cloud dependencies.
-- Support parallel model execution with explicit resource budgeting.
-- Remain inspectable: all tool-calls are audited and visible to the operator.
+**inari is a terminal coding assistant driven by local models.** every goal below
+serves that. goals that did not are recorded as closed decisions in §12 rather
+than left standing as aspirations nothing funds.
+
+- Work on real projects from the terminal: a session opens in a directory, sees its layout and conventions, and reaches its files through typed, sandboxed tools.
+- Run entirely on local models via Ollama: no cloud dependency, no network exposure, nothing leaving the machine.
+- Keep the operator in the loop: every tool-call is audited, and anything outside the pre-consented set asks before it runs.
+- Run several sessions concurrently without one blocking another.
 - Stay fast on ordinary hardware: an interactive turn's cost (reasoning budget, prefill, render) is budgeted and measured against §6.3, never inherited from backend defaults.
 
 ## 2. Non-Goals
@@ -46,11 +49,11 @@ designing abstractions too early produces interfaces that fit the first implemen
 
 ### 2.2 Terminology
 
-- **session** - a persistent conversation container: cwd, model assignment, message history, tags. this is what the TUI's `Sessions` view lists and lets you create/select. a session on its own does nothing autonomous, so calling it an "agent" would overstate it - the view was renamed from `Agents` to `Sessions` for exactly this reason (see Done log).
-- **agent** - an actor that does something on its own initiative. always qualified by tier, never used bare:
-  - **thinker agent** - the model you converse with directly inside a session (the "Head Inari"). foreground, turn-by-turn, driven by the user.
-  - **runner agent** - a model dispatched to do background work (intent classification, sub-tasks, tool calls) without blocking the thinker or waiting on the user each step.
-- config's `models.thinker`/`models.worker`/`models.sensor` are now `models.thinker`/`models.runner`: worker and sensor were consolidated into one runner tier since neither had a real consumer yet (see §6) and keeping them split was guessing at a shape - splitting the tier back out is easy once actual routing logic needs a faster/cheaper classification pass than the runner's execution pass.
+- **session** - a persistent conversation container: cwd, model assignment, message history, tags. this is what the TUI's `Sessions` view lists and lets you create and select. a session does nothing on its own initiative, which is why the view is not called `Agents`.
+- **model** - the local model assigned to a session. inari has exactly one model role: the one you talk to. there is no dispatcher, no background worker, and no tier hierarchy; §12 records why the earlier sensor/worker/thinker/runner scheme was removed rather than completed.
+- **builtin** - one of the six typed, cwd-sandboxed tools inarid declares to the model (§4.6). deliberately distinct from `execute_shell_command`, which is neither typed nor path-sandboxed (§8.4).
+- **hardware tier** - the `4gb`/`8gb`/`16gb`/`32gb` rows in §6.1. these size a model against available memory. they are not roles, and nothing dispatches between them.
+- `models.thinker` in `config.json` names the model assigned to new sessions. `models.runner` is **deprecated and unread** by anything except `doctor`, which prints a warning saying so; it is scheduled for removal.
 
 ---
 
@@ -70,7 +73,7 @@ section.
 - [x] `[inarid]` `config.json` parsed at startup (created from defaults if absent); XDG path `~/.config/inari/config.json`.
 - [x] `[inarid]` MCP connectors spawned as child processes.
 
-#### M2 - Herd UI
+#### M2 - Sessions UI
 - [x] `[inarit]` Bubble Tea table renders active sessions.
 - [x] `[inarit/inarid]` sessions update in real time from daemon events.
 - [x] `[inarit]` keyboard navigation (select, quit).
@@ -78,7 +81,7 @@ section.
 #### M3 - Ollama Integration & Chat
 - [x] `[inarid]` daemon POSTs to Ollama `/api/chat` and streams tokens. *(the memory-budget throttle originally scoped here was never wired; the `scheduler` package exists but is unused. tracked as an Ideas item below.)*
 - [x] `[inarit/inarid]` token stream forwarded to the inarit chat view.
-- [x] `[inarit]` interactive `i` chat view wires to Head Inari (Thinker tier).
+- [x] `[inarit]` interactive chat view wires to the session's assigned model.
 - [x] `[inarid]` message history scoped to session; detach/reattach preserves session state.
 
 ### Near-term
@@ -91,10 +94,11 @@ section.
 - [ ] `[inarid]` `[easy]` **stop presenting prefill rate as throughput** - the `turn.metrics` record derives its prefill numbers from `prompt_eval_count` over `prompt_eval_duration`, but that count reports tokens *submitted*, not tokens *computed*: on a prefix-cache hit it stays at the full history length while the duration collapses, so the derived rate reads ~10,000 tok/s and means nothing (§6.3.2). scope: drop or rename any prefill-rate field, and add a cache-hit signal derived from `prompt_eval_duration` instead, which is the only counter that can see it. this is the same defect class as the `make lint` staticcheck report: an instrument that answers confidently without measuring.
 - [ ] `[inari]` `[medium]` **`make bench-turn`: make the §6.3 numbers reproducible** - every figure in the cost model was measured by hand against `/api/chat`. without a committed harness they rot into folklore the moment ollama or a model tag moves. scope: a small target that drives a fixed prompt set through the configured thinker with thinking on and off, reports medians of n runs for decode tokens, wall clock and prefill, and prints the reference-machine row alongside so drift is visible. it must **not** assert a threshold; hardware varies too much for that to be anything but a flaky test.
 - [ ] `[inarid]` `[medium]` **move prompt-based tool calling to a JSON schema** - §4.6's fallback still specifies `format: "json"`, which only constrains the output to *some* valid JSON and leaves field names, types and required keys to chance. ollama now accepts a full JSON **schema** in `format`, enforced by constrained decoding, which makes an off-schema tool call unrepresentable rather than merely unlikely, and skips the tokens the model would have spent deciding on formatting. scope: emit a schema per declared tool and select it when the fallback path is active. the caveat to respect: small quantised models degrade on deeply nested schemas, so keep the tool schemas flat (one object, scalar fields) rather than modelling the whole tool union in one nested shape.
+- [ ] `[inarid]` `[medium]` **validate shell argument paths before auto-approving** - implements the §8.4 decision. `shellAutoApproved` currently splits out the binary base name and looks it up in the allowlist; arguments are never inspected, so `cat` plus an absolute path runs with no prompt. scope: resolve each argument that looks like a path against the session `cwd` using the same `sandboxPath` the typed builtins use, and return false from the gate when any of them escapes, which drops the call into the existing approval prompt rather than blocking it. the sharp edge to test: arguments that are **not** paths (`-l`, `--porcelain`, a grep pattern, a make target) must not be mistaken for escaping paths, or every ordinary call starts prompting and the feature is worse than useless.
+- [ ] `[inarid]` `[easy]` **delete the orchestration leftovers** - follows the §12 decision to close the herd direction. `internal/scheduler` (112 lines) has zero call sites; `memory_budget_mb` is a config field nothing reads; `models.runner` is read only by `doctor`, which prints a warning that the tier is unused. scope: remove the package, remove both config fields, and drop the doctor lines that report them. keeping dead code that implements a cancelled goal is how the goal creeps back.
 
 ### Ideas
 - [ ] `[inarid]` `[hard]` **scripting layer for agent execution (Yaegi vs Deno vs status quo)** - evaluated replacing or augmenting the model's `execute_shell_command` path with an embedded interpreter. **decision so far: not the in-process Go interpreter as pitched.** the deciding axis is the trust boundary (the *model* is the untrusted author), not execution latency (subprocess spawn ~30ms is immaterial against multi-second inference and the render hot path, both measured). options: (a) **Yaegi** (in-process Go) is fast and zero-external-dependency, but has no real sandbox: disabling `unsafe`/`syscall` still leaves `os`/`os/exec`/`net`, so model-authored Go is as dangerous as shell or worse and has no allowlist concept; only safe for *user*-authored plugins/macros (trusted, config-time), never model output. (b) **Deno** is a genuine deny-by-default permission sandbox (`--allow-read=<cwd>` only, no net/write/spawn), the safer runtime for model-authored code, but adds an external runtime and re-adds process spawn. (c) **status quo + more typed builtins** (chosen for now): small local models emit structured tool calls far more reliably than compilable Go/JS, so expanding the pure-Go builtin surface (shipped: `find_files`, `read_lines`; plus allowlisted `awk`/`sed`/`jq`) covers the need with no new runtime. revisit Yaegi only as a user-plugin extension mechanism, or Deno if model-authored scripting becomes a hard requirement.
-- [ ] `[inarid]` `[medium]` **memory-budget throttle (wire the scheduler)** - the `internal/scheduler` semaphore (Acquire/Release, budget from `config.json` `memory_budget_mb`) exists as a library but is wired to nothing; the S10 cleanup (2026-07-17) removed the dead daemon plumbing that created it without using it. scope: Acquire before a stream's generation and Release after, keyed by model tier, so concurrent sessions respect the configured memory budget instead of streaming unthrottled.
 - [ ] `[inarit/inarid]` `[hard]` **long-term task planning from high-level prompts** - decompose a high-level user goal into a tracked, multi-step plan that the session executes and checks off. exploratory; no concrete entry point yet, so parked here until the shape is clearer.
 - [ ] `[inarit]` `[medium]` **pre-send prompt optimisation (autocorrect)** - the prompt-optimisation half of the pre-send intercept layer (its security/validation half is **pre-send message intercept**, near-term, which stays daemon-side as the authoritative gate). client-side because it is a UX affordance, not a security control: before the message leaves the TUI, lightly rewrite it to improve model accuracy - fix obvious typos, expand terse fragments, normalise formatting - without altering intent. the user must preview the rewrite in the input box and accept or reject it before send (or toggle the feature off); it never silently distorts what the user asked.
 - [ ] `[inarit]` `[hard]` **chat viewport character selection** - build on line selection to add character-level precision: within the selected rows, re-parse ANSI sequences to locate byte ranges and inject highlight styles mid-sequence, so a drag can start and end partway through a line. builds on the shipped line-selection work (see Done). parked as exploratory: whole-row selection already covers the common copy case, so the mid-sequence ANSI re-parsing is not yet worth the complexity.
@@ -103,17 +107,12 @@ section.
   - **MCP filesystem connector (layer 3)** - once the tool-call loop exists, replace built-in tools with `@modelcontextprotocol/server-filesystem` spawned via mcp-go. this is a natural extension of the MCP integration work below.
   - MCP integration - replace `internal/mcp` with `github.com/mark3labs/mcp-go`; connectors (Linear, Slack, Google Drive, etc.) configured via `config.json`
 - [ ] `[inarid]` `[medium]` **destructive action prevention (§8.2)**: cwd enforcement (`sandboxPath` in `internal/ipc/tools.go`) and a tool-call loop cap (`maxToolRounds = 10` in `internal/ipc/stream.go`) are shipped, alongside per-call size caps; remaining scope is a true file-op-count cap and dry-run previews for caution-tier tool-calls. risk-tiered auto-approval is done (safe builtins auto-execute, allowlisted `execute_shell_command` binaries auto-execute, unlisted ones confirm)
-- [ ] `[inarid]` `[hard]` **multi-model orchestration** - merged: routing needs a difficulty signal to route *on*, and attaching several models to one session is the surface that routing would drive, so the three were one feature described three times. original entries:
-  - multiple models per session - allow attaching different models to a single session for collaborative discussions and task execution
-  - multi-model routing - a runner agent classifies intent and either handles the request itself or escalates to the thinker agent
-  - **task difficulty/effort classification** - investigate how to define and score task difficulty, complexity, and effort (e.g. token count, tool-call depth, reasoning hops) so inarid can automatically select the appropriate model tier (runner vs. thinker) rather than relying on manual session config
 - [ ] `[inarid]` `[medium]` **prompt-based tool calling** - for models without native function-calling support, inject tool definitions as plain text into the system prompt and set `format: "json"`; inarid parses the JSON response to detect tool calls. select mode via session config or auto-detect from model name. makes layer 2 work on any instruction-following model (hermes-3-pro, qwen3-coder, etc.)
 - [ ] `[inarid]` `[medium]` **second provider backend** - merged: the abstraction item and the vLLM item were the same work seen from two ends, and the former already said it overlapped the endpoint-profiles item. the interface exists (§2.1); what is missing is one more concrete implementation to test its shape against. the candidate matters less than having a second one at all. original entries:
   - **provider abstraction** - the `Provider` interface already exists (`internal/provider/provider.go`: Chat, ChatStream, LoadModel, UnloadModel, ListModels, ListRunning, Ping) and inarid's core already talks only to it. remaining work is a second concrete provider (vLLM, LM Studio, llama.cpp server, or a cloud API) selected via `provider` in `config.json`; overlaps with the local endpoint profiles item above.
   - consider adding vLLM as an alternative backend to Ollama - vLLM is OpenAI-compatible and may offer better throughput on CUDA hardware; evaluate alongside the local endpoint profiles item as a concrete second backend candidate
 - [ ] `[inarid]` `[hard]` **context compression / eviction** - narrowed by measurement (§6.3.2): KV-cache reuse across turns and prefix caching at the provider level are **already working** and need nothing built here; a follow-up turn that preserves its prefix re-prefills 16x faster than a cold one, and inari's frozen system prompt is what keeps that hit. what remains is the part the backend cannot decide for inari: *what* to drop. scope: selective message eviction and rolling summary compression, both of which rewrite history and therefore forfeit the prefix cache for one turn by construction (§6.4 invariant 2). they have to pay for themselves across the turns that follow, which argues for compacting rarely and deeply rather than on every threshold crossing.
 - [ ] `[inarid]` `[hard]` **vector store / RAG context** - replace or augment flat JSON session storage with a semantic retrieval layer. progression: (1) sqlite as structured store; (2) sqlite-vec (sqlite vector extension) for local embeddings - single file, no external service, fits the Go daemon cleanly; (3) full RAG pipeline with chunking, a local embedding model (~100MB), and ranked context injection. at query time, the user message is embedded and the top-k semantically similar chunks are injected into the prompt rather than the full history dump. benefit: small models see only relevant context, reducing token pressure and improving response quality. a global "master context" store (outside any cwd) could be maintained alongside per-session history, giving all sessions access to persistent personal or cross-project knowledge.
-- [ ] `[inarid]` `[medium]` consider exposing Ollama as an MCP server so other models - local or cloud - can be invoked as tools by the default model (`gemma4:e2b`); this lets the thinker agent delegate sub-tasks to specialised models (e.g. a coding runner) via the existing MCP tool-call loop rather than requiring a separate session
 
 ### Done
 
@@ -470,12 +469,16 @@ queuing was explicitly not chosen: a silently queued message submitted minutes l
 
 ## 6. Resource & Performance Model
 
-The herd uses a tiered scheduling system to manage local hardware resources:
+§6.1 curates models by the hardware they fit; §6.3 measures what a turn actually
+costs on that hardware. there is no scheduler and no tier hierarchy: inari runs
+the one model assigned to the session, and concurrency is bounded by how many
+sessions the operator opens.
 
-- **Runners (Background execution):** Low/mid-priority, small-to-standard context. Dispatched by the thinker agent for intent classification and background/parallel task execution; consolidates the earlier separate sensor and worker tiers (see §2.2) since neither had a real consumer of its own.
-- **Thinkers (Reasoning):** High-priority, large context. Used for interactive chat and complex architectural reasoning; the agent the user talks to directly.
-
-Memory budget is enforced via `memory_budget_mb` in `config.json`. The scheduler blocks model loading if the budget would be exceeded.
+**`memory_budget_mb` is not enforced.** the `internal/scheduler` semaphore that
+would have enforced it has no call sites anywhere in the tree, so the budget is a
+config field that does nothing. previous wording here claimed the scheduler
+"blocks model loading if the budget would be exceeded", which was never true.
+both the field and the package are scheduled for removal (§12).
 
 ### 6.1 Ollama Model Curation
 
@@ -893,6 +896,21 @@ these are not exclusive; 1 and 3 compose well. what should **not** happen is
 leaving the spec claiming a sandbox while the shell tool sits outside it.
 
 
+
+**decision taken.** options 1 and 3 above, together:
+
+- **validate argument paths before auto-approving.** any argument that resolves outside the session `cwd`, whether absolute or via `../`, drops the call out of the auto-approve path and into the normal user prompt. this closes the `cat /absolute/outside` case, which is the cheap and silent one.
+- **state plainly that the allowlist is not a boundary.** it is operator pre-consent for a class of command in a directory the operator chose to open. it cannot contain `make` or `go`, and it is not claimed to.
+
+option 2 (shrinking the allowlist) was **not** taken: moving `go`, `make` and
+`git` to prompt-on-use would put a confirmation in the middle of the build-and-test
+loop inari exists to serve, and a prompt that fires constantly is one the operator
+learns to dismiss without reading, which buys nothing.
+
+the residual risk is therefore explicit and accepted: a session opened in a
+directory you do not trust can run that directory's `Makefile`. the boundary is
+the operator's choice of directory, not the allowlist.
+
 ---
 
 ## 9. Development & Debugging
@@ -1051,17 +1069,21 @@ architectural choices and the reason behind each. performance decisions have the
 own table in §6.5; this one covers everything else. an entry here is settled: to
 reverse one, replace the row rather than arguing against it in a new section.
 
-| decision               | chosen                                                               | why                                                                                                                         |
-| :--------------------- | :------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
-| binary layout          | one binary; first argument selects the mode (§4.2.1)                 | one artifact to install, and client and daemon are always the same build, so the private protocol never negotiates versions |
-| transport              | JSON-RPC 2.0 over a Unix socket at 0600 (§4.4)                       | local-only by construction; no TCP surface to defend                                                                        |
-| streaming              | a dedicated UDS connection per `session.stream` call (§4.4)          | several chat views stream at once without head-of-line blocking on the shared control connection                            |
-| history ownership      | the daemon owns history; clients are stateless (§4.3)                | restarting the TUI or the daemon loses nothing, and a client never has to be trusted with the record                        |
-| session persistence    | one JSON file per session, written to `.tmp` then renamed (§4.3.1)   | atomic by rename, readable by hand, no database dependency; sqlite stays available if querying is ever needed               |
-| tier model             | `thinker` and `runner` only; `sensor` and `worker` merged (§2.2)     | neither of the split tiers had a consumer, and splitting them again is easy once routing logic needs it                     |
-| backend abstraction    | `Provider` interface extracted from the working ollama client (§2.1) | pulled from real code rather than invented upfront; still untested against a second backend                                 |
-| offline behaviour      | block sending and say so; never queue (§5.2.1)                       | a message silently delivered minutes later, possibly to a cold model, surprises more than a clear refusal                   |
-| project config trust   | project files may set only prompt and excludes, never infra (§4.7)   | opening a session in an untrusted clone must not widen the shell allowlist or redirect the backend                          |
-| shell allowlist status | **open question**; today it is a convenience, not a boundary (§8.4)  | the gate reads the binary name only, and `make`/`go` execute code the session directory controls                            |
+| decision                   | chosen                                                                                | why                                                                                                                                                                                                               |
+| :------------------------- | :------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| binary layout              | one binary; first argument selects the mode (§4.2.1)                                  | one artifact to install, and client and daemon are always the same build, so the private protocol never negotiates versions                                                                                       |
+| transport                  | JSON-RPC 2.0 over a Unix socket at 0600 (§4.4)                                        | local-only by construction; no TCP surface to defend                                                                                                                                                              |
+| streaming                  | a dedicated UDS connection per `session.stream` call (§4.4)                           | several chat views stream at once without head-of-line blocking on the shared control connection                                                                                                                  |
+| history ownership          | the daemon owns history; clients are stateless (§4.3)                                 | restarting the TUI or the daemon loses nothing, and a client never has to be trusted with the record                                                                                                              |
+| session persistence        | one JSON file per session, written to `.tmp` then renamed (§4.3.1)                    | atomic by rename, readable by hand, no database dependency; sqlite stays available if querying is ever needed                                                                                                     |
+| tier model                 | `thinker` and `runner` only; `sensor` and `worker` merged (§2.2)                      | neither of the split tiers had a consumer, and splitting them again is easy once routing logic needs it                                                                                                           |
+| backend abstraction        | `Provider` interface extracted from the working ollama client (§2.1)                  | pulled from real code rather than invented upfront; still untested against a second backend                                                                                                                       |
+| offline behaviour          | block sending and say so; never queue (§5.2.1)                                        | a message silently delivered minutes later, possibly to a cold model, surprises more than a clear refusal                                                                                                         |
+| project config trust       | project files may set only prompt and excludes, never infra (§4.7)                    | opening a session in an untrusted clone must not widen the shell allowlist or redirect the backend                                                                                                                |
+| shell allowlist status     | **open question**; today it is a convenience, not a boundary (§8.4)                   | the gate reads the binary name only, and `make`/`go` execute code the session directory controls                                                                                                                  |
+| product scope              | inari is a terminal coding assistant; the herd/orchestration direction is closed (§1) | the tool surface built (typed file reads, grep, shell, cwd context, AGENTS.md) is a coding toolkit; nothing in it served general chat specifically, and holding both meant neither could break a tie              |
+| the herd                   | removed from goals, terminology and README; not deferred                              | `runner` had no consumer beyond a doctor warning that said so, and `internal/scheduler` had zero call sites. a goal every planned item ignores is decoration; it returns as a goal only when something dispatches |
+| "punch above their weight" | dropped as a goal; kept only as ethos                                                 | unfalsifiable as written: no threshold, no benchmark. the concrete goals (fast, secure, inspectable, in-project) carry the spec and can each be failed                                                            |
+| shell allowlist            | validate argument paths; declare the list operator pre-consent, not a boundary (§8.4) | closes the silent out-of-sandbox read without putting a prompt inside the build-and-test loop; a prompt that fires constantly gets dismissed unread                                                               |
 
 ---
