@@ -7,21 +7,23 @@
   🦊🦊  🦊🦊🦊  🦊🦊
     🦊🦊🦊🦊🦊🦊🦊
 
-  "a herd behind every idea."
+  "quiet work, good things follow."
 ```
 
 ![demo](demo.gif)
 
-In Japanese mythology, Inari is the fox god — the kami of luck, prosperity, and
+In Japanese mythology, Inari is the fox god - the kami of luck, prosperity, and
 industry. Thousands of shrines across Japan are dedicated to Inari, each guarded
 by kitsune, the foxes who serve as messengers between the spirit world and ours.
 Inari doesn't shout. It works quietly, and good things follow.
 
-**inari** is a herd of local AI minions. Intelligence that lives on your
-machine, answers to you alone, and disappears when you close the lid.
+**inari** is a terminal coding assistant driven by local models. It opens a
+session in your project, reaches its files through sandboxed tools, and answers
+in the terminal. Intelligence that lives on your machine, answers to you alone,
+and disappears when you close the lid.
 
-No cloud. No telemetry. No secrets leaving the machine. Just a quiet herd
-doing useful work in the background, waiting for your next word.
+No cloud. No telemetry. No secrets leaving the machine. Every model runs on your
+own hardware, and every tool-call it makes is logged where you can read it.
 
 ---
 
@@ -31,7 +33,10 @@ doing useful work in the background, waiting for your next word.
   Conversation history lives in `inarid` (background daemon).
 - **behavior context.** Each session has an editable system prompt (behavior).
 - **project context.** A session opened in a directory picks up its `AGENTS.md`
-  (or `.inari/context.md`) automatically, so the herd knows your conventions.
+  (or `.inari/context.md`) automatically, so it follows your conventions.
+- **sandboxed tools.** The model reads, lists, greps and searches files through
+  typed tools confined to the session directory. Shell commands are separate:
+  common build and inspect commands run straight away, anything else asks first.
 - **context tracking.** Estimated token count visible in the chat header.
 - **no cloud.** Every model runs locally through Ollama.
 - **no noise.** One keyboard-driven screen (`inari` TUI), nothing you didn't ask for.
@@ -39,18 +44,19 @@ doing useful work in the background, waiting for your next word.
 
 ---
 
-## core concepts: the herd
+## choosing a model
 
-The herd is organized into tiers based on resource usage and role:
+inari runs one model per session: the one you assign it. There are no tiers, no
+background workers and no dispatcher. Concurrency is simply how many sessions you
+choose to open, each streaming independently.
 
-| tier     | role                     | size   | example model | required |
-|----------|--------------------------|--------|---------------|----------|
-| sensors  | routing / classification | 100 MB | Qwen3-Nano    | no       |
-| workers  | parallel execution       | 500 MB | Bonsai 4B     | yes      |
-| thinkers | architect / chat         | 1 GB   | Bonsai 8B     | yes      |
+Models are curated by the memory they need rather than by role. See
+[SPEC.md](SPEC.md#61-ollama-model-curation) for the current picks per hardware
+size, and run `inari doctor` to check what you already have pulled.
 
-Runners are optional agents the thinker dispatches for background work.
-The thinker is the "Head Inari" — the one you talk to directly.
+One thing worth knowing when you pick: the listed `size` is the **resident**
+footprint once loaded, which is what decides whether a model fits your machine.
+It is not the download. `gemma4:e2b` loads in 1.7 GB but pulls 7.2 GB.
 
 ---
 
@@ -107,8 +113,7 @@ only needed to end it immediately.
     { "name": "search",     "command": "mcp-search",     "args": [] }
   ],
   "models": {
-    "thinker": "gemma4:e2b",
-    "runner":  ""
+    "thinker": "gemma4:e2b"
   },
   "shell": {
     "allowlist": ["go", "make", "git", "ls", "cat", "find"]
@@ -173,19 +178,19 @@ only these two fields are honored. infra and security settings (socket, endpoint
 The TUI is inspired by `k9s` and is entirely keyboard-driven.
 
 **sessions (main screen)**
-- `s`: new session | `m`: assign model
-- `c` / `enter`: open chat | `x`: delete session | `d`: describe
+- `a`: new session | `enter`: open chat | `x`: delete session
 - `/`: filter sessions (type to narrow, `esc` clears)
-- `l`: view logs | `r`: refresh | `q`: quit
+- `q` / `esc`: quit
+- assigning a model, describe, logs and refresh live in chat as slash commands (`/model`, `/describe`, `/logs`, `/refresh`), since chat owns every shared command
 
-**model selector** (opened with `m` or `ctrl+o`)
+**model selector** (opened with `ctrl+o`)
 - `enter`: assign / pull | `u`: unload from RAM | `d`: delete from disk
 - `q` / `esc`: cancel
 
 **chat**
 - `enter`: send message | `ctrl+o`: change model
 - `!`: enter shell mode. the prompt becomes `[sh]` and every line you send runs in the session directory, skipping the model (e.g. `git status`, `ls | wc -l`); output shows in the chat and the model sees it too. the mode stays on, so a second command needs no prefix; press `backspace` on an empty input to return to chat
-- `ctrl+t`: tools panel | `ctrl+p`: command palette | `ctrl+g`: help
+- `ctrl+p`: command palette | `/tools`: tools panel | `/help`: help
 - `↑` / `↓`: input history | `esc`: stop response / clear slash input
 
 **pop-up modals** (help, describe, logs, tools, model selector, theme)
